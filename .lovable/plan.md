@@ -1,29 +1,29 @@
-# Documento único consolidado
+# Corrigir conexão Slack
 
-## Objetivo
-Gerar um único arquivo Markdown que consolide toda a documentação atualmente espalhada em `docs/` (README + 01 a 09) em uma versão linear, pronta para compartilhar/imprimir/anexar.
+## Diagnóstico
 
-## Entregável
-- `docs/FLOWCRM.md` — documento único com TOC no topo e todas as 9 seções concatenadas em ordem, com cabeçalhos rebaixados (h1 → h2, h2 → h3) para hierarquia consistente.
+1. Você tem 2 conexões Slack criadas na workspace Lovable, mas **nenhuma está vinculada a este projeto**. Sem o vínculo, a variável `SLACK_API_KEY` não fica disponível nas edge functions (`slack-connect`, `slack-send-test`), então elas sempre retornam `SLACK_API_KEY not configured`.
+2. O botão "Adicionar ao Slack" em `src/components/setup/StepSlack.tsx` (`handleOAuthConnect`) hoje **apenas exibe um toast** sobre `SLACK_CLIENT_ID/SECRET`. Ele nunca chama a edge function `slack-connect`, então a UI nunca sai do estado "idle".
 
-## Conteúdo (ordem)
-1. Capa + visão geral (do `README.md`)
-2. Índice navegável (anchors internos)
-3. Arquitetura
-4. Schema do banco
-5. Auth & Onboarding
-6. Módulos
-7. Integrações
-8. Convenções
-9. Edge Functions
-10. Checklist pós-remix
-11. Estendendo o projeto
+## Passos
 
-## Decisões
-- **Manter** os 10 arquivos atuais em `docs/` (não apagar) — o consolidado é adicional, útil para distribuição offline. Caso prefira substituir, basta pedir.
-- Sem mudanças de conteúdo: apenas concatenação + ajuste de níveis de heading + TOC.
-- Sem alterações em código de aplicação.
+### 1. Vincular a conexão Slack ao projeto
+Usar `standard_connectors--connect` com `connector_id: "slack"`. Você seleciona qual das duas conexões existentes ("lucas's Slack" ou "lucas's Slack (1)") vincular ao projeto FlowCRM. Isso injeta automaticamente `SLACK_API_KEY` como env var nas edge functions.
 
-## Fora de escopo
-- Reescrever ou resumir o conteúdo existente.
-- Gerar PDF/DOCX (apenas Markdown, conforme pedido).
+### 2. Corrigir o fluxo do botão "Adicionar ao Slack"
+Reescrever `handleOAuthConnect` em `src/components/setup/StepSlack.tsx` para:
+- Chamar `supabase.functions.invoke("slack-connect", { body: { org_id } })` diretamente (sem exigir bot token manual, pois o gateway Lovable já autentica).
+- Ler `workspace_name` / `channels` da resposta e marcar `connectionStatus = "connected"`.
+- Mostrar mensagem de erro clara em caso de falha.
+- Remover / esconder a seção "Configurar manualmente com Bot Token" (ficará como fallback opcional apenas).
+
+### 3. Validar
+- Abrir a página de Setup → passo Slack → clicar "Adicionar ao Slack".
+- Confirmar que o card verde "Conectado ao workspace: …" aparece.
+- Clicar "Enviar mensagem de teste" e verificar chegada no canal configurado.
+
+## Detalhes técnicos
+
+- As edge functions `slack-connect` e `slack-send-test` já estão implementadas corretamente para o gateway Lovable (usam `LOVABLE_API_KEY` + `SLACK_API_KEY` + `https://connector-gateway.lovable.dev/slack/api`). Não precisam ser alteradas.
+- Após o vínculo, `SLACK_API_KEY` aparecerá em `fetch_secrets`. Nenhum secret manual precisa ser adicionado.
+- O trecho "Bot Token manual" pode continuar existindo como opção avançada, mas deixa de ser o único caminho.

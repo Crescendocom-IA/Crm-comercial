@@ -37,12 +37,27 @@ export function StepSlack({ orgId, onComplete, setStepData }: SetupStepProps) {
 
   const handleOAuthConnect = async () => {
     setConnectionStatus("connecting");
-    // In production, this opens Slack OAuth popup
-    toast({
-      title: "Configuração necessária",
-      description: "Configure SLACK_CLIENT_ID e SLACK_CLIENT_SECRET para ativar OAuth do Slack.",
-    });
-    setTimeout(() => setConnectionStatus("idle"), 1500);
+    try {
+      const { data, error } = await supabase.functions.invoke("slack-connect", {
+        body: { org_id: orgId },
+      });
+      if (error) throw error;
+      if (data?.workspace_name) {
+        setConnectionStatus("connected");
+        setWorkspaceName(data.workspace_name);
+        setWorkspaceUrl(data.workspace_url || "");
+        toast({ title: `Conectado ao ${data.workspace_name}!` });
+      } else {
+        throw new Error(data?.error || "Falha ao conectar");
+      }
+    } catch (e: any) {
+      setConnectionStatus("error");
+      toast({
+        title: "Erro ao conectar Slack",
+        description: e?.message || "Verifique se a conexão Slack está vinculada ao projeto no Lovable.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleVerifyToken = async () => {

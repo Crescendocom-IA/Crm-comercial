@@ -427,6 +427,9 @@ function WebhooksTab({ orgId }: { orgId: string | null }) {
                   </div>
                   <div className="flex items-center gap-1">
                     <Switch checked={wh.is_active} onCheckedChange={(v) => toggleWebhook(wh.id, v)} />
+                    <Button variant="ghost" size="icon" className="h-7 w-7" title="Enviar teste" onClick={() => testWebhook(wh)}>
+                      <Send className="h-3 w-3" />
+                    </Button>
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deleteWebhook(wh.id)}>
                       <Trash2 className="h-3 w-3" />
                     </Button>

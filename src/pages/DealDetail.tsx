@@ -22,6 +22,7 @@ import {
   Phone, Mail, FileText, CheckSquare, CalendarDays, Edit2, Check, X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { fireWebhook } from "@/lib/webhooks";
 import type { Database } from "@/integrations/supabase/types";
 
 type Deal = Database["public"]["Tables"]["deals"]["Row"];
@@ -152,6 +153,7 @@ export default function DealDetail() {
   const markAsWon = async () => {
     await supabase.from("deals").update({ status: "won" }).eq("id", deal.id);
     setDeal({ ...deal, status: "won" });
+    fireWebhook(orgId, "deal.won", { deal_id: deal.id, title: deal.title, value: deal.value });
     toast({ title: "Negócio marcado como ganho! 🎉" });
   };
 
@@ -159,6 +161,7 @@ export default function DealDetail() {
     const reason = lossNote ? `${lossReason}: ${lossNote}` : lossReason;
     await supabase.from("deals").update({ status: "lost", loss_reason: reason }).eq("id", deal.id);
     setDeal({ ...deal, status: "lost" });
+    fireWebhook(orgId, "deal.lost", { deal_id: deal.id, title: deal.title, loss_reason: reason });
     setLossModalOpen(false);
     toast({ title: "Negócio marcado como perdido" });
   };

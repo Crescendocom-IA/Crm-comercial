@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/table";
 import {
   MessageSquare, Webhook, Key, Code, Plus, Trash2, Copy,
-  Check, ExternalLink, RefreshCw, Eye, EyeOff, Loader2, Globe,
+  Check, ExternalLink, RefreshCw, Eye, EyeOff, Loader2, Globe, Send,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -360,6 +360,29 @@ function WebhooksTab({ orgId }: { orgId: string | null }) {
   const toggleWebhook = async (id: string, active: boolean) => {
     await supabase.from("webhooks").update({ is_active: active } as any).eq("id", id);
     fetchWebhooks();
+  };
+
+  const testWebhook = async (wh: WebhookRow) => {
+    if (!orgId) return;
+    toast({ title: "Enviando teste...", description: wh.url });
+    const { data, error } = await supabase.functions.invoke("dispatch-webhook", {
+      body: {
+        org_id: orgId,
+        event: "test",
+        data: { message: "Teste manual do CRM", webhook_id: wh.id, webhook_name: wh.name },
+      },
+    });
+    if (error) {
+      toast({ title: "Falha ao disparar teste", description: error.message, variant: "destructive" });
+      return;
+    }
+    const dispatched = (data as any)?.dispatched ?? 0;
+    const failed = (data as any)?.failed ?? 0;
+    toast({
+      title: dispatched > 0 ? "Teste enviado ✓" : "Nenhum destino recebeu",
+      description: `Sucesso: ${dispatched} • Falha: ${failed}`,
+      variant: failed > 0 && dispatched === 0 ? "destructive" : "default",
+    });
   };
 
   const inboundUrl = orgId

@@ -12,6 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { fireWebhook } from "@/lib/webhooks";
 import type { Database } from "@/integrations/supabase/types";
 
 type Company = Database["public"]["Tables"]["companies"]["Row"];
@@ -44,13 +45,14 @@ export function ContactCreateModal({ open, onOpenChange, onCreated, companies }:
 
   const handleCreate = async () => {
     if (!orgId || !validate()) return;
-    const { error } = await supabase.from("contacts").insert({
+    const { data: inserted, error } = await supabase.from("contacts").insert({
       org_id: orgId, first_name: form.first_name, last_name: form.last_name || null,
       email: form.email || null, phone: form.phone || null, title: form.title || null,
       status: form.status, linkedin_url: form.linkedin_url || null, owner_id: user?.id,
       company_id: form.company_id || null,
-    });
+    }).select().single();
     if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
+    fireWebhook(orgId, "contact.created", inserted ?? {});
     onOpenChange(false);
     setForm({ first_name: "", last_name: "", email: "", phone: "", title: "", status: "lead", linkedin_url: "", company_id: "" });
     onCreated();

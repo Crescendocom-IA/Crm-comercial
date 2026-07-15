@@ -100,13 +100,8 @@ serve(async (req) => {
       targets.map(async (t) => {
         const r = await postWithTimeout(t.url, payload);
         console.log(`  -> ${t.source} ${t.url} :: ${r.status} ${r.ok ? "OK" : "FAIL"} ${r.body.slice(0, 120)}`);
-        if (t.source === "webhooks" && t.id) {
-          if (r.ok) {
-            await sb.from("webhooks").update({ last_triggered_at: new Date().toISOString() }).eq("id", t.id);
-          } else {
-            await sb.rpc("noop").catch(() => {});
-            await sb.from("webhooks").update({ failure_count: ((whs?.find((w: any) => w.id === t.id) as any)?.failure_count ?? 0) + 1 }).eq("id", t.id).catch(() => {});
-          }
+        if (t.source === "webhooks" && t.id && r.ok) {
+          await sb.from("webhooks").update({ last_triggered_at: new Date().toISOString() }).eq("id", t.id);
         }
         return { url: t.url, source: t.source, ok: r.ok, status: r.status };
       }),

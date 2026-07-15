@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/popover";
 import { Building2, X, Search, Users, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { fireWebhook } from "@/lib/webhooks";
 
 interface CompanyCreateModalProps {
   open: boolean;
@@ -99,6 +100,8 @@ export function CompanyCreateModal({ open, onOpenChange, onCreated }: CompanyCre
       owner_id: user?.id,
     }).select("id").single();
     if (error || !data) { toast({ title: "Erro", description: error?.message, variant: "destructive" }); return; }
+    fireWebhook(orgId, "company.created", { id: data.id, name: form.name });
+
 
     // Link selected contacts to the new company
     if (selectedContactIds.length > 0) {

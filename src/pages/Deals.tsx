@@ -23,6 +23,7 @@ import { DealsKanban } from "@/components/crm/DealsKanban";
 import { DealsList } from "@/components/crm/DealsList";
 import { DealsForecast } from "@/components/crm/DealsForecast";
 import { DealsFilters, type DealFilters } from "@/components/crm/DealsFilters";
+import { fireWebhook } from "@/lib/webhooks";
 import type { Database } from "@/integrations/supabase/types";
 
 type Deal = Database["public"]["Tables"]["deals"]["Row"];
@@ -233,14 +234,15 @@ export default function Deals() {
       }).eq("id", editing.id);
       if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
     } else {
-      const { error } = await supabase.from("deals").insert({
+      const { data: inserted, error } = await supabase.from("deals").insert({
         org_id: orgId, title: form.title!, value: Number(form.value) || 0,
         currency: form.currency || "BRL", stage_id: form.stage_id,
         probability: Number(form.probability) || 0, close_date: form.close_date,
         status: "open", owner_id: form.owner_id || user?.id,
         contact_id: form.contact_id || null, company_id: form.company_id || null,
-      });
+      }).select().single();
       if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
+      fireWebhook(orgId, "deal.created", inserted ?? {});
     }
     setSheetOpen(false);
     fetchData();
@@ -249,6 +251,7 @@ export default function Deals() {
 
   const markAsWon = async (dealId: string) => {
     await supabase.from("deals").update({ status: "won" }).eq("id", dealId);
+    fireWebhook(orgId, "deal.won", { deal_id: dealId });
     fetchData();
     toast({ title: "Negócio marcado como ganho! 🎉" });
   };
@@ -264,6 +267,7 @@ export default function Deals() {
     if (!lossDealId) return;
     const reason = lossNote ? `${lossReason}: ${lossNote}` : lossReason;
     await supabase.from("deals").update({ status: "lost", loss_reason: reason }).eq("id", lossDealId);
+    fireWebhook(orgId, "deal.lost", { deal_id: lossDealId, loss_reason: reason });
     setLossModalOpen(false);
     fetchData();
     toast({ title: "Negócio marcado como perdido" });
@@ -276,9 +280,11 @@ export default function Deals() {
       toast({ title: `${ids.length} negócios excluídos` });
     } else if (action === "won") {
       await Promise.all(ids.map((id) => supabase.from("deals").update({ status: "won" }).eq("id", id)));
+      ids.forEach((id) => fireWebhook(orgId, "deal.won", { deal_id: id }));
       toast({ title: `${ids.length} negócios marcados como ganhos` });
     } else {
       await Promise.all(ids.map((id) => supabase.from("deals").update({ status: "lost" }).eq("id", id)));
+      ids.forEach((id) => fireWebhook(orgId, "deal.lost", { deal_id: id }));
       toast({ title: `${ids.length} negócios marcados como perdidos` });
     }
     setSelectedDeals(new Set());

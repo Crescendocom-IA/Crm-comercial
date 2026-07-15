@@ -1,29 +1,57 @@
-# Corrigir conexão Slack
-
 ## Diagnóstico
 
-1. Você tem 2 conexões Slack criadas na workspace Lovable, mas **nenhuma está vinculada a este projeto**. Sem o vínculo, a variável `SLACK_API_KEY` não fica disponível nas edge functions (`slack-connect`, `slack-send-test`), então elas sempre retornam `SLACK_API_KEY not configured`.
-2. O botão "Adicionar ao Slack" em `src/components/setup/StepSlack.tsx` (`handleOAuthConnect`) hoje **apenas exibe um toast** sobre `SLACK_CLIENT_ID/SECRET`. Ele nunca chama a edge function `slack-connect`, então a UI nunca sai do estado "idle".
+O motivo do n8n não receber nada é simples: **o CRM nunca dispara os webhooks de saída**.
 
-## Passos
+O que existe hoje:
+- Tela `Configurações → Integrações → Webhooks` salva URL + eventos na tabela `webhooks` (e também em `integration_configs` provider `zapier`, onde já está gravado `https://n8n-wqgh.srv1746890.hstgr.cloud/webhook-test/crm-events` com eventos `deal.won, deal.lost, deal.created`).
+- Não existe **nenhum código** que leia essas linhas e faça POST quando um deal/contato muda. Só a engine de Automations tem uma action `call_webhook`, mas ela só dispara se o usuário montar uma automação manualmente — a aba "Webhooks" da integração é puramente decorativa hoje.
 
-### 1. Vincular a conexão Slack ao projeto
-Usar `standard_connectors--connect` com `connector_id: "slack"`. Você seleciona qual das duas conexões existentes ("lucas's Slack" ou "lucas's Slack (1)") vincular ao projeto FlowCRM. Isso injeta automaticamente `SLACK_API_KEY` como env var nas edge functions.
+Ou seja: URL correta, n8n correto, mas nada é enviado ⇒ timeout / silêncio.
 
-### 2. Corrigir o fluxo do botão "Adicionar ao Slack"
-Reescrever `handleOAuthConnect` em `src/components/setup/StepSlack.tsx` para:
-- Chamar `supabase.functions.invoke("slack-connect", { body: { org_id } })` diretamente (sem exigir bot token manual, pois o gateway Lovable já autentica).
-- Ler `workspace_name` / `channels` da resposta e marcar `connectionStatus = "connected"`.
-- Mostrar mensagem de erro clara em caso de falha.
-- Remover / esconder a seção "Configurar manualmente com Bot Token" (ficará como fallback opcional apenas).
+## Correção
 
-### 3. Validar
-- Abrir a página de Setup → passo Slack → clicar "Adicionar ao Slack".
-- Confirmar que o card verde "Conectado ao workspace: …" aparece.
-- Clicar "Enviar mensagem de teste" e verificar chegada no canal configurado.
+Fazer a aba de Webhooks realmente disparar. Duas partes:
 
-## Detalhes técnicos
+### 1. Edge function `dispatch-webhook` (nova)
 
-- As edge functions `slack-connect` e `slack-send-test` já estão implementadas corretamente para o gateway Lovable (usam `LOVABLE_API_KEY` + `SLACK_API_KEY` + `https://connector-gateway.lovable.dev/slack/api`). Não precisam ser alteradas.
-- Após o vínculo, `SLACK_API_KEY` aparecerá em `fetch_secrets`. Nenhum secret manual precisa ser adicionado.
-- O trecho "Bot Token manual" pode continuar existindo como opção avançada, mas deixa de ser o único caminho.
+`supabase/functions/dispatch-webhook/index.ts`, pública (verify_jwt=false), payload:
+```json
+{ "org_id": "...", "event": "deal.created", "data": { ... } }
+```
+
+Lógica:
+1. Busca em `webhooks` (linhas `is_active=true` cujo campo `events` contém o `event`) **e** em `integration_configs` (`provider IN ('zapier','n8n','make')`, `is_active=true`, `config.events` contém o `event`) — para cobrir os dois lugares onde a URL pode estar salva.
+2. Para cada URL, faz `fetch(url, POST, { event, data, org_id, timestamp })` com `AbortController` timeout 10s, `try/catch` (falha de um destino não bloqueia os outros).
+3. Grava sucesso/erro em `webhook_deliveries` (usar tabela se já existir; caso contrário só `console.log`).
+4. Retorna `{ dispatched: N, failed: M }`.
+
+Sem autenticação de usuário (só service role interno via `SUPABASE_SERVICE_ROLE_KEY`), mas exige `org_id` obrigatório.
+
+### 2. Helper cliente `src/lib/webhooks.ts` (novo) + call-sites
+
+Função:
+```ts
+fireWebhook(orgId, event, data) // fire-and-forget, supabase.functions.invoke("dispatch-webhook", ...)
+```
+
+Chamar em:
+- `src/pages/Deals.tsx` / `DealDetail.tsx` — após criar deal (`deal.created`) e após mudança de `status` para `won`/`lost` (`deal.won` / `deal.lost`).
+- `src/components/crm/ContactCreateModal.tsx` — após criar (`contact.created`).
+- `src/components/crm/CompanyCreateModal.tsx` — após criar (`company.created`).
+
+Fire-and-forget (`.catch(console.warn)`) para nunca travar a UI.
+
+### 3. Ajuste na UI de Integrações (mínimo)
+
+Na aba "Webhooks" adicionar um botão **"Enviar teste"** por linha que chama `dispatch-webhook` com `event: "test"` e um payload dummy — isso permite validar o n8n imediatamente sem precisar criar um deal real.
+
+## Fora do escopo
+
+- Não vou mexer no schema (`webhooks` e `integration_configs` já existem e são suficientes).
+- Não vou criar retry queue nem assinatura HMAC agora (posso adicionar depois se quiser).
+- Automations (`process-automation` + action `call_webhook`) continuam intocadas.
+
+## Como validar depois do build
+
+1. Ir em Integrações → Webhooks → clicar "Enviar teste" na linha do n8n → conferir no editor do n8n que o webhook foi acionado.
+2. Criar um deal e marcar como ganho → n8n deve receber `deal.created` e `deal.won`.

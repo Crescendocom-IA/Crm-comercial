@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { supabase } from "@/integrations/supabase/client";
 import { Bot, Send, Loader2, Sparkles, User, Briefcase } from "lucide-react";
 
 type Msg = { role: "user" | "assistant"; content: string };
@@ -122,11 +123,16 @@ export function DashboardAIChat({ crmData }: DashboardAIChatProps) {
     };
 
     try {
+      // A função ai-sales-manager valida o JWT do usuário (auth.getUser), então o
+      // Authorization precisa carregar o access_token da sessão — não a
+      // publishable key, que não representa um usuário e resulta em 401.
+      const { data: { session } } = await supabase.auth.getSession();
       const resp = await fetch(CHAT_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${session?.access_token ?? ""}`,
         },
         body: JSON.stringify({
           messages: [...messages, userMsg],

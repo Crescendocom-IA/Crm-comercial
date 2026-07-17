@@ -16,5 +16,10 @@ verify_jwt = false
 [functions.public-api]
 verify_jwt = false
 
+# dispatch-webhook NÃO é público: só o app autenticado o chama (via fireWebhook /
+# botão de teste em Integrações, ambos por supabase.functions.invoke, que anexa o
+# JWT do usuário). verify_jwt = true (explícito, porque a função foi deployada
+# antes com false e só um valor explícito reverte isso) faz o gateway exigir esse
+# JWT e bloquear chamadas anônimas de terceiros.
 [functions.dispatch-webhook]
-verify_jwt = false
+verify_jwt = true

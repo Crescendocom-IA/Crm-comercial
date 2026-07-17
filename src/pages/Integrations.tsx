@@ -333,6 +333,8 @@ function WebhooksTab({ orgId }: { orgId: string | null }) {
   const [webhooks, setWebhooks] = useState<WebhookRow[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: "", url: "", events: [] as string[], secret: "" });
+  const [inboundSecret, setInboundSecret] = useState<string>("");
+  const [generatingSecret, setGeneratingSecret] = useState(false);
 
   const fetchWebhooks = useCallback(async () => {
     if (!orgId) return;
@@ -340,7 +342,29 @@ function WebhooksTab({ orgId }: { orgId: string | null }) {
     setWebhooks(data || []);
   }, [orgId]);
 
-  useEffect(() => { fetchWebhooks(); }, [fetchWebhooks]);
+  const fetchInboundSecret = useCallback(async () => {
+    if (!orgId) return;
+    const { data } = await supabase.from("organizations").select("settings").eq("id", orgId).single() as any;
+    setInboundSecret((data?.settings?.inbound_webhook_secret as string) || "");
+  }, [orgId]);
+
+  const generateInboundSecret = async () => {
+    if (!orgId) return;
+    setGeneratingSecret(true);
+    const secret = (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
+    const { data: org } = await supabase.from("organizations").select("settings").eq("id", orgId).single() as any;
+    const merged = { ...(org?.settings || {}), inbound_webhook_secret: secret };
+    const { error } = await supabase.from("organizations").update({ settings: merged }).eq("id", orgId);
+    setGeneratingSecret(false);
+    if (error) {
+      toast({ title: "Erro ao gerar secret", description: error.message + " (apenas o owner da org pode gerar)", variant: "destructive" });
+      return;
+    }
+    setInboundSecret(secret);
+    toast({ title: "Secret gerado", description: "A URL de entrada foi atualizada. Reconfigure seus sistemas externos com a nova URL." });
+  };
+
+  useEffect(() => { fetchWebhooks(); fetchInboundSecret(); }, [fetchWebhooks, fetchInboundSecret]);
 
   const createWebhook = async () => {
     if (!orgId || !form.name || !form.url) return;
@@ -388,8 +412,8 @@ function WebhooksTab({ orgId }: { orgId: string | null }) {
     });
   };
 
-  const inboundUrl = orgId
-    ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/inbound-webhook?org_id=${orgId}`
+  const inboundUrl = orgId && inboundSecret
+    ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/inbound-webhook?org_id=${orgId}&secret=${inboundSecret}`
     : "";
 
   return (
@@ -455,13 +479,32 @@ function WebhooksTab({ orgId }: { orgId: string | null }) {
         <CardContent className="space-y-3">
           <div className="space-y-1">
             <Label className="text-xs">URL do Webhook</Label>
-            <div className="flex gap-2">
-              <Input value={inboundUrl} readOnly className="h-8 text-[10px] font-mono" />
-              <Button variant="outline" size="sm" className="h-8"
-                onClick={() => { navigator.clipboard.writeText(inboundUrl); toast({ title: "Copiado!" }); }}>
-                <Copy className="h-3 w-3" />
-              </Button>
-            </div>
+            {inboundSecret ? (
+              <>
+                <div className="flex gap-2">
+                  <Input value={inboundUrl} readOnly className="h-8 text-[10px] font-mono" />
+                  <Button variant="outline" size="sm" className="h-8"
+                    onClick={() => { navigator.clipboard.writeText(inboundUrl); toast({ title: "Copiado!" }); }}>
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-[9px] text-muted-foreground">A URL contém o secret de autenticação — trate-a como credencial.</p>
+                  <Button variant="ghost" size="sm" className="h-6 text-[9px]" disabled={generatingSecret} onClick={generateInboundSecret}>
+                    <RefreshCw className="mr-1 h-2.5 w-2.5" /> Regenerar
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-md border border-dashed p-3 text-center">
+                <p className="text-[10px] text-muted-foreground mb-2">
+                  Gere um secret para habilitar o webhook de entrada. Sem ele, a URL fica desativada e ninguém consegue inserir dados na sua organização.
+                </p>
+                <Button size="sm" className="h-7 text-xs" disabled={generatingSecret} onClick={generateInboundSecret}>
+                  <RefreshCw className="mr-1 h-3 w-3" /> {generatingSecret ? "Gerando..." : "Gerar secret"}
+                </Button>
+              </div>
+            )}
           </div>
           <div className="rounded-md bg-muted p-3">
             <p className="text-[10px] text-muted-foreground mb-1 font-medium">Payload esperado (JSON POST):</p>

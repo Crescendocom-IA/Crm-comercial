@@ -54,7 +54,7 @@ export function StepSlack({ orgId, onComplete, setStepData }: SetupStepProps) {
       setConnectionStatus("error");
       toast({
         title: "Erro ao conectar Slack",
-        description: e?.message || "Verifique se a conexão Slack está vinculada ao projeto no Lovable.",
+        description: e?.message || "Verifique se a secret SLACK_BOT_TOKEN está configurada no Supabase e se o app foi instalado no workspace.",
         variant: "destructive",
       });
     }

@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,9 +10,30 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    // Exige um JWT de usuário real. A publishable key sozinha satisfaz o
+    // verify_jwt do gateway, então sem esta checagem qualquer visitante do site
+    // poderia chamar a função e consumir créditos da Anthropic.
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { prompt, tone, context } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not configured");
 
     const toneMap: Record<string, string> = {
       formal: "profissional e formal, com linguagem corporativa",
@@ -22,49 +44,47 @@ serve(async (req) => {
 
     const toneDesc = toneMap[tone] || toneMap.formal;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          {
-            role: "system",
-            content: `Você é um assistente de redação de emails profissionais B2B. Gere emails em português brasileiro.
+        model: "claude-sonnet-5",
+        max_tokens: 4096,
+        system: `Você é um assistente de redação de emails profissionais B2B. Gere emails em português brasileiro.
 Tom: ${toneDesc}.
 ${context ? `Contexto: ${context}` : ""}`,
-          },
+        messages: [
           {
             role: "user",
             content: prompt,
           },
         ],
+        thinking: { type: "disabled" },
+        output_config: { effort: "low" },
         tools: [
           {
-            type: "function",
-            function: {
-              name: "generate_email",
-              description: "Generate a professional email with subject suggestions",
-              parameters: {
-                type: "object",
-                properties: {
-                  subject_options: {
-                    type: "array",
-                    items: { type: "string" },
-                    description: "3 subject line options",
-                  },
-                  body: { type: "string", description: "Full email body in plain text" },
-                  sentiment: { type: "string", enum: ["positive", "neutral", "negative"], description: "Overall tone" },
+            name: "generate_email",
+            description: "Generate a professional email with subject suggestions",
+            input_schema: {
+              type: "object",
+              properties: {
+                subject_options: {
+                  type: "array",
+                  items: { type: "string" },
+                  description: "3 subject line options",
                 },
-                required: ["subject_options", "body", "sentiment"],
+                body: { type: "string", description: "Full email body in plain text" },
+                sentiment: { type: "string", enum: ["positive", "neutral", "negative"], description: "Overall tone" },
               },
+              required: ["subject_options", "body", "sentiment"],
             },
           },
         ],
-        tool_choice: { type: "function", function: { name: "generate_email" } },
+        tool_choice: { type: "tool", name: "generate_email" },
       }),
     });
 
@@ -74,9 +94,9 @@ ${context ? `Contexto: ${context}` : ""}`,
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos esgotados" }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      if (response.status === 401 || response.status === 403) {
+        return new Response(JSON.stringify({ error: "Chave da API Anthropic inválida ou sem permissão. Verifique a secret ANTHROPIC_API_KEY." }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const t = await response.text();
@@ -87,9 +107,9 @@ ${context ? `Contexto: ${context}` : ""}`,
     const data = await response.json();
     let result = { subject_options: [], body: "", sentiment: "neutral" };
     try {
-      const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-      if (toolCall) {
-        result = JSON.parse(toolCall.function.arguments);
+      const toolUse = data.content?.find((b: { type: string }) => b.type === "tool_use");
+      if (toolUse) {
+        result = toolUse.input;
       }
     } catch (e) {
       console.error("Parse error:", e);

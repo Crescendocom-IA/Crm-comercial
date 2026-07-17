@@ -78,8 +78,8 @@ export function SlackStep({ orgId, setCanContinue, setStepData }: OnboardingStep
       if (data?.workspace_name) {
         setWorkspaceName(data.workspace_name);
         setChannels(data.channels || []);
-      } else if (data?.error?.includes("API_KEY")) {
-        setError("O conector do Slack não está configurado. Vá em Settings → Connectors no Lovable e conecte o Slack primeiro. Depois volte aqui e tente novamente.");
+      } else if (data?.error?.includes("SLACK_BOT_TOKEN")) {
+        setError("O Slack ainda não está configurado. Crie um Slack App em api.slack.com/apps, instale-o no seu workspace e salve o Bot User OAuth Token (xoxb-...) na secret SLACK_BOT_TOKEN do Supabase. Depois volte aqui e tente novamente.");
       } else {
         setError(data?.error || "Erro ao conectar. Verifique se o Slack está configurado.");
       }

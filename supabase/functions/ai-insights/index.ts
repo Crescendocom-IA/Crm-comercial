@@ -10,11 +10,32 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    // Exige um JWT de usuário real. A publishable key sozinha satisfaz o
+    // verify_jwt do gateway, então sem esta checagem qualquer visitante do site
+    // poderia chamar a função e consumir créditos da Anthropic.
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { org_id } = await req.json();
     if (!org_id) throw new Error("org_id required");
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+    if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not configured");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -61,67 +82,65 @@ DADOS DO CRM (org ${org_id}):
     }).map((d: any) => `"${d.title}"`).join(", ") || "nenhum"}
 `;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "claude-sonnet-5",
+        max_tokens: 4096,
+        system: `Você é o motor de insights do FlowCRM. Analise os dados e gere exatamente 4-6 insights acionáveis em português brasileiro.`,
         messages: [
-          {
-            role: "system",
-            content: `Você é o motor de insights do FlowCRM. Analise os dados e gere exatamente 4-6 insights acionáveis em português brasileiro.`,
-          },
           {
             role: "user",
             content: `${dataSummary}
 
-Gere insights no seguinte formato JSON (array):
-[
-  {
-    "title": "Título curto do insight",
-    "description": "Descrição em 1-2 frases",
-    "type": "warning" | "success" | "info" | "danger",
-    "action_label": "Texto do botão de ação",
-    "action_route": "/rota-no-crm"
-  }
-]
-
-Responda APENAS com o JSON, sem markdown ou texto adicional.`,
+Gere de 4 a 6 insights acionáveis usando a ferramenta generate_insights. Para cada insight:
+- "title": título curto
+- "description": descrição em 1-2 frases
+- "type": um de "warning", "success", "info", "danger"
+- "action_label": texto do botão de ação
+- "action_route": rota no CRM (ex: "/deals", "/contacts")`,
           },
         ],
+        thinking: { type: "disabled" },
+        output_config: { effort: "medium" },
         tools: [
           {
-            type: "function",
-            function: {
-              name: "generate_insights",
-              description: "Return CRM insights as structured data",
-              parameters: {
-                type: "object",
-                properties: {
-                  insights: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        title: { type: "string" },
-                        description: { type: "string" },
-                        type: { type: "string", enum: ["warning", "success", "info", "danger"] },
-                        action_label: { type: "string" },
-                        action_route: { type: "string" },
-                      },
-                      required: ["title", "description", "type", "action_label", "action_route"],
+            name: "generate_insights",
+            description: "Return CRM insights as structured data",
+            // strict: true garante que input bate exatamente com o schema.
+            // Sem isso o modelo devolvia `insights` como string JSON em vez de
+            // array, e o AIInsightsPanel recebia um tipo que não sabe iterar.
+            strict: true,
+            input_schema: {
+              type: "object",
+              properties: {
+                insights: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      title: { type: "string" },
+                      description: { type: "string" },
+                      type: { type: "string", enum: ["warning", "success", "info", "danger"] },
+                      action_label: { type: "string" },
+                      action_route: { type: "string" },
                     },
+                    required: ["title", "description", "type", "action_label", "action_route"],
+                    additionalProperties: false,
                   },
                 },
-                required: ["insights"],
               },
+              required: ["insights"],
+              additionalProperties: false,
             },
           },
         ],
-        tool_choice: { type: "function", function: { name: "generate_insights" } },
+        tool_choice: { type: "tool", name: "generate_insights" },
       }),
     });
 
@@ -135,18 +154,35 @@ Responda APENAS com o JSON, sem markdown ou texto adicional.`,
 
     const data = await response.json();
 
+    // Normaliza para array. Com strict:true o modelo já devolve o formato certo,
+    // mas o frontend faz insights.map() e não pode quebrar se isso mudar:
+    // aceita array, string JSON, ou objeto { insights: [...] } aninhado.
+    const toInsightsArray = (value: unknown): any[] => {
+      if (Array.isArray(value)) return value;
+      if (typeof value === "string") {
+        try {
+          return toInsightsArray(JSON.parse(value));
+        } catch {
+          return [];
+        }
+      }
+      if (value && typeof value === "object" && "insights" in value) {
+        return toInsightsArray((value as { insights: unknown }).insights);
+      }
+      return [];
+    };
+
     // Extract from tool call
     let insights: any[] = [];
     try {
-      const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-      if (toolCall) {
-        const parsed = JSON.parse(toolCall.function.arguments);
-        insights = parsed.insights || [];
+      const toolUse = data.content?.find((b: { type: string }) => b.type === "tool_use");
+      if (toolUse) {
+        insights = toInsightsArray(toolUse.input?.insights);
       } else {
-        // Fallback: try parsing content directly
-        const content = data.choices?.[0]?.message?.content || "";
-        const match = content.match(/\[[\s\S]*\]/);
-        if (match) insights = JSON.parse(match[0]);
+        // Fallback: try parsing a text block directly
+        const text = data.content?.find((b: { type: string }) => b.type === "text")?.text || "";
+        const match = text.match(/\[[\s\S]*\]/);
+        if (match) insights = toInsightsArray(match[0]);
       }
     } catch (e) {
       console.error("Failed to parse insights:", e);

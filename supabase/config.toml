@@ -1,4 +1,20 @@
-project_id = "fpguqdynzqcxlvaqzoue"
+project_id = "qwigwpookuhxhehzewti"
+
+# Funções públicas: recebem chamadas de terceiros (webhooks, pixels de tracking,
+# API REST pública, health check) que não carregam um JWT de usuário do Supabase.
+# Cada uma faz a própria autenticação (api_key, assinatura ou org_id).
+
+[functions.health]
+verify_jwt = false
+
+[functions.tracking]
+verify_jwt = false
+
+[functions.inbound-webhook]
+verify_jwt = false
+
+[functions.public-api]
+verify_jwt = false
 
 [functions.dispatch-webhook]
 verify_jwt = false

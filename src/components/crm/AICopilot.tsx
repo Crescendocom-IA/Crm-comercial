@@ -179,7 +179,7 @@ export function AICopilot() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold">AI Copilot</h3>
-                <p className="text-[9px] text-muted-foreground">⌘+J para abrir · Powered by Lovable AI</p>
+                <p className="text-[9px] text-muted-foreground">⌘+J para abrir · Powered by Claude</p>
               </div>
             </div>
             <div className="flex items-center gap-1">

@@ -278,39 +278,42 @@ function IntegrationsTab({ orgId, userId }: { orgId: string | null; userId?: str
               <div className="flex gap-3 items-start">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">1</span>
                 <div>
-                  <p className="text-sm font-medium">Acesse as configurações do projeto no Lovable</p>
-                  <p className="text-xs text-muted-foreground">Clique no nome do projeto (canto superior esquerdo) → "Settings"</p>
+                  <p className="text-sm font-medium">Crie um Slack App</p>
+                  <p className="text-xs text-muted-foreground">Acesse <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" className="underline">api.slack.com/apps</a> → "Create New App" → "From scratch" e escolha seu workspace</p>
                 </div>
               </div>
 
               <div className="flex gap-3 items-start">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
                 <div>
-                  <p className="text-sm font-medium">Vá em "Connectors"</p>
-                  <p className="text-xs text-muted-foreground">Na aba de conectores, procure por "Slack" e clique em "Connect"</p>
+                  <p className="text-sm font-medium">Adicione as permissões do bot</p>
+                  <p className="text-xs text-muted-foreground">Em "OAuth &amp; Permissions" → "Bot Token Scopes", adicione os escopos listados abaixo</p>
                 </div>
               </div>
 
               <div className="flex gap-3 items-start">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">3</span>
                 <div>
-                  <p className="text-sm font-medium">Autorize o acesso ao seu workspace</p>
-                  <p className="text-xs text-muted-foreground">Selecione o workspace do Slack e autorize as permissões necessárias (enviar mensagens, listar canais)</p>
+                  <p className="text-sm font-medium">Instale o app e copie o token</p>
+                  <p className="text-xs text-muted-foreground">Clique em "Install to Workspace", autorize, e copie o <strong>Bot User OAuth Token</strong> (começa com <code className="text-[10px] bg-muted px-1 rounded">xoxb-</code>)</p>
                 </div>
               </div>
 
               <div className="flex gap-3 items-start">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">4</span>
                 <div>
-                  <p className="text-sm font-medium">Volte aqui e clique em "Conectar"</p>
-                  <p className="text-xs text-muted-foreground">Após vincular o conector, o FlowCRM detectará automaticamente seus canais</p>
+                  <p className="text-sm font-medium">Salve o token e volte aqui</p>
+                  <p className="text-xs text-muted-foreground">No Supabase, vá em Edge Functions → Secrets e salve o token como <code className="text-[10px] bg-muted px-1 rounded">SLACK_BOT_TOKEN</code>. Depois clique em "Conectar" e o FlowCRM detectará seus canais</p>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-lg border border-border bg-muted/50 p-3">
+            <div className="rounded-lg border border-border bg-muted/50 p-3 space-y-2">
               <p className="text-xs text-muted-foreground">
-                <strong>Permissões necessárias:</strong> <code className="text-[10px] bg-muted px-1 rounded">chat:write</code> <code className="text-[10px] bg-muted px-1 rounded">channels:read</code> <code className="text-[10px] bg-muted px-1 rounded">channels:history</code>
+                <strong>Escopos necessários:</strong> <code className="text-[10px] bg-muted px-1 rounded">chat:write</code> <code className="text-[10px] bg-muted px-1 rounded">channels:read</code>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                <strong>Opcionais:</strong> <code className="text-[10px] bg-muted px-1 rounded">chat:write.public</code> para postar em canais públicos sem convidar o bot, e <code className="text-[10px] bg-muted px-1 rounded">chat:write.customize</code> para o bot aparecer como "FlowCRM". Sem <code className="text-[10px] bg-muted px-1 rounded">chat:write.public</code>, convide o bot no canal com <code className="text-[10px] bg-muted px-1 rounded">/invite @FlowCRM</code>.
               </p>
             </div>
           </div>

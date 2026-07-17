@@ -8,8 +8,8 @@
 | Styling | Tailwind CSS v3 + shadcn/ui + tokens HSL semânticos |
 | Estado servidor | TanStack Query 5 (staleTime 5min, gcTime 10min, refetchOnWindowFocus off) |
 | Estado cliente | React Context (Auth, Theme) — sem Redux/Zustand |
-| Backend | Lovable Cloud (Supabase: Postgres + Auth + Realtime + Edge Functions Deno) |
-| AI | Lovable AI Gateway (sem API key do usuário) |
+| Backend | Supabase (Postgres + Auth + Realtime + Edge Functions Deno) |
+| AI | Anthropic API (`claude-sonnet-5`) via `ANTHROPIC_API_KEY` nas secrets do Supabase |
 | Email | Resend |
 | Roteamento | react-router-dom v6 com lazy + Suspense por rota |
 | Testes | Vitest + RTL (frontend), Deno.test (backend) |
@@ -50,13 +50,12 @@ src/
 └── lib/                         # audit.ts, utils.ts
 
 supabase/
-├── config.toml                  # NÃO editar project_id
+├── config.toml                  # project_id + verify_jwt por função
 ├── functions/                   # Edge Functions (kebab-case)
 └── migrations/                  # Versionadas YYYYMMDDHHMMSS_*.sql
 
-.lovable/
-├── consolidated_schema.sql      # Schema completo (referência)
-└── plan.md                      # Plano da iteração atual
+docs/
+└── consolidated_schema.sql      # Schema completo (referência histórica)
 ```
 
 ## Princípios obrigatórios
@@ -73,11 +72,13 @@ Aderem ao Workspace Knowledge (constituição do workspace):
 
 | Arquivo | Motivo |
 |---------|--------|
-| `src/integrations/supabase/client.ts` | Auto-gerado pelo Lovable Cloud |
-| `src/integrations/supabase/types.ts` | Auto-gerado a partir do schema |
-| `.env` | Auto-populado pelo Cloud |
-| `supabase/config.toml` (project_id) | Identidade do projeto |
+| `src/integrations/supabase/types.ts` | Gerado por `npx supabase gen types typescript` — edições são sobrescritas |
+| `supabase/config.toml` (project_id) | Identidade do projeto; só muda ao trocar de instância Supabase |
 | Migrations já aplicadas | Criar nova migration ao invés de editar |
+
+`src/integrations/supabase/client.ts` e `.env` **podem** ser editados — antes eram
+gerados automaticamente, hoje são mantidos à mão. O `.env` não é versionado (está no
+`.gitignore`); use o `.env.example` como referência.
 
 ## Code splitting
 

@@ -39,7 +39,7 @@ FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 ```
 
 ### 2. Tipos regenerados
-Automático — `src/integrations/supabase/types.ts` é atualizado pelo Lovable Cloud.
+Rodar `npx supabase gen types typescript --project-id <REF> > src/integrations/supabase/types.ts` após cada migration. O arquivo é gerado — edições manuais são sobrescritas.
 
 ### 3. Hook
 ```ts

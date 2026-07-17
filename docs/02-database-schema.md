@@ -1,6 +1,6 @@
 # 02 — Schema do banco
 
-Schema completo vive em `.lovable/consolidated_schema.sql`. Toda alteração estrutural exige nova migration versionada em `supabase/migrations/`. **Nunca editar migration já aplicada.**
+Schema completo vive em `supabase/migrations/00000000000000_initial_schema.sql` (há também uma cópia de referência em `docs/consolidated_schema.sql`). Toda alteração estrutural exige nova migration versionada em `supabase/migrations/`. **Nunca editar migration já aplicada.**
 
 ## Modelo de tenancy
 

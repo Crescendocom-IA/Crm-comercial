@@ -91,7 +91,7 @@ Catálogo de módulos com rota, componentes principais e tabelas envolvidas.
 
 ### Copilot (global)
 - `AICopilot` flutuante em `AppLayout`.
-- Edge: `ai-copilot` (Lovable AI Gateway).
+- Edge: `ai-copilot` (Anthropic API, `claude-sonnet-5`).
 - Contexto: deal/contact ativo, histórico recente.
 
 ### Insights & Sales Manager

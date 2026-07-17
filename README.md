@@ -2,13 +2,13 @@
 
 CRM B2B completo com AI nativa, pipeline visual e automações.
 
-> **📚 Vai derivar (remixar) este projeto?** Leia primeiro [`docs/README.md`](./docs/README.md) — manual de fundação com schema, guardrails de auth/onboarding, convenções e checklist pós-remix obrigatório.
+> **📚 Vai clonar este projeto para uma instância própria?** Leia primeiro [`docs/README.md`](./docs/README.md) — manual de fundação com schema, guardrails de auth/onboarding, convenções e o checklist de setup obrigatório.
 
 ## Stack
 
 - **Frontend:** React 18 + TypeScript + Tailwind CSS + Vite
-- **Backend:** Lovable Cloud (Supabase — PostgreSQL, Auth, Realtime, Edge Functions)
-- **AI:** Claude via Edge Function `ai-copilot`
+- **Backend:** Supabase (PostgreSQL, Auth, Realtime, Edge Functions Deno)
+- **AI:** Anthropic API (`claude-sonnet-5`), chamada direto pelas Edge Functions
 - **Componentes:** shadcn/ui, Recharts, @dnd-kit
 
 ## Instalação Local
@@ -39,15 +39,19 @@ npm run dev
 
 ### Secrets (Edge Functions)
 
-Configurar via Lovable Cloud:
+Configurar no **Supabase Dashboard → Edge Functions → Secrets** (não vão no `.env`,
+que é só para o frontend):
 
-| Secret | Uso |
-|--------|-----|
-| `ANTHROPIC_API_KEY` | AI Copilot (Claude) |
-| `GOOGLE_CLIENT_ID/SECRET` | Google Calendar |
-| `SLACK_BOT_TOKEN` | Notificações Slack |
-| `EVOLUTION_API_URL/KEY` | WhatsApp |
-| `SENTRY_DSN` | Monitoramento de erros |
+| Secret | Uso | Obrigatória |
+|--------|-----|-------------|
+| `ANTHROPIC_API_KEY` | AI Copilot, Sales Manager, Insights e Email | ✅ |
+| `SLACK_BOT_TOKEN` | Notificações Slack (Bot User OAuth Token, `xoxb-...`) | Se usar Slack |
+| `GOOGLE_CLIENT_ID/SECRET` | Google Calendar / Gmail sync | Se usar Google |
+| `EVOLUTION_API_URL/KEY` | WhatsApp | Se usar WhatsApp |
+| `SENTRY_DSN` | Monitoramento de erros | Opcional |
+
+`SUPABASE_URL`, `SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY` são injetadas
+automaticamente pelo Supabase — não precisa configurá-las.
 
 ## Módulos
 
@@ -95,9 +99,37 @@ Retorna status do banco, latência e timestamp.
 
 ## Deploy
 
-1. Abra o projeto no [Lovable](https://lovable.dev)
-2. Clique em **Share → Publish**
-3. (Opcional) Conecte um domínio customizado em **Settings → Domains**
+O frontend é um build estático do Vite; o backend roda no Supabase. São dois deploys
+independentes.
+
+### Frontend (Vercel)
+
+1. Em [vercel.com](https://vercel.com), **Add New → Project** e importe o repositório.
+2. A Vercel detecta o Vite sozinha. Confirme os defaults:
+   - Build Command: `npm run build`
+   - Output Directory: `dist`
+3. Em **Settings → Environment Variables**, adicione as três variáveis `VITE_*` da
+   tabela acima. Elas são embutidas no bundle em tempo de build — **só use chaves
+   públicas aqui**, nunca a `service_role`.
+4. **Deploy**. Os pushes na `main` passam a publicar automaticamente.
+
+> Como é uma SPA com react-router, rotas profundas (ex: `/deals/123`) precisam cair no
+> `index.html`. A Vercel já faz esse fallback para projetos Vite; se um refresh em rota
+> profunda der 404, adicione um `vercel.json` com um rewrite de `/(.*)` para `/index.html`.
+
+### Backend (Supabase)
+
+```bash
+npx supabase link --project-ref <SEU_PROJECT_REF>
+npx supabase db push --linked                              # aplica as migrations
+npx supabase functions deploy --project-ref <SEU_PROJECT_REF>   # sobe as Edge Functions
+```
+
+Configure as secrets no Dashboard antes do primeiro uso das funções de IA.
+
+### Domínio customizado
+
+Em **Settings → Domains** no projeto da Vercel.
 
 ## Licença
 

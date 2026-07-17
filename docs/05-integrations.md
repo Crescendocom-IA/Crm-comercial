@@ -1,43 +1,82 @@
 # 05 — Integrações
 
-## Lovable AI Gateway (padrão para IA)
+## Anthropic API (padrão para IA)
 
-**Sempre usar primeiro.** Não pede API key do usuário, modelos cobertos pelo `LOVABLE_API_KEY` (auto-provisionado).
+Todas as funções de IA chamam a API da Anthropic diretamente, com a
+`ANTHROPIC_API_KEY` configurada em **Supabase Dashboard → Edge Functions → Secrets**.
 
-Modelos disponíveis (ver system prompt completo):
-- `google/gemini-2.5-pro` — raciocínio pesado + multimodal
-- `google/gemini-2.5-flash` — balanceado custo/qualidade
-- `google/gemini-2.5-flash-lite` — classificação/sumário rápido
-- `openai/gpt-5`, `gpt-5-mini`, `gpt-5-nano`
-- Famílias `gpt-5.4`, `gpt-5.5` para raciocínio avançado
-- Image: `google/gemini-2.5-flash-image` (Nano Banana)
+Modelo padrão: **`claude-sonnet-5`** — melhor equilíbrio entre velocidade e
+inteligência. Use `claude-opus-4-8` se precisar de mais capacidade, ou
+`claude-haiku-4-5` para volume alto e tarefas simples.
 
 Uso em Edge Function:
 ```ts
-const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+const resp = await fetch("https://api.anthropic.com/v1/messages", {
   method: "POST",
   headers: {
-    Authorization: `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
-    "Content-Type": "application/json",
+    "x-api-key": Deno.env.get("ANTHROPIC_API_KEY")!,
+    "anthropic-version": "2023-06-01",
+    "content-type": "application/json",
   },
-  body: JSON.stringify({ model: "google/gemini-2.5-flash", messages }),
+  body: JSON.stringify({
+    model: "claude-sonnet-5",
+    max_tokens: 4096,
+    system: systemPrompt,        // system vai separado, fora de messages
+    messages,                    // apenas roles user/assistant
+    thinking: { type: "disabled" },
+    output_config: { effort: "low" },
+    stream: true,                // opcional
+  }),
 });
 ```
 
-**Tratar 429 (rate limit) e 402 (créditos esgotados)** com mensagens claras ao usuário.
+### Pontos que mordem
+
+- **`system` é um parâmetro separado.** Ao contrário do formato OpenAI, não existe
+  `{role: "system"}` dentro de `messages` — filtre esse role antes de repassar.
+- **`thinking` e `effort`.** O `claude-sonnet-5` liga *adaptive thinking* por padrão
+  quando o campo é omitido, o que adiciona latência. Para chat, use
+  `thinking: {type: "disabled"}` + `output_config: {effort: "low"}`. O `effort`
+  controla o gasto de tokens e é independente do thinking; o default é `high`.
+- **`tools`:** a definição é plana (`name`, `description`, `input_schema`), sem o
+  invólucro `{type: "function", function: {...}}`. O `tool_choice` forçado é
+  `{type: "tool", name: "..."}`. Use **`strict: true`** + `additionalProperties: false`
+  para garantir que o `input` bata com o schema — sem isso o modelo pode devolver
+  um array como string JSON.
+- **Resposta:** vem em `data.content` (array de blocos), não em `data.choices`.
+  Para tools, ache o bloco `type === "tool_use"` e leia `.input` — já é objeto,
+  não precisa de `JSON.parse`.
+- **Streaming SSE:** o formato nativo da Anthropic é
+  `{type: "content_block_delta", delta: {type: "text_delta", text}}` — diferente do
+  OpenAI. As funções `ai-copilot` e `ai-sales-manager` convertem para
+  `data: {"choices":[{"delta":{"content":"..."}}]}` + `data: [DONE]` na saída,
+  mantendo o parser do frontend intacto.
+- **Autenticação:** as 4 funções de IA validam o JWT do usuário antes de chamar a
+  Anthropic. A publishable key sozinha satisfaz o `verify_jwt` do gateway, então sem
+  essa checagem qualquer visitante do site poderia consumir créditos.
+
+**Tratar 429 (rate limit) e 401/403 (chave inválida)** com mensagens claras ao usuário.
 
 ## Resend (email transacional + envio do CRM)
 
 - Config em `integration_configs` (`provider='resend'`) com `from_email` e `api_key`.
 - Validação: Edge `validate-resend-key`.
 - Templates de email em `email_templates` com interpolação.
-- Domínio próprio configurável via Lovable Email.
+- Domínio próprio configurável no painel do Resend (Domains → Add Domain).
 
 ## Slack (notificações)
 
-- Edge `slack-connect` faz OAuth.
-- Config em `integration_configs` (`provider='slack'`) com `workspace`, `bot_token`, `channel`.
-- Teste de envio: `slack-send-test`.
+- Requer um **Slack App próprio** ([api.slack.com/apps](https://api.slack.com/apps) →
+  Create New App → From scratch), instalado no workspace. O **Bot User OAuth Token**
+  (`xoxb-...`) vai na secret `SLACK_BOT_TOKEN`.
+- Escopos obrigatórios: `chat:write`, `channels:read`. Opcionais: `chat:write.public`
+  (postar em canal público sem convidar o bot) e `chat:write.customize` (bot aparece
+  como "FlowCRM").
+- Edge `slack-connect` valida o token (`auth.test`) e lista os canais
+  (`conversations.list`), salvando em `integration_configs` (`provider='slack'`).
+- Teste de envio: `slack-send-test` (`chat.postMessage`).
+- Erro mais comum na primeira tentativa: `not_in_channel` — convide o bot com
+  `/invite @FlowCRM` ou conceda `chat:write.public`.
 
 ## API pública REST — `/functions/v1/public-api`
 
@@ -70,7 +109,7 @@ GET retorna `{ status, db_latency_ms, timestamp }`. Útil para uptime monitors.
 
 - `google_oauth_tokens` armazena tokens.
 - Edge `gmail-initial-sync` puxa últimos N emails.
-- Atualmente parcial — verificar se o remix precisa.
+- Atualmente parcial — verificar se a instância precisa.
 
 ## WhatsApp (legado/desativado)
 
@@ -80,11 +119,11 @@ Tabelas `whatsapp_*` permanecem no schema mas a integração foi removida (Evolu
 
 | Integração | Secrets (Edge Function env) |
 |------------|------------------------------|
-| Lovable AI | `LOVABLE_API_KEY` (auto) |
+| Anthropic (IA) | `ANTHROPIC_API_KEY` |
 | Supabase | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (auto) |
 | Resend | armazenada em `integration_configs.config.api_key` |
-| Slack | armazenada em `integration_configs.config.bot_token` |
+| Slack | `SLACK_BOT_TOKEN` (Bot User OAuth Token, `xoxb-...`) |
 | Google | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
-| Anthropic (legado) | `ANTHROPIC_API_KEY` — preferir Lovable AI |
 
-Adicionar/atualizar via tool `secrets--add_secret`. Nunca expor service role no frontend.
+Adicionar/atualizar em **Supabase Dashboard → Edge Functions → Secrets**. Nunca expor
+service role no frontend.

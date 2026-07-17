@@ -1,18 +1,21 @@
 # 07 — Edge Functions
 
-Todas em `supabase/functions/`, runtime Deno. Deploy automático via Lovable. CORS habilitado em todas.
+Todas em `supabase/functions/`, runtime Deno. CORS habilitado em todas.
+
+Deploy: `npx supabase functions deploy --project-ref <REF>` (ou o nome de uma função
+para subir só ela).
 
 | Function | Método | Auth | Propósito | Secrets |
 |----------|--------|------|-----------|---------|
 | `health` | GET | público | Status + latência do DB | — |
-| `ai-copilot` | POST | JWT user | Chat contextual do Copilot | `LOVABLE_API_KEY` |
-| `ai-email` | POST | JWT user | Geração de email com IA | `LOVABLE_API_KEY` |
-| `ai-insights` | POST | JWT user | Insights sobre deals/atividades | `LOVABLE_API_KEY` |
-| `ai-sales-manager` | POST | JWT user | "Gerente de vendas" virtual | `LOVABLE_API_KEY` |
-| `validate-anthropic-key` | POST | JWT user | Testa chave Anthropic (legado) | — |
+| `ai-copilot` | POST | JWT user | Chat contextual do Copilot | `ANTHROPIC_API_KEY` |
+| `ai-email` | POST | JWT user | Geração de email com IA | `ANTHROPIC_API_KEY` |
+| `ai-insights` | POST | JWT user | Insights sobre deals/atividades | `ANTHROPIC_API_KEY` |
+| `ai-sales-manager` | POST | JWT user | "Gerente de vendas" virtual (Carlos) | `ANTHROPIC_API_KEY` |
+| `validate-anthropic-key` | POST | JWT user | Testa chave Anthropic antes de salvar | — |
 | `validate-resend-key` | POST | JWT user | Testa chave Resend antes de salvar | — |
-| `slack-connect` | GET/POST | JWT user | OAuth Slack | — |
-| `slack-send-test` | POST | JWT user | Envia mensagem teste | — |
+| `slack-connect` | GET/POST | JWT user | Valida o token e lista canais | `SLACK_BOT_TOKEN` |
+| `slack-send-test` | POST | JWT user | Envia mensagem teste | `SLACK_BOT_TOKEN` |
 | `invite-member` | POST | JWT user (admin/owner) | Cria invitation + envia magic link | service role |
 | `gmail-initial-sync` | POST | JWT user | Importa últimos N emails Gmail | `GOOGLE_*` |
 | `process-automation` | POST | service | Executa automation enfileirada (pg_cron) | service role |
@@ -70,15 +73,24 @@ verify_jwt = false
 
 [functions.public-api]
 verify_jwt = false  # auth própria via fc_xxx
+
+[functions.dispatch-webhook]
+verify_jwt = false  # chamada interna com org_id obrigatório
 ```
 
-**Não alterar `project_id`.**
+**`project_id` só muda ao apontar para outra instância Supabase.**
+
+> ⚠️ **`verify_jwt = true` não significa "usuário logado".** O gateway aceita a
+> publishable key como credencial válida — e ela é pública por design, já que vai no
+> bundle do frontend. Funções que gastam dinheiro (as 4 de IA) precisam validar o JWT
+> **dentro** da função com `supabase.auth.getUser()`; veja o padrão em `invite-member`.
 
 ## Princípios
 
 - **service_role nunca volta ao cliente.**
 - **Sempre validar `org_id`** mesmo quando RLS protege — defesa em profundidade.
-- **Tratar 429/402 do Lovable AI** com mensagem clara.
+- **Validar o JWT do usuário** em funções que custam dinheiro (ver aviso acima).
+- **Tratar 429 (rate limit) e 401/403 (chave inválida) da Anthropic** com mensagem clara.
 - **Logs estruturados**: `console.log` com objeto JSON, não strings concatenadas.
 - **Idempotência** em webhooks/automations: aceitar re-entrega sem duplicar efeito.
 - **Timeouts**: chamadas externas com `AbortController` + timeout < 30s.

@@ -1,6 +1,6 @@
 # FlowCRM — Documentação Consolidada
 
-Manual de fundação único para o FlowCRM e seus remixes. Gerado a partir dos arquivos em `docs/`.
+Manual de fundação único para o FlowCRM e suas instâncias. Gerado a partir dos arquivos em `docs/`.
 
 ---
 
@@ -14,7 +14,7 @@ Manual de fundação único para o FlowCRM e seus remixes. Gerado a partir dos a
 6. [Integrações](#integracoes)
 7. [Convenções](#convencoes)
 8. [Edge Functions](#edge-functions)
-9. [Checklist pós-remix](#checklist-pos-remix)
+9. [Checklist de setup](#checklist-de-setup)
 10. [Estendendo o projeto](#estendendo-o-projeto)
 
 ---
@@ -22,39 +22,42 @@ Manual de fundação único para o FlowCRM e seus remixes. Gerado a partir dos a
 <a id="visao-geral"></a>
 ## 1. Visão geral
 
-Manual de fundação para qualquer projeto derivado (remix) do FlowCRM. Leia em ordem; cada documento assume os anteriores.
 
-## Índice
+
+Manual de fundação para qualquer instância própria do FlowCRM. Leia em ordem; cada documento assume os anteriores.
+
+### Índice
 
 1. [Arquitetura](./01-architecture.md) — Stack, camadas, princípios SOLID/TDD, pastas
 2. [Schema do banco](./02-database-schema.md) — Tabelas, RLS, funções, triggers
-3. [Auth & Onboarding](./03-auth-and-onboarding.md) — **Crítico.** Guardrail obrigatório pós-remix
+3. [Auth & Onboarding](./03-auth-and-onboarding.md) — **Crítico.** Guardrail obrigatório no setup
 4. [Módulos](./04-modules.md) — Catálogo funcional (Contatos, Pipeline, AI, Automações, etc.)
-5. [Integrações](./05-integrations.md) — Lovable AI, Resend, Slack, API pública
+5. [Integrações](./05-integrations.md) — Anthropic API, Resend, Slack, API pública
 6. [Convenções](./06-conventions.md) — Naming, design system, rotas, i18n PT-BR
 7. [Edge Functions](./07-edge-functions.md) — Contratos, secrets, payloads
-8. [Checklist pós-remix](./08-remix-checklist.md) — Validações obrigatórias
+8. [Checklist de setup](./08-setup-checklist.md) — Validações obrigatórias
 9. [Estendendo o projeto](./09-extending.md) — Receitas para nova entidade/módulo/integração
 
-## Como usar este guia
+### Como usar este guia
 
-- **Remixou o projeto agora?** Vá direto ao [checklist pós-remix](./08-remix-checklist.md).
+- **Acabou de clonar o projeto?** Vá direto ao [checklist de setup](./08-setup-checklist.md).
 - **Vai adicionar um módulo?** Leia [convenções](./06-conventions.md) + [estendendo](./09-extending.md).
 - **Precisa entender o domínio?** Comece em [arquitetura](./01-architecture.md) e [módulos](./04-modules.md).
 
-## Princípios não-negociáveis
+### Princípios não-negociáveis
 
 - **Onboarding obrigatório**: todo usuário novo vê o `OnboardingModal` em `/dashboard`. Detalhes em [03](./03-auth-and-onboarding.md).
 - **RLS sempre habilitado** em toda tabela nova, com isolamento por `org_id`.
 - **Migrations versionadas**: nunca editar migration já aplicada.
 - **Sem `next-themes`** — use o `ThemeContext` próprio.
 - **Textos em PT-BR**, código em inglês.
-- **Lovable AI Gateway por padrão** para qualquer chamada de IA (não pedir API key do usuário).
+- **Anthropic API (`claude-sonnet-5`) por padrão** para qualquer chamada de IA, com a `ANTHROPIC_API_KEY` nas secrets do Supabase.
 
 ---
 
 <a id="arquitetura"></a>
 ## 2. 01 — Arquitetura
+
 
 
 ### Stack
@@ -65,8 +68,8 @@ Manual de fundação para qualquer projeto derivado (remix) do FlowCRM. Leia em 
 | Styling | Tailwind CSS v3 + shadcn/ui + tokens HSL semânticos |
 | Estado servidor | TanStack Query 5 (staleTime 5min, gcTime 10min, refetchOnWindowFocus off) |
 | Estado cliente | React Context (Auth, Theme) — sem Redux/Zustand |
-| Backend | Lovable Cloud (Supabase: Postgres + Auth + Realtime + Edge Functions Deno) |
-| AI | Lovable AI Gateway (sem API key do usuário) |
+| Backend | Supabase (Postgres + Auth + Realtime + Edge Functions Deno) |
+| AI | Anthropic API (`claude-sonnet-5`) via `ANTHROPIC_API_KEY` nas secrets do Supabase |
 | Email | Resend |
 | Roteamento | react-router-dom v6 com lazy + Suspense por rota |
 | Testes | Vitest + RTL (frontend), Deno.test (backend) |
@@ -107,13 +110,12 @@ src/
 └── lib/                         # audit.ts, utils.ts
 
 supabase/
-├── config.toml                  # NÃO editar project_id
+├── config.toml                  # project_id + verify_jwt por função
 ├── functions/                   # Edge Functions (kebab-case)
 └── migrations/                  # Versionadas YYYYMMDDHHMMSS_*.sql
 
-.lovable/
-├── consolidated_schema.sql      # Schema completo (referência)
-└── plan.md                      # Plano da iteração atual
+docs/
+└── consolidated_schema.sql      # Schema completo (referência histórica)
 ```
 
 ### Princípios obrigatórios
@@ -130,11 +132,13 @@ Aderem ao Workspace Knowledge (constituição do workspace):
 
 | Arquivo | Motivo |
 |---------|--------|
-| `src/integrations/supabase/client.ts` | Auto-gerado pelo Lovable Cloud |
-| `src/integrations/supabase/types.ts` | Auto-gerado a partir do schema |
-| `.env` | Auto-populado pelo Cloud |
-| `supabase/config.toml` (project_id) | Identidade do projeto |
+| `src/integrations/supabase/types.ts` | Gerado por `npx supabase gen types typescript` — edições são sobrescritas |
+| `supabase/config.toml` (project_id) | Identidade do projeto; só muda ao trocar de instância Supabase |
 | Migrations já aplicadas | Criar nova migration ao invés de editar |
+
+`src/integrations/supabase/client.ts` e `.env` **podem** ser editados — antes eram
+gerados automaticamente, hoje são mantidos à mão. O `.env` não é versionado (está no
+`.gitignore`); use o `.env.example` como referência.
 
 ### Code splitting
 
@@ -153,7 +157,8 @@ Toda página é `lazy()` em `App.tsx`, envolvida em `<SuspenseRoute>` que combin
 ## 3. 02 — Schema do banco
 
 
-Schema completo vive em `.lovable/consolidated_schema.sql`. Toda alteração estrutural exige nova migration versionada em `supabase/migrations/`. **Nunca editar migration já aplicada.**
+
+Schema completo vive em `supabase/migrations/00000000000000_initial_schema.sql` (há também uma cópia de referência em `docs/consolidated_schema.sql`). Toda alteração estrutural exige nova migration versionada em `supabase/migrations/`. **Nunca editar migration já aplicada.**
 
 ### Modelo de tenancy
 
@@ -273,7 +278,8 @@ Para policies sensíveis a role, usar `public.has_role(auth.uid(), org_id, 'admi
 ## 4. 03 — Auth & Onboarding (Guardrail obrigatório)
 
 
-> Este documento codifica o guardrail do Project Knowledge. **Qualquer remix DEVE passar pelo checklist em [08](./08-remix-checklist.md) após restaurar.**
+
+> **Toda instância nova DEVE passar pelo checklist em [08](./08-setup-checklist.md) após aplicar o schema.**
 
 ### Princípio inegociável
 
@@ -385,14 +391,14 @@ Não bloquear por estado legado. Profile sem conclusão → modal abre.
 | 0 | Welcome | — | Sempre |
 | 1 | Company | `organizations.name` + `settings.segment` | `segment` preenchido |
 | 2 | Pipeline | `pipelines` + `pipeline_stages` | Pipeline criado com stages |
-| 3 | AI Copilot | `integration_configs` (`provider='anthropic'` ou `lovable_ai`) | Ativo |
+| 3 | AI Copilot | `integration_configs` (`provider='anthropic'`) | Ativo |
 | 4 | Email | `integration_configs` (`provider='resend'`) | Configurado com from_email |
 | 5 | Slack | `integration_configs` (`provider='slack'`) | Configurado |
 | 6 | Complete | `profiles.onboarding_completed=true` | Final |
 
 `loadPersistedOnboardingState()` (`persistence.ts`) reconstrói `stepData` e `completedSteps` a partir do DB. `getResumeStep()` decide onde retomar.
 
-### Backfill pós-remix (obrigatório)
+### Backfill pós-setup (obrigatório)
 
 Se houver usuários em `auth.users` sem profile (estado órfão), executar:
 
@@ -425,6 +431,7 @@ E garantir `org_id` + `user_roles` para esses usuários (via `initialize_org_own
 
 <a id="modulos-funcionais"></a>
 ## 5. 04 — Módulos funcionais
+
 
 
 Catálogo de módulos com rota, componentes principais e tabelas envolvidas.
@@ -518,7 +525,7 @@ Catálogo de módulos com rota, componentes principais e tabelas envolvidas.
 
 #### Copilot (global)
 - `AICopilot` flutuante em `AppLayout`.
-- Edge: `ai-copilot` (Lovable AI Gateway).
+- Edge: `ai-copilot` (Anthropic API, `claude-sonnet-5`).
 - Contexto: deal/contact ativo, histórico recente.
 
 #### Insights & Sales Manager
@@ -539,44 +546,84 @@ Detalhes de cada feature vivem em `mem://features/*` (ver `mem://index.md`). Con
 ## 6. 05 — Integrações
 
 
-### Lovable AI Gateway (padrão para IA)
 
-**Sempre usar primeiro.** Não pede API key do usuário, modelos cobertos pelo `LOVABLE_API_KEY` (auto-provisionado).
+### Anthropic API (padrão para IA)
 
-Modelos disponíveis (ver system prompt completo):
-- `google/gemini-2.5-pro` — raciocínio pesado + multimodal
-- `google/gemini-2.5-flash` — balanceado custo/qualidade
-- `google/gemini-2.5-flash-lite` — classificação/sumário rápido
-- `openai/gpt-5`, `gpt-5-mini`, `gpt-5-nano`
-- Famílias `gpt-5.4`, `gpt-5.5` para raciocínio avançado
-- Image: `google/gemini-2.5-flash-image` (Nano Banana)
+Todas as funções de IA chamam a API da Anthropic diretamente, com a
+`ANTHROPIC_API_KEY` configurada em **Supabase Dashboard → Edge Functions → Secrets**.
+
+Modelo padrão: **`claude-sonnet-5`** — melhor equilíbrio entre velocidade e
+inteligência. Use `claude-opus-4-8` se precisar de mais capacidade, ou
+`claude-haiku-4-5` para volume alto e tarefas simples.
 
 Uso em Edge Function:
 ```ts
-const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+const resp = await fetch("https://api.anthropic.com/v1/messages", {
   method: "POST",
   headers: {
-    Authorization: `Bearer ${Deno.env.get("LOVABLE_API_KEY")}`,
-    "Content-Type": "application/json",
+    "x-api-key": Deno.env.get("ANTHROPIC_API_KEY")!,
+    "anthropic-version": "2023-06-01",
+    "content-type": "application/json",
   },
-  body: JSON.stringify({ model: "google/gemini-2.5-flash", messages }),
+  body: JSON.stringify({
+    model: "claude-sonnet-5",
+    max_tokens: 4096,
+    system: systemPrompt,        // system vai separado, fora de messages
+    messages,                    // apenas roles user/assistant
+    thinking: { type: "disabled" },
+    output_config: { effort: "low" },
+    stream: true,                // opcional
+  }),
 });
 ```
 
-**Tratar 429 (rate limit) e 402 (créditos esgotados)** com mensagens claras ao usuário.
+#### Pontos que mordem
+
+- **`system` é um parâmetro separado.** Ao contrário do formato OpenAI, não existe
+  `{role: "system"}` dentro de `messages` — filtre esse role antes de repassar.
+- **`thinking` e `effort`.** O `claude-sonnet-5` liga *adaptive thinking* por padrão
+  quando o campo é omitido, o que adiciona latência. Para chat, use
+  `thinking: {type: "disabled"}` + `output_config: {effort: "low"}`. O `effort`
+  controla o gasto de tokens e é independente do thinking; o default é `high`.
+- **`tools`:** a definição é plana (`name`, `description`, `input_schema`), sem o
+  invólucro `{type: "function", function: {...}}`. O `tool_choice` forçado é
+  `{type: "tool", name: "..."}`. Use **`strict: true`** + `additionalProperties: false`
+  para garantir que o `input` bata com o schema — sem isso o modelo pode devolver
+  um array como string JSON.
+- **Resposta:** vem em `data.content` (array de blocos), não em `data.choices`.
+  Para tools, ache o bloco `type === "tool_use"` e leia `.input` — já é objeto,
+  não precisa de `JSON.parse`.
+- **Streaming SSE:** o formato nativo da Anthropic é
+  `{type: "content_block_delta", delta: {type: "text_delta", text}}` — diferente do
+  OpenAI. As funções `ai-copilot` e `ai-sales-manager` convertem para
+  `data: {"choices":[{"delta":{"content":"..."}}]}` + `data: [DONE]` na saída,
+  mantendo o parser do frontend intacto.
+- **Autenticação:** as 4 funções de IA validam o JWT do usuário antes de chamar a
+  Anthropic. A publishable key sozinha satisfaz o `verify_jwt` do gateway, então sem
+  essa checagem qualquer visitante do site poderia consumir créditos.
+
+**Tratar 429 (rate limit) e 401/403 (chave inválida)** com mensagens claras ao usuário.
 
 ### Resend (email transacional + envio do CRM)
 
 - Config em `integration_configs` (`provider='resend'`) com `from_email` e `api_key`.
 - Validação: Edge `validate-resend-key`.
 - Templates de email em `email_templates` com interpolação.
-- Domínio próprio configurável via Lovable Email.
+- Domínio próprio configurável no painel do Resend (Domains → Add Domain).
 
 ### Slack (notificações)
 
-- Edge `slack-connect` faz OAuth.
-- Config em `integration_configs` (`provider='slack'`) com `workspace`, `bot_token`, `channel`.
-- Teste de envio: `slack-send-test`.
+- Requer um **Slack App próprio** ([api.slack.com/apps](https://api.slack.com/apps) →
+  Create New App → From scratch), instalado no workspace. O **Bot User OAuth Token**
+  (`xoxb-...`) vai na secret `SLACK_BOT_TOKEN`.
+- Escopos obrigatórios: `chat:write`, `channels:read`. Opcionais: `chat:write.public`
+  (postar em canal público sem convidar o bot) e `chat:write.customize` (bot aparece
+  como "FlowCRM").
+- Edge `slack-connect` valida o token (`auth.test`) e lista os canais
+  (`conversations.list`), salvando em `integration_configs` (`provider='slack'`).
+- Teste de envio: `slack-send-test` (`chat.postMessage`).
+- Erro mais comum na primeira tentativa: `not_in_channel` — convide o bot com
+  `/invite @FlowCRM` ou conceda `chat:write.public`.
 
 ### API pública REST — `/functions/v1/public-api`
 
@@ -609,7 +656,7 @@ GET retorna `{ status, db_latency_ms, timestamp }`. Útil para uptime monitors.
 
 - `google_oauth_tokens` armazena tokens.
 - Edge `gmail-initial-sync` puxa últimos N emails.
-- Atualmente parcial — verificar se o remix precisa.
+- Atualmente parcial — verificar se a instância precisa.
 
 ### WhatsApp (legado/desativado)
 
@@ -619,19 +666,20 @@ Tabelas `whatsapp_*` permanecem no schema mas a integração foi removida (Evolu
 
 | Integração | Secrets (Edge Function env) |
 |------------|------------------------------|
-| Lovable AI | `LOVABLE_API_KEY` (auto) |
+| Anthropic (IA) | `ANTHROPIC_API_KEY` |
 | Supabase | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (auto) |
 | Resend | armazenada em `integration_configs.config.api_key` |
-| Slack | armazenada em `integration_configs.config.bot_token` |
+| Slack | `SLACK_BOT_TOKEN` (Bot User OAuth Token, `xoxb-...`) |
 | Google | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
-| Anthropic (legado) | `ANTHROPIC_API_KEY` — preferir Lovable AI |
 
-Adicionar/atualizar via tool `secrets--add_secret`. Nunca expor service role no frontend.
+Adicionar/atualizar em **Supabase Dashboard → Edge Functions → Secrets**. Nunca expor
+service role no frontend.
 
 ---
 
 <a id="convencoes"></a>
 ## 7. 06 — Convenções
+
 
 
 ### Naming
@@ -740,19 +788,23 @@ Tailwind referencia via `tailwind.config.ts`. **Nunca usar cores diretas (`text-
 ## 8. 07 — Edge Functions
 
 
-Todas em `supabase/functions/`, runtime Deno. Deploy automático via Lovable. CORS habilitado em todas.
+
+Todas em `supabase/functions/`, runtime Deno. CORS habilitado em todas.
+
+Deploy: `npx supabase functions deploy --project-ref <REF>` (ou o nome de uma função
+para subir só ela).
 
 | Function | Método | Auth | Propósito | Secrets |
 |----------|--------|------|-----------|---------|
 | `health` | GET | público | Status + latência do DB | — |
-| `ai-copilot` | POST | JWT user | Chat contextual do Copilot | `LOVABLE_API_KEY` |
-| `ai-email` | POST | JWT user | Geração de email com IA | `LOVABLE_API_KEY` |
-| `ai-insights` | POST | JWT user | Insights sobre deals/atividades | `LOVABLE_API_KEY` |
-| `ai-sales-manager` | POST | JWT user | "Gerente de vendas" virtual | `LOVABLE_API_KEY` |
-| `validate-anthropic-key` | POST | JWT user | Testa chave Anthropic (legado) | — |
+| `ai-copilot` | POST | JWT user | Chat contextual do Copilot | `ANTHROPIC_API_KEY` |
+| `ai-email` | POST | JWT user | Geração de email com IA | `ANTHROPIC_API_KEY` |
+| `ai-insights` | POST | JWT user | Insights sobre deals/atividades | `ANTHROPIC_API_KEY` |
+| `ai-sales-manager` | POST | JWT user | "Gerente de vendas" virtual (Carlos) | `ANTHROPIC_API_KEY` |
+| `validate-anthropic-key` | POST | JWT user | Testa chave Anthropic antes de salvar | — |
 | `validate-resend-key` | POST | JWT user | Testa chave Resend antes de salvar | — |
-| `slack-connect` | GET/POST | JWT user | OAuth Slack | — |
-| `slack-send-test` | POST | JWT user | Envia mensagem teste | — |
+| `slack-connect` | GET/POST | JWT user | Valida o token e lista canais | `SLACK_BOT_TOKEN` |
+| `slack-send-test` | POST | JWT user | Envia mensagem teste | `SLACK_BOT_TOKEN` |
 | `invite-member` | POST | JWT user (admin/owner) | Cria invitation + envia magic link | service role |
 | `gmail-initial-sync` | POST | JWT user | Importa últimos N emails Gmail | `GOOGLE_*` |
 | `process-automation` | POST | service | Executa automation enfileirada (pg_cron) | service role |
@@ -810,26 +862,58 @@ verify_jwt = false
 
 [functions.public-api]
 verify_jwt = false  # auth própria via fc_xxx
+
+[functions.dispatch-webhook]
+verify_jwt = false  # chamada interna com org_id obrigatório
 ```
 
-**Não alterar `project_id`.**
+**`project_id` só muda ao apontar para outra instância Supabase.**
+
+> ⚠️ **`verify_jwt = true` não significa "usuário logado".** O gateway aceita a
+> publishable key como credencial válida — e ela é pública por design, já que vai no
+> bundle do frontend. Funções que gastam dinheiro (as 4 de IA) precisam validar o JWT
+> **dentro** da função com `supabase.auth.getUser()`; veja o padrão em `invite-member`.
 
 ### Princípios
 
 - **service_role nunca volta ao cliente.**
 - **Sempre validar `org_id`** mesmo quando RLS protege — defesa em profundidade.
-- **Tratar 429/402 do Lovable AI** com mensagem clara.
+- **Validar o JWT do usuário** em funções que custam dinheiro (ver aviso acima).
+- **Tratar 429 (rate limit) e 401/403 (chave inválida) da Anthropic** com mensagem clara.
 - **Logs estruturados**: `console.log` com objeto JSON, não strings concatenadas.
 - **Idempotência** em webhooks/automations: aceitar re-entrega sem duplicar efeito.
 - **Timeouts**: chamadas externas com `AbortController` + timeout < 30s.
 
 ---
 
-<a id="checklist-pos-remix"></a>
-## 9. 08 — Checklist pós-remix (obrigatório)
+<a id="checklist-de-setup"></a>
+## 9. 08 — Checklist de setup (obrigatório)
 
 
-Execute na ordem após cada remix. Não pular itens.
+
+Execute na ordem ao clonar o projeto para uma instância Supabase própria. Não pular itens.
+
+### 0. Clone e configuração inicial
+
+```bash
+git clone <URL_DO_REPO>
+cd Crm-Comercial
+npm install
+cp .env.example .env   # preencher com as credenciais do SEU projeto Supabase
+```
+
+Crie o projeto em [supabase.com/dashboard](https://supabase.com/dashboard) e pegue as
+credenciais em **Project Settings → API**. Depois aponte o CLI e aplique o schema:
+
+```bash
+npx supabase link --project-ref <SEU_PROJECT_REF>
+npx supabase db push --linked
+npx supabase functions deploy --project-ref <SEU_PROJECT_REF>
+```
+
+Atualize também o `project_id` em `supabase/config.toml`.
+
+> `db push` não aceita `--project-ref`: use `link` + `--linked`, ou `--db-url`.
 
 ### 1. Trigger de auth
 
@@ -856,6 +940,13 @@ WHERE pronamespace = 'public'::regnamespace AND proname = 'handle_new_user';
 ```
 
 Se ausente, executar migration com a função (ver [03](./03-auth-and-onboarding.md)).
+
+> ⚠️ **A primeira conta criada vira `owner`; as seguintes viram `member`.** O
+> `handle_new_user` faz `SELECT id FROM organizations LIMIT 1` — se já existe uma org,
+> o novo usuário entra como membro dela. Consequência prática: se você criar uma conta
+> de teste, apagá-la e **deixar a organização órfã**, sua primeira conta real entrará
+> como `member` e o sistema ficará sem nenhum owner. Ao limpar dados de teste, apague
+> a organização junto.
 
 ### 3. Profiles órfãos
 
@@ -884,9 +975,12 @@ E para cada profile sem `org_id`, vincular à org default (ou criar uma).
 
 ### 4. Auth settings
 
-- `auto_confirm_email = true` (via `supabase--configure_auth`).
-- Anonymous sign-up **desabilitado**.
-- Google OAuth configurado (se aplicável) via `supabase--configure_social_auth`.
+No **Supabase Dashboard → Authentication → Providers / Settings**:
+
+- **Confirm email** desabilitado (equivale a `auto_confirm_email = true`), ou um
+  provedor SMTP configurado — senão o signup trava esperando confirmação.
+- **Anonymous sign-in** desabilitado.
+- Google OAuth configurado, se aplicável.
 
 ### 5. Teste end-to-end com conta nova
 
@@ -899,7 +993,7 @@ E para cada profile sem `org_id`, vincular à org default (ou criar uma).
    FROM public.profiles WHERE email = '<email-de-teste>';
    ```
    Esperado: `org_id` preenchido, `onboarding_completed=false`, `onboarding_step=1`.
-5. Verificar role:
+5. Verificar role (a primeira conta deve ser `owner`):
    ```sql
    SELECT role FROM public.user_roles
    WHERE user_id = (SELECT id FROM auth.users WHERE email = '<email-de-teste>');
@@ -911,25 +1005,25 @@ Login → `/dashboard` → se `onboarding_completed=false`, modal abre; se `true
 
 ### 7. Secrets
 
-Confirmar disponíveis (via tool `secrets--fetch_secrets`):
+Configurar em **Supabase Dashboard → Edge Functions → Secrets**:
 
 | Secret | Obrigatório? |
 |--------|--------------|
-| `LOVABLE_API_KEY` | ✅ (qualquer IA) |
-| `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | ✅ (auto) |
-| `GOOGLE_CLIENT_ID/SECRET` | se usar Google OAuth |
-| `SLACK_*` | se publicar Slack app própria (caso contrário Lovable gateway resolve) |
+| `ANTHROPIC_API_KEY` | ✅ (qualquer função de IA) |
+| `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | ✅ (injetadas automaticamente) |
+| `GOOGLE_CLIENT_ID/SECRET` | se usar Google OAuth / Gmail sync |
+| `SLACK_BOT_TOKEN` | se usar Slack (ver [05](./05-integrations.md)) |
 
 ### 8. Linter Supabase
 
-Rodar `supabase--linter` e endereçar warnings de:
+Rodar `npx supabase db lint --linked` e endereçar warnings de:
 - RLS desabilitado em tabela nova
 - Função sem `search_path` fixo
 - Policy permissiva demais
 
 ### 9. RLS em tabelas novas
 
-Para cada tabela criada após o remix:
+Para cada tabela criada depois do setup inicial:
 
 ```sql
 SELECT tablename FROM pg_tables
@@ -943,29 +1037,39 @@ Se aparecer alguma, criar policy de isolamento por `org_id` (ver [02](./02-datab
 
 ### 10. Edge Functions
 
-- Verificar logs recentes via `supabase--edge_function_logs`.
+- Verificar logs: `npx supabase functions logs <nome> --project-ref <REF>`, ou no
+  Dashboard → Edge Functions → Logs.
 - Testar `health`:
   ```bash
-  curl https://<project>.functions.supabase.co/health
+  curl https://<project-ref>.supabase.co/functions/v1/health
   ```
+  Esperado: `{"status":"healthy", ..., "db_connected":true}`.
+- Testar que as funções de IA **rejeitam** a publishable key sozinha:
+  ```bash
+  curl -s -o /dev/null -w "%{http_code}\n" -X POST \
+    https://<project-ref>.supabase.co/functions/v1/ai-copilot \
+    -H "apikey: <PUBLISHABLE_KEY>" -H "Content-Type: application/json" \
+    -d '{"messages":[{"role":"user","content":"oi"}]}'
+  ```
+  Esperado: **401**. Se retornar 200, a validação de JWT dentro da função não está
+  ativa e qualquer visitante do site pode consumir seus créditos da Anthropic.
 
-### 11. Build & preview
+### 11. Build & deploy do frontend
 
-- Build automático do Lovable não pode falhar.
-- Console do preview sem `Error` ou `Warning` crítico no carregamento.
-
-### 12. Memória do projeto
-
-Conferir `mem://index.md` — se algum guardrail foi violado pelo remix, restaurar antes de prosseguir.
+- `npm run build` não pode falhar.
+- `npx tsc --noEmit` sem erros (valida que o `types.ts` bate com o schema aplicado).
+- Console sem `Error` crítico no carregamento.
+- Deploy na Vercel com as variáveis `VITE_*` configuradas (ver [README](../README.md)).
 
 ---
 
-**Só considerar o remix "verde" quando todos os 12 itens passarem.**
+**Só considerar o setup "verde" quando todos os itens passarem.**
 
 ---
 
 <a id="estendendo-o-projeto"></a>
 ## 10. 09 — Estendendo o projeto
+
 
 
 Receitas para adicionar funcionalidade sem violar guardrails. Toda extensão segue SOLID + TDD do Workspace Knowledge.
@@ -1007,7 +1111,7 @@ FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 ```
 
 #### 2. Tipos regenerados
-Automático — `src/integrations/supabase/types.ts` é atualizado pelo Lovable Cloud.
+Rodar `npx supabase gen types typescript --project-id <REF> > src/integrations/supabase/types.ts` após cada migration. O arquivo é gerado — edições manuais são sobrescritas.
 
 #### 3. Hook
 ```ts
@@ -1158,4 +1262,3 @@ Mostrar nova role no seletor.
 - [ ] Memória atualizada (`mem://`) se a feature for permanente e estrutural.
 
 ---
-

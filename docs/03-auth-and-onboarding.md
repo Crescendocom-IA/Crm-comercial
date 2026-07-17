@@ -1,6 +1,6 @@
 # 03 — Auth & Onboarding (Guardrail obrigatório)
 
-> Este documento codifica o guardrail do Project Knowledge. **Qualquer remix DEVE passar pelo checklist em [08](./08-remix-checklist.md) após restaurar.**
+> **Toda instância nova DEVE passar pelo checklist em [08](./08-setup-checklist.md) após aplicar o schema.**
 
 ## Princípio inegociável
 
@@ -112,14 +112,14 @@ Não bloquear por estado legado. Profile sem conclusão → modal abre.
 | 0 | Welcome | — | Sempre |
 | 1 | Company | `organizations.name` + `settings.segment` | `segment` preenchido |
 | 2 | Pipeline | `pipelines` + `pipeline_stages` | Pipeline criado com stages |
-| 3 | AI Copilot | `integration_configs` (`provider='anthropic'` ou `lovable_ai`) | Ativo |
+| 3 | AI Copilot | `integration_configs` (`provider='anthropic'`) | Ativo |
 | 4 | Email | `integration_configs` (`provider='resend'`) | Configurado com from_email |
 | 5 | Slack | `integration_configs` (`provider='slack'`) | Configurado |
 | 6 | Complete | `profiles.onboarding_completed=true` | Final |
 
 `loadPersistedOnboardingState()` (`persistence.ts`) reconstrói `stepData` e `completedSteps` a partir do DB. `getResumeStep()` decide onde retomar.
 
-## Backfill pós-remix (obrigatório)
+## Backfill pós-setup (obrigatório)
 
 Se houver usuários em `auth.users` sem profile (estado órfão), executar:
 

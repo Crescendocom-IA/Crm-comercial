@@ -23,7 +23,7 @@ import { DealsKanban } from "@/components/crm/DealsKanban";
 import { DealsList } from "@/components/crm/DealsList";
 import { DealsForecast } from "@/components/crm/DealsForecast";
 import { DealsFilters, type DealFilters } from "@/components/crm/DealsFilters";
-import { fireWebhook } from "@/lib/webhooks";
+import { fireWebhook, fireAutomations } from "@/lib/webhooks";
 import type { Database } from "@/integrations/supabase/types";
 
 type Deal = Database["public"]["Tables"]["deals"]["Row"];
@@ -195,6 +195,7 @@ export default function Deals() {
   const handleDragEnd = async (dealId: string, newStageId: string) => {
     setDeals((prev) => prev.map((d) => d.id === dealId ? { ...d, stage_id: newStageId } : d));
     await supabase.from("deals").update({ stage_id: newStageId }).eq("id", dealId);
+    fireAutomations(orgId, "deal.stage_changed", { deal_id: dealId, stage_id: newStageId });
   };
 
   const openNew = (stageId?: string) => {
@@ -252,6 +253,7 @@ export default function Deals() {
   const markAsWon = async (dealId: string) => {
     await supabase.from("deals").update({ status: "won" }).eq("id", dealId);
     fireWebhook(orgId, "deal.won", { deal_id: dealId });
+    fireAutomations(orgId, "deal.won", { deal_id: dealId });
     fetchData();
     toast({ title: "Negócio marcado como ganho! 🎉" });
   };
@@ -268,6 +270,7 @@ export default function Deals() {
     const reason = lossNote ? `${lossReason}: ${lossNote}` : lossReason;
     await supabase.from("deals").update({ status: "lost", loss_reason: reason }).eq("id", lossDealId);
     fireWebhook(orgId, "deal.lost", { deal_id: lossDealId, loss_reason: reason });
+    fireAutomations(orgId, "deal.lost", { deal_id: lossDealId, loss_reason: reason });
     setLossModalOpen(false);
     fetchData();
     toast({ title: "Negócio marcado como perdido" });
@@ -280,11 +283,11 @@ export default function Deals() {
       toast({ title: `${ids.length} negócios excluídos` });
     } else if (action === "won") {
       await Promise.all(ids.map((id) => supabase.from("deals").update({ status: "won" }).eq("id", id)));
-      ids.forEach((id) => fireWebhook(orgId, "deal.won", { deal_id: id }));
+      ids.forEach((id) => { fireWebhook(orgId, "deal.won", { deal_id: id }); fireAutomations(orgId, "deal.won", { deal_id: id }); });
       toast({ title: `${ids.length} negócios marcados como ganhos` });
     } else {
       await Promise.all(ids.map((id) => supabase.from("deals").update({ status: "lost" }).eq("id", id)));
-      ids.forEach((id) => fireWebhook(orgId, "deal.lost", { deal_id: id }));
+      ids.forEach((id) => { fireWebhook(orgId, "deal.lost", { deal_id: id }); fireAutomations(orgId, "deal.lost", { deal_id: id }); });
       toast({ title: `${ids.length} negócios marcados como perdidos` });
     }
     setSelectedDeals(new Set());

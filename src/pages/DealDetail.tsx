@@ -22,7 +22,7 @@ import {
   Phone, Mail, FileText, CheckSquare, CalendarDays, Edit2, Check, X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { fireWebhook } from "@/lib/webhooks";
+import { fireWebhook, fireAutomations } from "@/lib/webhooks";
 import type { Database } from "@/integrations/supabase/types";
 
 type Deal = Database["public"]["Tables"]["deals"]["Row"];
@@ -147,6 +147,7 @@ export default function DealDetail() {
   const changeStage = async (stageId: string) => {
     await supabase.from("deals").update({ stage_id: stageId }).eq("id", deal.id);
     setDeal({ ...deal, stage_id: stageId });
+    fireAutomations(orgId, "deal.stage_changed", { deal_id: deal.id, stage_id: stageId });
     toast({ title: "Estágio atualizado" });
   };
 
@@ -154,6 +155,7 @@ export default function DealDetail() {
     await supabase.from("deals").update({ status: "won" }).eq("id", deal.id);
     setDeal({ ...deal, status: "won" });
     fireWebhook(orgId, "deal.won", { deal_id: deal.id, title: deal.title, value: deal.value });
+    fireAutomations(orgId, "deal.won", { deal_id: deal.id, value: deal.value });
     toast({ title: "Negócio marcado como ganho! 🎉" });
   };
 
@@ -162,6 +164,7 @@ export default function DealDetail() {
     await supabase.from("deals").update({ status: "lost", loss_reason: reason }).eq("id", deal.id);
     setDeal({ ...deal, status: "lost" });
     fireWebhook(orgId, "deal.lost", { deal_id: deal.id, title: deal.title, loss_reason: reason });
+    fireAutomations(orgId, "deal.lost", { deal_id: deal.id, loss_reason: reason });
     setLossModalOpen(false);
     toast({ title: "Negócio marcado como perdido" });
   };

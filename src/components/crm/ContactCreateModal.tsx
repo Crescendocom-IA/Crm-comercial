@@ -12,7 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { fireWebhook } from "@/lib/webhooks";
+import { fireWebhook, fireAutomations } from "@/lib/webhooks";
 import type { Database } from "@/integrations/supabase/types";
 
 type Company = Database["public"]["Tables"]["companies"]["Row"];
@@ -53,6 +53,7 @@ export function ContactCreateModal({ open, onOpenChange, onCreated, companies }:
     }).select().single();
     if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
     fireWebhook(orgId, "contact.created", inserted ?? {});
+    fireAutomations(orgId, "contact.created", { contact_id: inserted?.id, lead_score: inserted?.lead_score, status: inserted?.status });
     onOpenChange(false);
     setForm({ first_name: "", last_name: "", email: "", phone: "", title: "", status: "lead", linkedin_url: "", company_id: "" });
     onCreated();

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
@@ -57,6 +58,7 @@ export default function Deals() {
   const [members, setMembers] = useState<Profile[]>([]);
   const [selectedPipeline, setSelectedPipeline] = useState<string>("");
   const [viewMode, setViewMode] = useState<ViewMode>("kanban");
+  const [loading, setLoading] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Deal | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -158,6 +160,7 @@ export default function Deals() {
       const def = pRes.data.find((p) => p.is_default) || pRes.data[0];
       setSelectedPipeline(def.id);
     }
+    setLoading(false);
   }, [orgId, selectedPipeline]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -380,7 +383,9 @@ export default function Deals() {
         <DealsFilters filters={filters} onFiltersChange={setFilters} members={members} />
       )}
 
-      {viewMode === "kanban" && (
+      {loading && (viewMode === "list" ? <TableSkeleton rows={8} cols={6} /> : <CardSkeleton count={8} />)}
+
+      {!loading && viewMode === "kanban" && (
         <DealsKanban
           deals={openDeals}
           wonDeals={wonDeals}
@@ -394,7 +399,7 @@ export default function Deals() {
         />
       )}
 
-      {viewMode === "list" && (
+      {!loading && viewMode === "list" && (
         <DealsList
           deals={filteredDeals}
           stages={stages}
@@ -405,7 +410,7 @@ export default function Deals() {
         />
       )}
 
-      {viewMode === "forecast" && (
+      {!loading && viewMode === "forecast" && (
         <DealsForecast deals={openDeals} stages={pipelineStages} />
       )}
 

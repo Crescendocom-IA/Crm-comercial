@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -57,6 +58,7 @@ export default function Companies() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const [drawerCompany, setDrawerCompany] = useState<Company | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -79,6 +81,7 @@ export default function Companies() {
     ]);
     setCompanies(cRes.data || []);
     setMembers(mRes.data || []);
+    setLoading(false);
   }, [orgId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
@@ -264,7 +267,9 @@ export default function Companies() {
         onConfirm={() => { setConfirmDeleteOpen(false); batchDelete(); }}
       />
 
-      {viewMode === "table" && (
+      {loading && (viewMode === "table" ? <TableSkeleton rows={8} cols={7} /> : <CardSkeleton count={8} />)}
+
+      {!loading && viewMode === "table" && (
         <div className="rounded-md border border-border overflow-x-auto">
           <Table>
             <TableHeader>
@@ -320,7 +325,7 @@ export default function Companies() {
         </div>
       )}
 
-      {viewMode === "cards" && (
+      {!loading && viewMode === "cards" && (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
           {paginated.map((c) => (
             <Card key={c.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setDrawerCompany(c)}>

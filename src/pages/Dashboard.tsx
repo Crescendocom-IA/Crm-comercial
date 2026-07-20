@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -121,6 +122,12 @@ export default function Dashboard() {
   const [members, setMembers] = useState<Profile[]>([]);
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [loading, setLoading] = useState(true);
+  /**
+   * fetchAll roda também no auto-refresh de 5 min e no botão de atualizar.
+   * Trocar o dashboard inteiro por skeleton nesses casos apagaria dados já na
+   * tela — o skeleton só faz sentido enquanto não há nada para mostrar.
+   */
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(new Date());
 
   // Filters
@@ -149,6 +156,7 @@ export default function Dashboard() {
     setMembers((mRes.data as Profile[]) || []);
     setPipelines((pRes.data as Pipeline[]) || []);
     setLoading(false);
+    setHasLoadedOnce(true);
     setLastRefresh(new Date());
   }, [orgId]);
 
@@ -407,6 +415,25 @@ export default function Dashboard() {
       </div>
 
       {/* ── KPI Cards ── */}
+      {/*
+        Durante o fetch os KPIs renderizavam com os estados iniciais — "R$ 0",
+        "0 negócios" — indistinguíveis de uma conta realmente vazia. O skeleton
+        usa a mesma grade e altura dos cards para nada saltar quando os dados
+        chegam.
+      */}
+      {loading && !hasLoadedOnce ? (
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-3 xl:grid-cols-6" role="status" aria-label="Carregando indicadores">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="p-3 space-y-2">
+                <Skeleton className="h-3 w-2/3" />
+                <Skeleton className="h-6 w-1/2" />
+                <Skeleton className="h-2.5 w-3/4" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <Card className="cursor-pointer hover:border-primary/30 transition-colors" onClick={() => navigate("/deals")}>
           <CardContent className="p-3">
@@ -478,6 +505,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+      )}
 
       {/* ── Row 1: Revenue chart + Goal gauge ── */}
       <div className="grid gap-4 lg:grid-cols-3">

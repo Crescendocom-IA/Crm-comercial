@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -85,6 +86,7 @@ export default function Contacts() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Drawers & modals
   const [drawerContact, setDrawerContact] = useState<Contact | null>(null);
@@ -125,6 +127,7 @@ export default function Contacts() {
       }
     });
     setLastActivityMap(map);
+    setLoading(false);
   }, [orgId]);
 
   const getInactivityDays = (contactId: string, createdAt: string | null) => {
@@ -375,8 +378,10 @@ export default function Contacts() {
         onConfirm={() => { setConfirmDeleteOpen(false); batchDelete(); }}
       />
 
+      {loading && (viewMode === "table" ? <TableSkeleton rows={8} cols={8} /> : <CardSkeleton count={8} />)}
+
       {/* Table View */}
-      {viewMode === "table" && (
+      {!loading && viewMode === "table" && (
         <div className="rounded-md border border-border overflow-x-auto">
           <Table>
             <TableHeader>
@@ -456,7 +461,7 @@ export default function Contacts() {
       )}
 
       {/* Card View */}
-      {viewMode === "cards" && (
+      {!loading && viewMode === "cards" && (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
           {paginated.map((c) => (
             <Card key={c.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setDrawerContact(c)}>
@@ -486,7 +491,7 @@ export default function Contacts() {
       )}
 
       {/* Owner Kanban View */}
-      {viewMode === "owner" && (
+      {!loading && viewMode === "owner" && (
         <ContactsKanbanByOwner
           contacts={sorted}
           members={members}

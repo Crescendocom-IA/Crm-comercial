@@ -4,7 +4,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { X, Search } from "lucide-react";
+import { X } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
@@ -25,23 +25,17 @@ interface DealsFiltersProps {
 }
 
 export function DealsFilters({ filters, onFiltersChange, members }: DealsFiltersProps) {
-  const hasFilters = Object.values(filters).some((v) => v !== undefined && v !== "");
+  /*
+   * `search` faz parte de DealFilters mas é editado no header da página, fora
+   * deste painel. Por isso não conta para "há filtros ativos" nem é apagado
+   * pelo Limpar — senão o botão apareceria por causa de uma busca digitada em
+   * outro lugar, e limpar os filtros zeraria a busca junto.
+   */
+  const hasFilters = Object.entries(filters)
+    .some(([k, v]) => k !== "search" && v !== undefined && v !== "");
 
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-muted/30 p-3">
-      <div className="space-y-1">
-        <Label className="text-xs">Buscar</Label>
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-          <Input
-            className="h-8 w-48 pl-8 text-xs"
-            placeholder="Título do negócio..."
-            value={filters.search || ""}
-            onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
-          />
-        </div>
-      </div>
-
       <div className="space-y-1">
         <Label className="text-xs">Responsável</Label>
         <Select
@@ -105,7 +99,7 @@ export function DealsFilters({ filters, onFiltersChange, members }: DealsFilters
           variant="ghost"
           size="sm"
           className="h-8 text-xs text-muted-foreground"
-          onClick={() => onFiltersChange({})}
+          onClick={() => onFiltersChange({ search: filters.search })}
         >
           <X className="mr-1 h-3 w-3" />Limpar
         </Button>

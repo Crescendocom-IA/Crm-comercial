@@ -19,7 +19,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Kanban, List, TrendingUp, Plus, Filter, Settings2, Trash2, GripVertical, Loader2, Handshake } from "lucide-react";
+import { Kanban, List, TrendingUp, Plus, Filter, Settings2, Trash2, GripVertical, Loader2, Handshake, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DealsKanban } from "@/components/crm/DealsKanban";
 
@@ -448,6 +448,17 @@ export default function Deals() {
             <Filter className="mr-1 h-3 w-3" /><span className="hidden sm:inline">Filtro</span>
           </Button>
         </div>
+      </div>
+
+      {/* Search — sempre visível, como em Contatos e Empresas */}
+      <div className="relative">
+        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Buscar por título..."
+          className="pl-9"
+          value={filters.search || ""}
+          onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+        />
       </div>
 
       {showFilters && (

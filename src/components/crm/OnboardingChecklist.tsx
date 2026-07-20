@@ -1,4 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrg } from "@/hooks/useOrg";
@@ -247,10 +252,27 @@ export function OnboardingChecklist() {
           })}
 
           {!data.demo_loaded && (
-            <Button variant="outline" size="sm" className="w-full mt-2" onClick={handleLoadDemo} disabled={loadingDemo}>
-              <Database className="mr-2 h-3.5 w-3.5" />
-              {loadingDemo ? "Carregando..." : "Carregar dados de demonstração"}
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm" className="w-full mt-2" disabled={loadingDemo}>
+                  <Database className="mr-2 h-3.5 w-3.5" />
+                  {loadingDemo ? "Carregando..." : "Carregar dados de demonstração"}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Carregar dados de demonstração?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Isso vai inserir contatos, empresas e negócios de exemplo na sua conta.
+                    Pode ser desfeito apagando os registros manualmente.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleLoadDemo}>Carregar dados</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
 
           {completedCount === steps.length && (

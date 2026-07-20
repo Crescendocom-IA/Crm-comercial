@@ -37,7 +37,12 @@
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+    /*
+     * Texto escuro, não branco. Branco sobre este âmbar dá 2.14:1 — abaixo do
+     * mínimo WCAG AA (4.5:1) e ilegível na prática. Escuro dá 8.29:1.
+     * Vale nos dois temas, porque --warning é o mesmo âmbar em ambos.
+     */
+    --warning-foreground: 240 6% 10%;
 
     /*
      * Paleta categórica: séries de gráfico, tipos de atividade, tipos de meta.
@@ -70,8 +75,18 @@
     --muted-foreground: 240 5% 58%;
     --accent: 240 4% 14%;
     --accent-foreground: 0 0% 96%;
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 0 0% 98%;
+    /*
+     * --destructive acumula dois papéis: fundo de botão (com
+     * --destructive-foreground em cima) e cor de texto (text-destructive).
+     *
+     * Em 0 63% 31% o vermelho ficava mais escuro que o fundo do tema: 1.95:1
+     * como texto, praticamente invisível. Clarear resolve o texto (5.83:1) mas
+     * derruba o branco em cima dele para 3.16:1 — então o foreground vira
+     * escuro (5.38:1). É a mesma convenção que o dark já usa em --primary
+     * (217 91% 60% com foreground 240 6% 6%, 5.30:1).
+     */
+    --destructive: 0 84% 65%;
+    --destructive-foreground: 240 6% 6%;
     --border: 240 4% 16%;
     --input: 240 4% 16%;
     --ring: 217 91% 60%;
@@ -86,7 +101,7 @@
     --success: 142 71% 45%;
     --success-foreground: 0 0% 98%;
     --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 98%;
+    --warning-foreground: 240 6% 10%;
 
     /* Mesma paleta, clareada para ler sobre fundo escuro. */
     --chart-1: 217 91% 65%;

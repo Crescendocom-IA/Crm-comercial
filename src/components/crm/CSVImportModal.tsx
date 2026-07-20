@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import Papa from "papaparse";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { useAuth } from "@/contexts/AuthContext";
@@ -62,31 +63,35 @@ export function CSVImportModal({ open, onOpenChange, onImported, entityType }: C
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      const lines = text.split("\n").map((l) => l.split(",").map((c) => c.trim().replace(/^"|"$/g, "")));
-      if (lines.length < 2) { toast({ title: "CSV vazio ou inválido", variant: "destructive" }); return; }
-      setCsvHeaders(lines[0]);
-      setCsvRows(lines.slice(1).filter((r) => r.some((c) => c)));
-      // Auto-map by header name
-      const autoMap: Record<number, string> = {};
-      lines[0].forEach((header, i) => {
-        const lower = header.toLowerCase();
-        const match = fields.find((f) =>
-          f.key !== "__skip" && (f.label.toLowerCase() === lower || f.key === lower ||
-            (f.key === "first_name" && (lower.includes("nome") || lower.includes("first"))) ||
-            (f.key === "last_name" && (lower.includes("sobrenome") || lower.includes("last"))) ||
-            (f.key === "email" && lower.includes("email")) ||
-            (f.key === "phone" && (lower.includes("telefone") || lower.includes("phone"))) ||
-            (f.key === "name" && lower.includes("empresa")))
-        );
-        autoMap[i] = match?.key || "__skip";
-      });
-      setMapping(autoMap);
-      setStep("mapping");
-    };
-    reader.readAsText(file);
+    // Papa lida com aspas, vírgulas e quebras de linha dentro de campos — o split
+    // manual em "," e "\n" corrompia qualquer célula com vírgula/aspas.
+    Papa.parse<string[]>(file, {
+      skipEmptyLines: true,
+      complete: (results) => {
+        const rows = (results.data as string[][]).filter((r) => r.some((c) => (c ?? "").trim()));
+        if (rows.length < 2) { toast({ title: "CSV vazio ou inválido", variant: "destructive" }); return; }
+        const headers = rows[0].map((h) => (h ?? "").trim());
+        setCsvHeaders(headers);
+        setCsvRows(rows.slice(1));
+        // Auto-map by header name
+        const autoMap: Record<number, string> = {};
+        headers.forEach((header, i) => {
+          const lower = header.toLowerCase();
+          const match = fields.find((f) =>
+            f.key !== "__skip" && (f.label.toLowerCase() === lower || f.key === lower ||
+              (f.key === "first_name" && (lower.includes("nome") || lower.includes("first"))) ||
+              (f.key === "last_name" && (lower.includes("sobrenome") || lower.includes("last"))) ||
+              (f.key === "email" && lower.includes("email")) ||
+              (f.key === "phone" && (lower.includes("telefone") || lower.includes("phone"))) ||
+              (f.key === "name" && lower.includes("empresa")))
+          );
+          autoMap[i] = match?.key || "__skip";
+        });
+        setMapping(autoMap);
+        setStep("mapping");
+      },
+      error: () => { toast({ title: "Erro ao ler o CSV", variant: "destructive" }); },
+    });
   };
 
   const handleImport = async () => {

@@ -723,6 +723,10 @@ function ForecastReport({ deals, stages, members, ownerFilter, pipelineFilter }:
 }) {
   const { orgId } = useOrg();
   const { toast } = useToast();
+  // Overrides locais de probabilidade após edição inline — não mutamos o prop
+  // `deals` (que pertence ao componente pai); guardamos a mudança em estado e a
+  // aplicamos ao ler/exibir, o que também dispara o re-render do forecast.
+  const [probOverrides, setProbOverrides] = useState<Record<string, number>>({});
 
   const openDeals = useMemo(() => {
     let list = deals.filter((d) => d.status === "open");
@@ -750,7 +754,7 @@ function ForecastReport({ deals, stages, members, ownerFilter, pipelineFilter }:
       const bucket = result.find((b) => b.key === key);
       if (!bucket) return;
       const val = Number(deal.value) || 0;
-      const prob = Number(deal.probability) || 0;
+      const prob = Number(probOverrides[deal.id] ?? deal.probability) || 0;
       bucket.pipeline += val;
       if (prob >= 80) bucket.pessimist += val;
       if (prob >= 50) bucket.realist += val;
@@ -758,7 +762,7 @@ function ForecastReport({ deals, stages, members, ownerFilter, pipelineFilter }:
       bucket.deals.push(deal);
     });
     return result;
-  }, [openDeals]);
+  }, [openDeals, probOverrides]);
 
   const totals = buckets.reduce((a, b) => ({
     pessimist: a.pessimist + b.pessimist, realist: a.realist + b.realist,
@@ -775,9 +779,7 @@ function ForecastReport({ deals, stages, members, ownerFilter, pipelineFilter }:
     const { error } = await supabase.from("deals").update({ probability: newProb }).eq("id", dealId);
     if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
     toast({ title: "Probabilidade atualizada" });
-    // Update local state
-    const idx = deals.findIndex((d) => d.id === dealId);
-    if (idx >= 0) deals[idx].probability = newProb;
+    setProbOverrides((prev) => ({ ...prev, [dealId]: newProb }));
   };
 
   return (
@@ -834,7 +836,7 @@ function ForecastReport({ deals, stages, members, ownerFilter, pipelineFilter }:
             <CardContent>
               <div className="space-y-1">
                 {bucket.deals.sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0)).map((deal) => {
-                  const prob = Number(deal.probability) || 0;
+                  const prob = Number(probOverrides[deal.id] ?? deal.probability) || 0;
                   const stageName = stages.find((s) => s.id === deal.stage_id)?.name || "—";
                   const scenario = prob >= 80 ? "Pessimista" : prob >= 50 ? "Realista" : prob >= 30 ? "Otimista" : "Fora";
                   const scenarioColor = prob >= 80 ? "text-destructive" : prob >= 50 ? "text-primary" : prob >= 30 ? "text-success" : "text-muted-foreground";

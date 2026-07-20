@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +53,7 @@ const DEFAULT_RULES: Omit<RiskRule, "id" | "org_id" | "created_at">[] = [
 ];
 
 export function AtRiskPanel({ open, onOpenChange }: AtRiskPanelProps) {
+  const navigate = useNavigate();
   const { orgId } = useOrg();
   const [items, setItems] = useState<AtRiskItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -270,8 +272,21 @@ export function AtRiskPanel({ open, onOpenChange }: AtRiskPanelProps) {
     }
   };
 
+  /**
+   * O painel apontava os negócios em risco e não deixava ir até eles — o usuário
+   * tinha que memorizar o título, fechar o painel e procurar na lista. Agora o
+   * card navega e fecha o Sheet (senão ele cobriria o destino).
+   */
+  const openItem = (item: AtRiskItem) => {
+    onOpenChange(false);
+    navigate(item.type === "deal" ? `/deals/${item.id}` : "/contacts");
+  };
+
   const RiskCard = ({ item }: { item: AtRiskItem }) => (
-    <Card className={`border-l-4 ${item.riskLevel === "high" ? "border-l-destructive" : "border-l-warning"}`}>
+    <Card
+      onClick={() => openItem(item)}
+      className={`border-l-4 cursor-pointer transition-colors hover:border-primary/40 hover:bg-accent/50 ${item.riskLevel === "high" ? "border-l-destructive" : "border-l-warning"}`}
+    >
       <CardContent className="p-3">
         <div className="flex items-start justify-between mb-1.5">
           <div className="flex items-center gap-1.5">

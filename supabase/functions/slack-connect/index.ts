@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,6 +14,21 @@ serve(async (req) => {
   }
 
   try {
+    // Exige usuário autenticado; se org_id vier, ele precisa pertencer à org.
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const userClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: authHeader } } });
+    const { data: { user }, error: authErr } = await userClient.auth.getUser();
+    if (authErr || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const SLACK_BOT_TOKEN = Deno.env.get("SLACK_BOT_TOKEN");
     if (!SLACK_BOT_TOKEN) {
       return new Response(JSON.stringify({ error: "SLACK_BOT_TOKEN not configured" }), {
@@ -21,6 +37,16 @@ serve(async (req) => {
     }
 
     const { org_id } = await req.json();
+
+    if (org_id) {
+      const svcCheck = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      const { data: belongs } = await svcCheck.from("user_roles").select("id").eq("user_id", user.id).eq("org_id", org_id).maybeSingle();
+      if (!belongs) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     const slackHeaders = {
       "Authorization": `Bearer ${SLACK_BOT_TOKEN}`,

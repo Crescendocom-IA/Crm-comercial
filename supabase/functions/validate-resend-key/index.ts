@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +12,17 @@ serve(async (req) => {
   }
 
   try {
+    // Exige usuário autenticado (a função não deve ser chamável anonimamente).
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ valid: false, error_code: "unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const userClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: authHeader } } });
+    const { data: { user }, error: authErr } = await userClient.auth.getUser();
+    if (authErr || !user) {
+      return new Response(JSON.stringify({ valid: false, error_code: "unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     const { api_key, from_email, from_name, test_to, org_id } = await req.json();
 
     if (!api_key || !from_email || !test_to) {
@@ -18,6 +30,16 @@ serve(async (req) => {
         JSON.stringify({ valid: false, error_code: "invalid_key" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // Se org_id foi enviado, o usuário precisa pertencer a ela (evita gravar
+    // credenciais em outra empresa).
+    if (org_id) {
+      const svcCheck = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+      const { data: belongs } = await svcCheck.from("user_roles").select("id").eq("user_id", user.id).eq("org_id", org_id).maybeSingle();
+      if (!belongs) {
+        return new Response(JSON.stringify({ valid: false, error_code: "forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
     }
 
     // Send test email via Resend

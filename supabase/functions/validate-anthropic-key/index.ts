@@ -31,6 +31,14 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "Missing api_key or org_id" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // O usuário precisa PERTENCER à org — senão poderia gravar uma chave em outra.
+    const svcCheck = createClient(supabaseUrl, supabaseKey);
+    const { data: belongs } = await svcCheck
+      .from("user_roles").select("id").eq("user_id", user.id).eq("org_id", org_id).maybeSingle();
+    if (!belongs) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     // Test with Anthropic API
     const testRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -40,7 +48,7 @@ serve(async (req) => {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-5",
         max_tokens: 10,
         messages: [{ role: "user", content: "Say OK" }],
       }),
@@ -70,11 +78,11 @@ serve(async (req) => {
     // Update integration_configs
     const { data: existing } = await adminClient.from("integration_configs").select("id").eq("org_id", org_id).eq("provider", "anthropic").maybeSingle();
     if (existing) {
-      await adminClient.from("integration_configs").update({ config: { model: "claude-sonnet-4-20250514", configured: true }, is_active: true }).eq("id", existing.id);
+      await adminClient.from("integration_configs").update({ config: { model: "claude-sonnet-5", configured: true }, is_active: true }).eq("id", existing.id);
     } else {
       await adminClient.from("integration_configs").insert({
         org_id, provider: "anthropic",
-        config: { model: "claude-sonnet-4-20250514", configured: true },
+        config: { model: "claude-sonnet-5", configured: true },
         connected_by: user.id, is_active: true,
       });
     }

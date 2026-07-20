@@ -41,6 +41,20 @@ serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const sb = createClient(supabaseUrl, serviceKey);
 
+    // O usuário está autenticado, mas precisa PERTENCER à org que enviou —
+    // senão poderia passar o org_id de outra empresa e ler o pipeline dela.
+    const { data: belongs } = await sb
+      .from("user_roles")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("org_id", org_id)
+      .maybeSingle();
+    if (!belongs) {
+      return new Response(JSON.stringify({ error: "Forbidden", insights: [] }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Fetch org data for insights
     const [dealsRes, activitiesRes, contactsRes, stagesRes] = await Promise.all([
       sb.from("deals").select("id,title,value,status,stage_id,owner_id,updated_at,probability,close_date").eq("org_id", org_id),

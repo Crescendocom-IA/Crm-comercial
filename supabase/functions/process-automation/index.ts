@@ -17,6 +17,24 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, serviceKey);
 
   try {
+    // Exige um usuário autenticado que pertença à org. O dispatcher client-side
+    // (fireAutomations) chama via invoke, que anexa o JWT do usuário logado.
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const body = await req.json();
     const { automation_id, trigger_payload, org_id, retry_count = 0 } = body;
 
@@ -24,6 +42,15 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Missing automation_id or org_id" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // O usuário precisa pertencer à org da automação (evita execução cross-tenant).
+    const { data: belongs } = await supabase
+      .from("user_roles").select("id").eq("user_id", user.id).eq("org_id", org_id).maybeSingle();
+    if (!belongs) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 

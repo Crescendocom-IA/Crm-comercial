@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
 import { EmptyState } from "@/components/crm/EmptyState";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -157,14 +157,31 @@ export default function Deals() {
     setContacts(cRes.data || []);
     setCompanies(coRes.data || []);
     setMembers(allMembers);
-    if (pRes.data?.length && !selectedPipeline) {
+    // Escolher o pipeline padrão era a única leitura de selectedPipeline aqui,
+    // e era ela que o punha nas deps: cada troca de pipeline (e cada evento de
+    // realtime, que dependia de fetchData) refazia as 6 queries. As queries
+    // nunca filtraram por pipeline — isso já acontece em estado local, em
+    // pipelineStages. Com o setState funcional, fetchData passa a depender só
+    // de orgId e fica estável.
+    if (pRes.data?.length) {
       const def = pRes.data.find((p) => p.is_default) || pRes.data[0];
-      setSelectedPipeline(def.id);
+      setSelectedPipeline((prev) => prev || def.id);
     }
     setLoading(false);
-  }, [orgId, selectedPipeline]);
+  }, [orgId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  /*
+   * O payload do realtime traz só as colunas de `deals` — sem os joins de
+   * contact/company nem o owner enriquecido. Guardamos as listas já carregadas
+   * numa ref para reconstruir as relações sem pôr contacts/companies/members
+   * nas deps do canal (o que faria o socket reassinar a cada fetch).
+   */
+  const lookupsRef = useRef({ contacts, companies, members });
+  useEffect(() => {
+    lookupsRef.current = { contacts, companies, members };
+  }, [contacts, companies, members]);
 
   // Realtime subscription for deals
   useEffect(() => {
@@ -174,7 +191,46 @@ export default function Deals() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'deals', filter: `org_id=eq.${orgId}` },
-        () => { fetchData(); }
+        (payload) => {
+          /*
+           * Antes, qualquer evento refazia as 6 queries do fetchData. Como cada
+           * arrastar de card no kanban emite um UPDATE, um drag custava um
+           * refetch completo do pipeline inteiro.
+           *
+           * UPDATE é o caminho quente e dá para aplicar direto no state. INSERT
+           * ainda refaz o fetch: uma linha criada por outra pessoa pode
+           * referenciar um contato ou empresa que não temos em memória.
+           */
+          if (payload.eventType === "UPDATE") {
+            const row = payload.new as Deal;
+            setDeals((prev) => {
+              const idx = prev.findIndex((d) => d.id === row.id);
+              if (idx === -1) return prev;
+              const old = prev[idx];
+              const { contacts: cs, companies: cos, members: ms } = lookupsRef.current;
+              const next = [...prev];
+              next[idx] = {
+                ...old,
+                ...row,
+                // Só re-resolve a relação se o FK mudou; senão o objeto que já
+                // veio do join continua valendo.
+                contact: row.contact_id === old.contact_id ? old.contact : cs.find((c) => c.id === row.contact_id) ?? null,
+                company: row.company_id === old.company_id ? old.company : cos.find((c) => c.id === row.company_id) ?? null,
+                owner: row.owner_id === old.owner_id ? old.owner : ms.find((m) => m.id === row.owner_id) ?? null,
+              };
+              return next;
+            });
+            return;
+          }
+
+          if (payload.eventType === "DELETE") {
+            const removed = payload.old as { id?: string };
+            if (removed?.id) setDeals((prev) => prev.filter((d) => d.id !== removed.id));
+            return;
+          }
+
+          fetchData();
+        }
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };

@@ -28,7 +28,7 @@ interface OnboardingData {
 const steps = [
   { key: "profile_configured" as const, label: "Configurar perfil", icon: UserCircle, path: "/settings" },
   { key: "pipeline_created" as const, label: "Criar primeiro pipeline", icon: GitBranch, path: "/settings" },
-  { key: "contact_created" as const, label: "Criar primeiro contato", icon: Users, path: "/contacts" },
+  { key: "contact_created" as const, label: "Criar primeiro contato", icon: Users, path: "/contacts?action=new" },
   { key: "deal_created" as const, label: "Criar primeiro negócio", icon: Handshake, path: "/deals?action=new" },
   { key: "member_invited" as const, label: "Convidar membro", icon: UserPlus, path: "/settings" },
   { key: "email_connected" as const, label: "Conectar email", icon: Mail, path: "/settings/integrations" },

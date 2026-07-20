@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import DOMPurify from "dompurify";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { useAuth } from "@/contexts/AuthContext";
@@ -376,7 +377,7 @@ export default function Inbox() {
             <ScrollArea className="flex-1 p-4">
               <div
                 className="prose prose-sm max-w-none text-foreground"
-                dangerouslySetInnerHTML={{ __html: selectedEmail.body_html || "<p class='text-muted-foreground'>(sem conteúdo)</p>" }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(selectedEmail.body_html || "<p class='text-muted-foreground'>(sem conteúdo)</p>") }}
               />
             </ScrollArea>
 

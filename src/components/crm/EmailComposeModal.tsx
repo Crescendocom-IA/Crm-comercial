@@ -251,7 +251,7 @@ export function EmailComposeModal({ open, onOpenChange, onSent, defaultTo, defau
             <div className="flex items-center justify-between">
               <Label className="text-xs">Para *</Label>
               {!showCcBcc && (
-                <button onClick={() => setShowCcBcc(true)} className="text-[10px] text-primary hover:underline">
+                <button onClick={() => setShowCcBcc(true)} className="text-xs text-primary hover:underline">
                   Cc/Bcc
                 </button>
               )}
@@ -283,7 +283,7 @@ export function EmailComposeModal({ open, onOpenChange, onSent, defaultTo, defau
             {/* Templates */}
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="h-7 text-[10px]">
+                <Button variant="outline" size="sm" className="h-7 text-xs">
                   <FileText className="mr-1 h-3 w-3" />Templates
                 </Button>
               </PopoverTrigger>
@@ -299,7 +299,7 @@ export function EmailComposeModal({ open, onOpenChange, onSent, defaultTo, defau
                         className="w-full text-left rounded-md px-2 py-1.5 text-xs hover:bg-accent transition-colors"
                       >
                         <p className="font-medium">{t.name}</p>
-                        {t.category && <span className="text-[9px] text-muted-foreground">{t.category}</span>}
+                        {t.category && <span className="text-xs text-muted-foreground">{t.category}</span>}
                       </button>
                     ))}
                   </div>
@@ -310,7 +310,7 @@ export function EmailComposeModal({ open, onOpenChange, onSent, defaultTo, defau
             {/* Variables */}
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="h-7 text-[10px]">
+                <Button variant="outline" size="sm" className="h-7 text-xs">
                   <Variable className="mr-1 h-3 w-3" />Variáveis
                 </Button>
               </PopoverTrigger>
@@ -323,7 +323,7 @@ export function EmailComposeModal({ open, onOpenChange, onSent, defaultTo, defau
                       className="w-full text-left rounded-md px-2 py-1 text-xs hover:bg-accent transition-colors flex justify-between"
                     >
                       <span>{v.label}</span>
-                      <code className="text-[9px] text-muted-foreground">{v.key}</code>
+                      <code className="text-xs text-muted-foreground">{v.key}</code>
                     </button>
                   ))}
                 </div>
@@ -334,7 +334,7 @@ export function EmailComposeModal({ open, onOpenChange, onSent, defaultTo, defau
             <Button
               variant={showAiPanel ? "default" : "outline"}
               size="sm"
-              className="h-7 text-[10px] ml-auto"
+              className="h-7 text-xs ml-auto"
               onClick={() => setShowAiPanel(!showAiPanel)}
             >
               <Sparkles className="mr-1 h-3 w-3" />Gerar com IA
@@ -352,7 +352,7 @@ export function EmailComposeModal({ open, onOpenChange, onSent, defaultTo, defau
                   className="h-8 text-xs flex-1"
                 />
                 <Select value={aiTone} onValueChange={setAiTone}>
-                  <SelectTrigger className="h-8 w-28 text-[10px]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="formal">Formal</SelectItem>
                     <SelectItem value="casual">Casual</SelectItem>
@@ -366,13 +366,13 @@ export function EmailComposeModal({ open, onOpenChange, onSent, defaultTo, defau
               </div>
               {aiSubjects.length > 0 && (
                 <div className="space-y-1">
-                  <p className="text-[9px] text-muted-foreground font-medium">Sugestões de assunto:</p>
+                  <p className="text-xs text-muted-foreground font-medium">Sugestões de assunto:</p>
                   <div className="flex flex-wrap gap-1">
                     {aiSubjects.map((s, i) => (
                       <button
                         key={i}
                         onClick={() => setSubject(s)}
-                        className="text-[9px] px-2 py-1 rounded border border-border hover:bg-accent transition-colors"
+                        className="text-xs px-2 py-1 rounded border border-border hover:bg-accent transition-colors"
                       >
                         {s}
                       </button>

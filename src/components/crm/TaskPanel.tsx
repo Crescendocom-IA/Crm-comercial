@@ -218,7 +218,7 @@ export function TaskPanel({ open, onOpenChange }: TaskPanelProps) {
                     {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                     {isOverdue && <AlertTriangle className="h-3 w-3" />}
                     {sectionLabels[sectionKey]}
-                    <Badge variant="secondary" className={`ml-auto text-[9px] ${isOverdue ? "bg-destructive/10 text-destructive" : ""}`}>
+                    <Badge variant="secondary" className={`ml-auto text-xs ${isOverdue ? "bg-destructive/10 text-destructive" : ""}`}>
                       {sectionTasks.length}
                     </Badge>
                   </button>
@@ -238,13 +238,13 @@ export function TaskPanel({ open, onOpenChange }: TaskPanelProps) {
                             <p className="text-sm leading-tight">{t.title}</p>
                             <div className="flex items-center gap-2 mt-0.5">
                               {t.due_date && (
-                                <span className={`text-[10px] flex items-center gap-0.5 ${isOverdue ? "text-destructive" : "text-muted-foreground"}`}>
+                                <span className={`text-xs flex items-center gap-0.5 ${isOverdue ? "text-destructive" : "text-muted-foreground"}`}>
                                   <Clock className="h-2.5 w-2.5" />
                                   {new Date(t.due_date).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
                                 </span>
                               )}
                               {filter === "team" && t.user_id && (
-                                <span className="text-[10px] text-muted-foreground">
+                                <span className="text-xs text-muted-foreground">
                                   {getMemberName(t.user_id)}
                                 </span>
                               )}

@@ -157,7 +157,7 @@ function GeneralTab({ orgId, userId, profile }: { orgId: string | null; userId?:
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Perfil Pessoal</CardTitle>
-          <CardDescription className="text-[10px]">Suas informações pessoais</CardDescription>
+          <CardDescription className="text-xs">Suas informações pessoais</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -183,7 +183,7 @@ function GeneralTab({ orgId, userId, profile }: { orgId: string | null; userId?:
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Organização</CardTitle>
-          <CardDescription className="text-[10px]">Configurações gerais da organização</CardDescription>
+          <CardDescription className="text-xs">Configurações gerais da organização</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
@@ -220,7 +220,7 @@ function GeneralTab({ orgId, userId, profile }: { orgId: string | null; userId?:
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Indústrias</CardTitle>
-          <CardDescription className="text-[10px]">Personalize as opções de indústria disponíveis ao cadastrar empresas</CardDescription>
+          <CardDescription className="text-xs">Personalize as opções de indústria disponíveis ao cadastrar empresas</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex gap-2">
@@ -235,7 +235,7 @@ function GeneralTab({ orgId, userId, profile }: { orgId: string | null; userId?:
           </div>
           <div className="flex flex-wrap gap-1.5">
             {industries.map((ind) => (
-              <Badge key={ind} variant="secondary" className="text-[10px] gap-1">
+              <Badge key={ind} variant="secondary" className="text-xs gap-1">
                 {ind}
                 <button onClick={() => removeIndustry(ind)} className="hover:text-destructive"><X className="h-2.5 w-2.5" /></button>
               </Badge>
@@ -344,7 +344,7 @@ function PipelinesTab({ orgId }: { orgId: string | null }) {
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Pipelines</CardTitle>
-          <CardDescription className="text-[10px]">Gerencie seus pipelines de vendas</CardDescription>
+          <CardDescription className="text-xs">Gerencie seus pipelines de vendas</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex gap-2">
@@ -365,7 +365,7 @@ function PipelinesTab({ orgId }: { orgId: string | null }) {
                   description="Excluir este pipeline também removerá todos os estágios associados. Negócios neste pipeline ficarão sem estágio. Esta ação não pode ser desfeita."
                   onConfirm={() => deletePipeline(selectedPipeline)}
                   trigger={
-                    <Button variant="destructive" size="sm" className="h-8 text-[10px]">
+                    <Button variant="destructive" size="sm" className="h-8 text-xs">
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   }
@@ -380,7 +380,7 @@ function PipelinesTab({ orgId }: { orgId: string | null }) {
         <Card>
           <CardHeader>
             <CardTitle className="text-sm">Estágios</CardTitle>
-            <CardDescription className="text-[10px]">Configure estágios do pipeline selecionado. Arraste para reordenar.</CardDescription>
+            <CardDescription className="text-xs">Configure estágios do pipeline selecionado. Arraste para reordenar.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex gap-2">
@@ -393,13 +393,13 @@ function PipelinesTab({ orgId }: { orgId: string | null }) {
               {pipelineStages.map((s, i) => (
                 <div key={s.id} className="flex items-center gap-2 rounded-md border border-border p-2">
                   <div className="flex flex-col gap-0.5">
-                    <button onClick={() => moveStage(s.id, "up")} disabled={i === 0} className="text-muted-foreground hover:text-foreground disabled:opacity-30 text-[10px]">▲</button>
-                    <button onClick={() => moveStage(s.id, "down")} disabled={i === pipelineStages.length - 1} className="text-muted-foreground hover:text-foreground disabled:opacity-30 text-[10px]">▼</button>
+                    <button onClick={() => moveStage(s.id, "up")} disabled={i === 0} className="text-muted-foreground hover:text-foreground disabled:opacity-30 text-xs">▲</button>
+                    <button onClick={() => moveStage(s.id, "down")} disabled={i === pipelineStages.length - 1} className="text-muted-foreground hover:text-foreground disabled:opacity-30 text-xs">▼</button>
                   </div>
                   <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: s.color || "#888" }} />
                   <span className="text-xs font-medium flex-1">{s.name}</span>
-                  <Badge variant="outline" className="text-[8px]">{s.win_probability || 0}%</Badge>
-                  <span className="text-[9px] text-muted-foreground">#{s.order}</span>
+                  <Badge variant="outline" className="text-xs">{s.win_probability || 0}%</Badge>
+                  <span className="text-xs text-muted-foreground">#{s.order}</span>
                   <ConfirmDeleteDialog
                     title="Excluir estágio?"
                     description="Negócios neste estágio ficarão sem estágio. Esta ação não pode ser desfeita."
@@ -416,7 +416,7 @@ function PipelinesTab({ orgId }: { orgId: string | null }) {
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Razões de Perda</CardTitle>
-          <CardDescription className="text-[10px]">Motivos customizáveis quando um negócio é marcado como perdido</CardDescription>
+          <CardDescription className="text-xs">Motivos customizáveis quando um negócio é marcado como perdido</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex gap-2">
@@ -425,7 +425,7 @@ function PipelinesTab({ orgId }: { orgId: string | null }) {
           </div>
           <div className="flex flex-wrap gap-1.5">
             {lossReasons.map((lr: any) => (
-              <Badge key={lr.id} variant="secondary" className="text-[10px] gap-1">
+              <Badge key={lr.id} variant="secondary" className="text-xs gap-1">
                 {lr.label}
                 <ConfirmDeleteDialog
                   title="Excluir motivo de perda?"
@@ -496,9 +496,9 @@ function CustomFieldsTab({ orgId }: { orgId: string | null }) {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-sm">Campos Customizados</CardTitle>
-              <CardDescription className="text-[10px]">Adicione campos extras para suas entidades</CardDescription>
+              <CardDescription className="text-xs">Adicione campos extras para suas entidades</CardDescription>
             </div>
-            <Button size="sm" className="h-7 text-[10px]" onClick={() => setShowCreate(true)}>
+            <Button size="sm" className="h-7 text-xs" onClick={() => setShowCreate(true)}>
               <Plus className="mr-1 h-3 w-3" />Novo Campo
             </Button>
           </div>
@@ -519,21 +519,21 @@ function CustomFieldsTab({ orgId }: { orgId: string | null }) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-[10px]">Campo</TableHead>
-                  <TableHead className="text-[10px]">Chave</TableHead>
-                  <TableHead className="text-[10px]">Tipo</TableHead>
-                  <TableHead className="text-[10px]">Obrigatório</TableHead>
-                  <TableHead className="text-[10px]">Tabela</TableHead>
-                  <TableHead className="text-[10px]">Card</TableHead>
-                  <TableHead className="text-[10px]" />
+                  <TableHead className="text-xs">Campo</TableHead>
+                  <TableHead className="text-xs">Chave</TableHead>
+                  <TableHead className="text-xs">Tipo</TableHead>
+                  <TableHead className="text-xs">Obrigatório</TableHead>
+                  <TableHead className="text-xs">Tabela</TableHead>
+                  <TableHead className="text-xs">Card</TableHead>
+                  <TableHead className="text-xs" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {entityFields.map((f: any) => (
                   <TableRow key={f.id}>
                     <TableCell className="text-xs font-medium">{f.field_label}</TableCell>
-                    <TableCell className="text-[10px] font-mono text-muted-foreground">{f.field_key}</TableCell>
-                    <TableCell><Badge variant="outline" className="text-[8px]">{fieldTypes[f.field_type] || f.field_type}</Badge></TableCell>
+                    <TableCell className="text-xs font-mono text-muted-foreground">{f.field_key}</TableCell>
+                    <TableCell><Badge variant="outline" className="text-xs">{fieldTypes[f.field_type] || f.field_type}</Badge></TableCell>
                     <TableCell>{f.is_required ? "✓" : "—"}</TableCell>
                     <TableCell>{f.show_in_table ? "✓" : "—"}</TableCell>
                     <TableCell>{f.show_in_card ? "✓" : "—"}</TableCell>
@@ -674,7 +674,7 @@ function MembersTab({ orgId, userId }: { orgId: string | null; userId?: string }
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Convidar Membro</CardTitle>
-          <CardDescription className="text-[10px]">Envie convites por email com papel definido</CardDescription>
+          <CardDescription className="text-xs">Envie convites por email com papel definido</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex gap-2">
@@ -704,9 +704,9 @@ function MembersTab({ orgId, userId }: { orgId: string | null; userId?: string }
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-medium truncate">{m.name || "—"}</p>
-                  <p className="text-[10px] text-muted-foreground truncate">{m.email} · {m.title || "—"}</p>
+                  <p className="text-xs text-muted-foreground truncate">{m.email} · {m.title || "—"}</p>
                 </div>
-                <Badge variant="outline" className={`text-[8px] ${roleColors[m.role || "member"]}`}>
+                <Badge variant="outline" className={`text-xs ${roleColors[m.role || "member"]}`}>
                   <Shield className="h-2.5 w-2.5 mr-0.5" />
                   {roleLabels[m.role || "member"]}
                 </Badge>
@@ -726,7 +726,7 @@ function MembersTab({ orgId, userId }: { orgId: string | null; userId?: string }
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-sm">Equipes</CardTitle>
-              <CardDescription className="text-[10px]">Organize vendedores em grupos</CardDescription>
+              <CardDescription className="text-xs">Organize vendedores em grupos</CardDescription>
             </div>
           </div>
         </CardHeader>
@@ -750,7 +750,7 @@ function MembersTab({ orgId, userId }: { orgId: string | null; userId?: string }
                   const inTeam = teamMembers.some((tm: any) => tm.team_id === t.id && tm.user_id === m.id);
                   return (
                     <button key={m.id} onClick={() => toggleTeamMember(t.id, m.id)}
-                      className={`text-[9px] px-2 py-1 rounded-full border transition-colors ${inTeam ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-accent"}`}>
+                      className={`text-xs px-2 py-1 rounded-full border transition-colors ${inTeam ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-accent"}`}>
                       {m.name || m.email}
                     </button>
                   );
@@ -770,10 +770,10 @@ function MembersTab({ orgId, userId }: { orgId: string | null; userId?: string }
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-[10px]">Permissão</TableHead>
-                <TableHead className="text-[10px] text-center">Owner</TableHead>
-                <TableHead className="text-[10px] text-center">Admin</TableHead>
-                <TableHead className="text-[10px] text-center">Member</TableHead>
+                <TableHead className="text-xs">Permissão</TableHead>
+                <TableHead className="text-xs text-center">Owner</TableHead>
+                <TableHead className="text-xs text-center">Admin</TableHead>
+                <TableHead className="text-xs text-center">Member</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -788,7 +788,7 @@ function MembersTab({ orgId, userId }: { orgId: string | null; userId?: string }
                 ["Ver/editar próprios registros", true, true, true],
               ].map(([perm, o, a, m], i) => (
                 <TableRow key={i}>
-                  <TableCell className="text-[10px]">{perm as string}</TableCell>
+                  <TableCell className="text-xs">{perm as string}</TableCell>
                   <TableCell className="text-center text-xs">{o ? "✅" : "❌"}</TableCell>
                   <TableCell className="text-center text-xs">{a ? "✅" : "❌"}</TableCell>
                   <TableCell className="text-center text-xs">{m ? "✅" : "❌"}</TableCell>
@@ -842,7 +842,7 @@ function NotificationsTab({ orgId, userId }: { orgId: string | null; userId?: st
       <Card>
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-1.5"><Bell className="h-4 w-4" />Notificações In-App</CardTitle>
-          <CardDescription className="text-[10px]">Quais eventos geram notificação no CRM</CardDescription>
+          <CardDescription className="text-xs">Quais eventos geram notificação no CRM</CardDescription>
         </CardHeader>
         <CardContent className="divide-y divide-border">
           <Toggle label="Negócio ganho" checked={prefs.notify_deal_won} onChange={(v) => setPrefs({ ...prefs, notify_deal_won: v })} />
@@ -856,7 +856,7 @@ function NotificationsTab({ orgId, userId }: { orgId: string | null; userId?: st
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Notificações por Email</CardTitle>
-          <CardDescription className="text-[10px]">Quais emails você deseja receber</CardDescription>
+          <CardDescription className="text-xs">Quais emails você deseja receber</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="divide-y divide-border">
@@ -914,7 +914,7 @@ function AppearanceTab() {
       <Card>
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-1.5"><Palette className="h-4 w-4" />Tema</CardTitle>
-          <CardDescription className="text-[10px]">Escolha entre modo claro, escuro ou automático</CardDescription>
+          <CardDescription className="text-xs">Escolha entre modo claro, escuro ou automático</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-3">
@@ -935,7 +935,7 @@ function AppearanceTab() {
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Cor de Destaque</CardTitle>
-          <CardDescription className="text-[10px]">Cor primária da interface</CardDescription>
+          <CardDescription className="text-xs">Cor primária da interface</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex gap-3">
@@ -943,7 +943,7 @@ function AppearanceTab() {
               <button key={a.value} onClick={() => setAccentColor(a.value)}
                 className={`flex flex-col items-center gap-1.5 rounded-lg border-2 p-3 transition-colors ${accentColor === a.value ? "border-primary" : "border-border hover:bg-accent/50"}`}>
                 <div className="h-6 w-6 rounded-full" style={{ backgroundColor: a.color }} />
-                <span className="text-[9px]">{a.label}</span>
+                <span className="text-xs">{a.label}</span>
               </button>
             ))}
           </div>
@@ -960,7 +960,7 @@ function AppearanceTab() {
               <button key={d.value} onClick={() => setDensity(d.value)}
                 className={`text-left rounded-lg border-2 p-3 transition-colors ${density === d.value ? "border-primary bg-primary/5" : "border-border hover:bg-accent/50"}`}>
                 <p className="text-xs font-medium">{d.label}</p>
-                <p className="text-[9px] text-muted-foreground mt-0.5">{d.desc}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{d.desc}</p>
               </button>
             ))}
           </div>
@@ -1013,7 +1013,7 @@ function BillingTab({ orgId }: { orgId: string | null }) {
             ].map((item) => (
               <div key={item.label} className="text-center">
                 <p className="text-lg font-bold">{item.count}</p>
-                <p className="text-[10px] text-muted-foreground">{item.label} {typeof item.limit === "number" ? `/ ${item.limit.toLocaleString()}` : ""}</p>
+                <p className="text-xs text-muted-foreground">{item.label} {typeof item.limit === "number" ? `/ ${item.limit.toLocaleString()}` : ""}</p>
                 {typeof item.limit === "number" && (
                   <div className="mt-1 h-1.5 w-full rounded-full bg-muted overflow-hidden">
                     <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${Math.min(100, (item.count / item.limit) * 100)}%` }} />
@@ -1033,20 +1033,20 @@ function BillingTab({ orgId }: { orgId: string | null }) {
               <div className="flex items-center gap-2">
                 {plan.name === "Enterprise" && <Crown className="h-4 w-4 text-warning" />}
                 <CardTitle className="text-sm">{plan.name}</CardTitle>
-                {plan.current && <Badge className="text-[8px]">Atual</Badge>}
+                {plan.current && <Badge className="text-xs">Atual</Badge>}
               </div>
               <p className="text-lg font-bold">{plan.price}</p>
             </CardHeader>
             <CardContent>
               <ul className="space-y-1.5">
                 {plan.features.map((f) => (
-                  <li key={f} className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+                  <li key={f} className="text-xs text-muted-foreground flex items-center gap-1.5">
                     <span className="text-success">✓</span>{f}
                   </li>
                 ))}
               </ul>
               {!plan.current && (
-                <Button variant="outline" size="sm" className="w-full mt-4 h-8 text-[10px]">
+                <Button variant="outline" size="sm" className="w-full mt-4 h-8 text-xs">
                   {plan.name === "Enterprise" ? "Falar com Vendas" : "Fazer Upgrade"}
                 </Button>
               )}
@@ -1064,10 +1064,10 @@ function BillingTab({ orgId }: { orgId: string | null }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-[10px]">Data</TableHead>
-                <TableHead className="text-[10px]">Plano</TableHead>
-                <TableHead className="text-[10px]">Valor</TableHead>
-                <TableHead className="text-[10px]">Status</TableHead>
+                <TableHead className="text-xs">Data</TableHead>
+                <TableHead className="text-xs">Plano</TableHead>
+                <TableHead className="text-xs">Valor</TableHead>
+                <TableHead className="text-xs">Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1076,7 +1076,7 @@ function BillingTab({ orgId }: { orgId: string | null }) {
                   <TableCell className="text-xs">{inv.date}</TableCell>
                   <TableCell className="text-xs">{inv.plan}</TableCell>
                   <TableCell className="text-xs">{inv.amount}</TableCell>
-                  <TableCell><Badge variant="outline" className="text-[8px] text-success">{inv.status}</Badge></TableCell>
+                  <TableCell><Badge variant="outline" className="text-xs text-success">{inv.status}</Badge></TableCell>
                 </TableRow>
               ))}
             </TableBody>

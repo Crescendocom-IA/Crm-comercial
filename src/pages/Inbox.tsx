@@ -216,7 +216,7 @@ export default function Inbox() {
             <div className="flex items-center gap-2">
               <InboxIcon className="h-5 w-5 text-primary" />
               <h1 className="text-lg font-bold">Email</h1>
-              {unreadCount > 0 && <Badge variant="destructive" className="text-[10px] px-1.5">{unreadCount}</Badge>}
+              {unreadCount > 0 && <Badge variant="destructive" className="text-xs px-1.5">{unreadCount}</Badge>}
             </div>
             <div className="flex gap-1">
               <Button variant="ghost" size="sm" onClick={fetchData}><RefreshCw className="h-3.5 w-3.5" /></Button>
@@ -227,7 +227,7 @@ export default function Inbox() {
             <TabsList className="w-full">
               <TabsTrigger value="inbox" className="flex-1 gap-1.5">
                 <InboxIcon className="h-3.5 w-3.5" />Caixa de Entrada
-                {unreadCount > 0 && <Badge variant="destructive" className="text-[8px] px-1 py-0 ml-1">{unreadCount}</Badge>}
+                {unreadCount > 0 && <Badge variant="destructive" className="text-xs px-1 py-0 ml-1">{unreadCount}</Badge>}
               </TabsTrigger>
               <TabsTrigger value="sent" className="flex-1 gap-1.5">
                 <SendHorizonal className="h-3.5 w-3.5" />Enviados
@@ -244,7 +244,7 @@ export default function Inbox() {
                 <button
                   key={f}
                   onClick={() => setFilterMode(f)}
-                  className={`rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors ${filterMode === f ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${filterMode === f ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   {f === "all" ? "Todos" : f === "unread" ? "Não lidos" : f === "needs_reply" ? "Requer resposta" : "Sem dono"}
                 </button>
@@ -254,7 +254,7 @@ export default function Inbox() {
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-2 text-xs">
               <span className="text-muted-foreground">{selectedIds.size} selecionados</span>
-              <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={batchArchive}><Archive className="mr-1 h-3 w-3" />Arquivar</Button>
+              <Button variant="outline" size="sm" className="h-6 text-xs" onClick={batchArchive}><Archive className="mr-1 h-3 w-3" />Arquivar</Button>
             </div>
           )}
         </div>
@@ -291,25 +291,25 @@ export default function Inbox() {
                             ? `Para: ${(email.to_emails as string[])?.[0] || "Desconhecido"}`
                             : contact ? `${contact.first_name} ${contact.last_name || ""}` : email.from_email || "Desconhecido"}
                         </p>
-                        <span className="text-[10px] text-muted-foreground shrink-0">{timeAgo(email.sent_at || email.created_at)}</span>
+                        <span className="text-xs text-muted-foreground shrink-0">{timeAgo(email.sent_at || email.created_at)}</span>
                       </div>
                       <p className={`text-xs truncate ${!email.is_read ? "text-foreground" : "text-muted-foreground"}`}>
                         {email.subject || "(sem assunto)"}
                       </p>
                       <div className="flex items-center gap-2 mt-0.5">
                         {activeTab === "sent" && (
-                          <Badge variant="outline" className="text-[8px] px-1 py-0">Enviado</Badge>
+                          <Badge variant="outline" className="text-xs px-1 py-0">Enviado</Badge>
                         )}
                         {activeTab === "inbox" && email.direction === "inbound" && (
-                          <Badge variant="outline" className="text-[8px] px-1 py-0">Recebido</Badge>
+                          <Badge variant="outline" className="text-xs px-1 py-0">Recebido</Badge>
                         )}
                         {email.open_count > 0 && (
-                          <span className="text-[9px] text-muted-foreground flex items-center gap-0.5">
+                          <span className="text-xs text-muted-foreground flex items-center gap-0.5">
                             <Eye className="h-2.5 w-2.5" />{email.open_count}x
                           </span>
                         )}
                         {email.click_count > 0 && (
-                          <span className="text-[9px] text-muted-foreground flex items-center gap-0.5">
+                          <span className="text-xs text-muted-foreground flex items-center gap-0.5">
                             <MousePointerClick className="h-2.5 w-2.5" />{email.click_count}x
                           </span>
                         )}
@@ -367,13 +367,13 @@ export default function Inbox() {
               {(selectedEmail.open_count > 0 || selectedEmail.click_count > 0) && (
                 <div className="flex items-center gap-3 mt-2">
                   {selectedEmail.open_count > 0 && (
-                    <Badge variant="secondary" className="text-[9px]">
+                    <Badge variant="secondary" className="text-xs">
                       <Eye className="mr-1 h-2.5 w-2.5" />Aberto {selectedEmail.open_count}x
                       {selectedEmail.last_opened_at && ` · ${timeAgo(selectedEmail.last_opened_at)}`}
                     </Badge>
                   )}
                   {selectedEmail.click_count > 0 && (
-                    <Badge variant="secondary" className="text-[9px]">
+                    <Badge variant="secondary" className="text-xs">
                       <MousePointerClick className="mr-1 h-2.5 w-2.5" />Clicou {selectedEmail.click_count}x
                     </Badge>
                   )}
@@ -417,7 +417,7 @@ export default function Inbox() {
                   <p className="text-xs text-muted-foreground">{contact.email}</p>
                 </div>
                 {contact.status && (
-                  <Badge variant="outline" className="text-[10px]">{contact.status}</Badge>
+                  <Badge variant="outline" className="text-xs">{contact.status}</Badge>
                 )}
               </div>
             );

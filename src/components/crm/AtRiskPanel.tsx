@@ -304,14 +304,14 @@ export function AtRiskPanel({ open, onOpenChange }: AtRiskPanelProps) {
           )}
         </div>
         {item.subtitle && (
-          <p className="text-[10px] text-muted-foreground mb-1">{item.subtitle}</p>
+          <p className="text-xs text-muted-foreground mb-1">{item.subtitle}</p>
         )}
         {item.stage && (
-          <Badge variant="secondary" className="text-[9px] mb-1.5">{item.stage.name}</Badge>
+          <Badge variant="secondary" className="text-xs mb-1.5">{item.stage.name}</Badge>
         )}
         <div className="space-y-0.5">
           {item.violations.map((v, i) => (
-            <div key={i} className={`text-[10px] flex items-center gap-1 ${item.riskLevel === "high" ? "text-destructive" : "text-warning"}`}>
+            <div key={i} className={`text-xs flex items-center gap-1 ${item.riskLevel === "high" ? "text-destructive" : "text-warning"}`}>
               {metricIcon(v.metric)}
               <span className="font-medium">{v.ruleName}:</span>
               <span>{v.days}d</span>
@@ -342,15 +342,15 @@ export function AtRiskPanel({ open, onOpenChange }: AtRiskPanelProps) {
             <div className="grid grid-cols-3 gap-2 mt-2">
               <div className="rounded-md border border-border p-2 text-center">
                 <p className="text-lg font-bold text-destructive">{highRisk.length}</p>
-                <p className="text-[9px] text-muted-foreground uppercase">Alto risco</p>
+                <p className="text-xs text-muted-foreground uppercase">Alto risco</p>
               </div>
               <div className="rounded-md border border-border p-2 text-center">
                 <p className="text-lg font-bold text-warning">{items.length - highRisk.length}</p>
-                <p className="text-[9px] text-muted-foreground uppercase">Médio risco</p>
+                <p className="text-xs text-muted-foreground uppercase">Médio risco</p>
               </div>
               <div className="rounded-md border border-border p-2 text-center">
                 <p className="text-sm font-bold text-primary">{formatCurrency(totalDealValue)}</p>
-                <p className="text-[9px] text-muted-foreground uppercase">Valor em risco</p>
+                <p className="text-xs text-muted-foreground uppercase">Valor em risco</p>
               </div>
             </div>
           </SheetHeader>

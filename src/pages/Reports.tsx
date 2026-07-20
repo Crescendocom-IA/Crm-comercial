@@ -444,8 +444,8 @@ function SalesReport({ deals, stages, members, companies, allDeals, periodRange 
               </div>
               <div>
                 <p className="text-lg font-bold">{k.value}</p>
-                <p className="text-[9px] text-muted-foreground uppercase">{k.label}</p>
-                {k.sub && <p className="text-[9px] text-muted-foreground">{k.sub}</p>}
+                <p className="text-xs text-muted-foreground uppercase">{k.label}</p>
+                {k.sub && <p className="text-xs text-muted-foreground">{k.sub}</p>}
               </div>
             </CardContent>
           </Card>
@@ -481,8 +481,8 @@ function SalesReport({ deals, stages, members, companies, allDeals, periodRange 
                 return (
                   <div key={s.name}>
                     <div className="flex items-center justify-between mb-0.5">
-                      <span className="text-[10px] font-medium">{s.name}</span>
-                      <span className="text-[10px] text-muted-foreground">{s.count} · {fmt(s.value)}</span>
+                      <span className="text-xs font-medium">{s.name}</span>
+                      <span className="text-xs text-muted-foreground">{s.count} · {fmt(s.value)}</span>
                     </div>
                     <div className="h-4 rounded bg-muted overflow-hidden">
                       <div className="h-full rounded" style={{ width: `${Math.max((s.value / max) * 100, 2)}%`, backgroundColor: s.color }} />
@@ -552,7 +552,7 @@ function SalesReport({ deals, stages, members, companies, allDeals, periodRange 
             <CardTitle className="text-sm">Negócios Agrupados</CardTitle>
             <div className="flex gap-2">
               <Select value={groupBy} onValueChange={(v) => setGroupBy(v as any)}>
-                <SelectTrigger className="h-7 w-32 text-[10px]"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-7 w-32 text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="stage">Por Estágio</SelectItem>
                   <SelectItem value="owner">Por Dono</SelectItem>
@@ -560,7 +560,7 @@ function SalesReport({ deals, stages, members, companies, allDeals, periodRange 
                   <SelectItem value="month">Por Mês</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={exportDealsCSV}>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={exportDealsCSV}>
                 <Download className="h-3 w-3 mr-1" />CSV
               </Button>
             </div>
@@ -571,12 +571,12 @@ function SalesReport({ deals, stages, members, companies, allDeals, periodRange 
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-[10px]">Grupo</TableHead>
-                  <TableHead className="text-[10px] text-center">Total</TableHead>
-                  <TableHead className="text-[10px] text-center">Ganhos</TableHead>
-                  <TableHead className="text-[10px] text-center">Perdidos</TableHead>
-                  <TableHead className="text-[10px] text-center">Win Rate</TableHead>
-                  <TableHead className="text-[10px] text-right">Valor Ganho</TableHead>
+                  <TableHead className="text-xs">Grupo</TableHead>
+                  <TableHead className="text-xs text-center">Total</TableHead>
+                  <TableHead className="text-xs text-center">Ganhos</TableHead>
+                  <TableHead className="text-xs text-center">Perdidos</TableHead>
+                  <TableHead className="text-xs text-center">Win Rate</TableHead>
+                  <TableHead className="text-xs text-right">Valor Ganho</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -587,7 +587,7 @@ function SalesReport({ deals, stages, members, companies, allDeals, periodRange 
                     <TableCell className="text-xs text-center text-success">{g.won}</TableCell>
                     <TableCell className="text-xs text-center text-destructive">{g.lost}</TableCell>
                     <TableCell className="text-xs text-center">
-                      <Badge variant={pct(g.won, g.won + g.lost) >= 50 ? "default" : "secondary"} className="text-[9px]">
+                      <Badge variant={pct(g.won, g.won + g.lost) >= 50 ? "default" : "secondary"} className="text-xs">
                         {pct(g.won, g.won + g.lost)}%
                       </Badge>
                     </TableCell>
@@ -609,12 +609,12 @@ function SalesReport({ deals, stages, members, companies, allDeals, periodRange 
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="text-[10px]">Vendedor</TableHead>
-                    <TableHead className="text-[10px] text-center">Total</TableHead>
-                    <TableHead className="text-[10px] text-center">Ganhos</TableHead>
-                    <TableHead className="text-[10px] text-center">Perdidos</TableHead>
-                    <TableHead className="text-[10px] text-center">Win Rate</TableHead>
-                    <TableHead className="text-[10px] text-right">Receita</TableHead>
+                    <TableHead className="text-xs">Vendedor</TableHead>
+                    <TableHead className="text-xs text-center">Total</TableHead>
+                    <TableHead className="text-xs text-center">Ganhos</TableHead>
+                    <TableHead className="text-xs text-center">Perdidos</TableHead>
+                    <TableHead className="text-xs text-center">Win Rate</TableHead>
+                    <TableHead className="text-xs text-right">Receita</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -625,7 +625,7 @@ function SalesReport({ deals, stages, members, companies, allDeals, periodRange 
                       <TableCell className="text-xs text-center text-success">{o.won}</TableCell>
                       <TableCell className="text-xs text-center text-destructive">{o.lost}</TableCell>
                       <TableCell className="text-xs text-center">
-                        <Badge variant={o.winRate >= 50 ? "default" : "secondary"} className="text-[9px]">{o.winRate}%</Badge>
+                        <Badge variant={o.winRate >= 50 ? "default" : "secondary"} className="text-xs">{o.winRate}%</Badge>
                       </TableCell>
                       <TableCell className="text-xs text-right font-medium">{fmt(o.value)}</TableCell>
                     </TableRow>
@@ -684,9 +684,9 @@ function ActivitiesReport({ activities, members }: { activities: ActivityRow[]; 
   return (
     <div className="space-y-4 mt-4">
       <div className="grid gap-3 grid-cols-3">
-        <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold">{activities.length}</p><p className="text-[9px] text-muted-foreground uppercase">Total Atividades</p></CardContent></Card>
-        <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-success">{completed}</p><p className="text-[9px] text-muted-foreground uppercase">Concluídas</p></CardContent></Card>
-        <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-primary">{completionRate}%</p><p className="text-[9px] text-muted-foreground uppercase">Taxa Conclusão</p></CardContent></Card>
+        <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold">{activities.length}</p><p className="text-xs text-muted-foreground uppercase">Total Atividades</p></CardContent></Card>
+        <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-success">{completed}</p><p className="text-xs text-muted-foreground uppercase">Concluídas</p></CardContent></Card>
+        <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-primary">{completionRate}%</p><p className="text-xs text-muted-foreground uppercase">Taxa Conclusão</p></CardContent></Card>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -735,7 +735,7 @@ function ActivitiesReport({ activities, members }: { activities: ActivityRow[]; 
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm">Comparativo por Vendedor</CardTitle>
-            <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={exportCSV}><Download className="h-3 w-3 mr-1" />CSV</Button>
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={exportCSV}><Download className="h-3 w-3 mr-1" />CSV</Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -743,13 +743,13 @@ function ActivitiesReport({ activities, members }: { activities: ActivityRow[]; 
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-[10px]">Vendedor</TableHead>
-                  <TableHead className="text-[10px] text-center">Ligações</TableHead>
-                  <TableHead className="text-[10px] text-center">Emails</TableHead>
-                  <TableHead className="text-[10px] text-center">Reuniões</TableHead>
-                  <TableHead className="text-[10px] text-center">Notas</TableHead>
-                  <TableHead className="text-[10px] text-center">Tarefas</TableHead>
-                  <TableHead className="text-[10px] text-center">Total</TableHead>
+                  <TableHead className="text-xs">Vendedor</TableHead>
+                  <TableHead className="text-xs text-center">Ligações</TableHead>
+                  <TableHead className="text-xs text-center">Emails</TableHead>
+                  <TableHead className="text-xs text-center">Reuniões</TableHead>
+                  <TableHead className="text-xs text-center">Notas</TableHead>
+                  <TableHead className="text-xs text-center">Tarefas</TableHead>
+                  <TableHead className="text-xs text-center">Total</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -844,10 +844,10 @@ function ForecastReport({ deals, stages, members, ownerFilter, pipelineFilter }:
     <div className="space-y-4 mt-4">
       {/* Summary */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <Card><CardContent className="p-3"><p className="text-[9px] text-muted-foreground uppercase">Pessimista (≥80%)</p><p className="text-xl font-bold text-destructive">{fmt(totals.pessimist)}</p></CardContent></Card>
-        <Card><CardContent className="p-3"><p className="text-[9px] text-muted-foreground uppercase">Realista (≥50%)</p><p className="text-xl font-bold text-primary">{fmt(totals.realist)}</p></CardContent></Card>
-        <Card><CardContent className="p-3"><p className="text-[9px] text-muted-foreground uppercase">Otimista (≥30%)</p><p className="text-xl font-bold text-success">{fmt(totals.optimist)}</p></CardContent></Card>
-        <Card><CardContent className="p-3"><p className="text-[9px] text-muted-foreground uppercase">Pipeline Total</p><p className="text-xl font-bold">{fmt(totals.pipeline)}</p></CardContent></Card>
+        <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground uppercase">Pessimista (≥80%)</p><p className="text-xl font-bold text-destructive">{fmt(totals.pessimist)}</p></CardContent></Card>
+        <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground uppercase">Realista (≥50%)</p><p className="text-xl font-bold text-primary">{fmt(totals.realist)}</p></CardContent></Card>
+        <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground uppercase">Otimista (≥30%)</p><p className="text-xl font-bold text-success">{fmt(totals.optimist)}</p></CardContent></Card>
+        <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground uppercase">Pipeline Total</p><p className="text-xl font-bold">{fmt(totals.pipeline)}</p></CardContent></Card>
       </div>
 
       {/* Comparison chart */}
@@ -875,7 +875,7 @@ function ForecastReport({ deals, stages, members, ownerFilter, pipelineFilter }:
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm capitalize">{bucket.label}</CardTitle>
-              <div className="flex items-center gap-3 text-[10px]">
+              <div className="flex items-center gap-3 text-xs">
                 <span><span className="inline-block h-2 w-2 rounded-full bg-destructive mr-1" />Pess: {fmt(bucket.pessimist)}</span>
                 <span><span className="inline-block h-2 w-2 rounded-full bg-primary mr-1" />Real: {fmt(bucket.realist)}</span>
                 <span><span className="inline-block h-2 w-2 rounded-full bg-success mr-1" />Otim: {fmt(bucket.optimist)}</span>
@@ -902,15 +902,15 @@ function ForecastReport({ deals, stages, members, ownerFilter, pipelineFilter }:
                     <div key={deal.id} className="flex items-center justify-between rounded-md border p-2 text-xs">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="font-medium truncate">{deal.title}</span>
-                        <Badge variant="secondary" className="text-[8px] shrink-0">{stageName}</Badge>
+                        <Badge variant="secondary" className="text-xs shrink-0">{stageName}</Badge>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <Badge variant="outline" className={`text-[8px] ${scenarioColor}`}>{scenario}</Badge>
+                        <Badge variant="outline" className={`text-xs ${scenarioColor}`}>{scenario}</Badge>
                         <Select
                           value={String(prob)}
                           onValueChange={(v) => updateProbability(deal.id, Number(v))}
                         >
-                          <SelectTrigger className="h-5 w-16 text-[9px] border-dashed"><SelectValue /></SelectTrigger>
+                          <SelectTrigger className="h-5 w-16 text-xs border-dashed"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {[10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((p) => (
                               <SelectItem key={p} value={String(p)}>{p}%</SelectItem>
@@ -990,9 +990,9 @@ function ContactsReport({ contacts, members }: { contacts: Contact[]; members: P
   return (
     <div className="space-y-4 mt-4">
       <div className="grid gap-3 grid-cols-3">
-        <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold">{contacts.length}</p><p className="text-[9px] text-muted-foreground uppercase">Total Contatos</p></CardContent></Card>
-        <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-success">{totalCustomers}</p><p className="text-[9px] text-muted-foreground uppercase">Clientes</p></CardContent></Card>
-        <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-primary">{conversionRate}%</p><p className="text-[9px] text-muted-foreground uppercase">Lead → Cliente</p></CardContent></Card>
+        <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold">{contacts.length}</p><p className="text-xs text-muted-foreground uppercase">Total Contatos</p></CardContent></Card>
+        <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-success">{totalCustomers}</p><p className="text-xs text-muted-foreground uppercase">Clientes</p></CardContent></Card>
+        <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-primary">{conversionRate}%</p><p className="text-xs text-muted-foreground uppercase">Lead → Cliente</p></CardContent></Card>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -1000,7 +1000,7 @@ function ContactsReport({ contacts, members }: { contacts: Contact[]; members: P
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm">Crescimento Mensal</CardTitle>
-              <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={exportCSV}><Download className="h-3 w-3 mr-1" />CSV</Button>
+              <Button variant="outline" size="sm" className="h-7 text-xs" onClick={exportCSV}><Download className="h-3 w-3 mr-1" />CSV</Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -1172,7 +1172,7 @@ function CustomReportBuilder({ deals, contacts, activities, stages, members, com
     <div className="space-y-4 mt-4">
       <div className="flex flex-wrap gap-3 items-end">
         <div>
-          <Label className="text-[10px]">Entidade</Label>
+          <Label className="text-xs">Entidade</Label>
           <Select value={entity} onValueChange={(v) => setEntity(v as any)}>
             <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -1184,13 +1184,13 @@ function CustomReportBuilder({ deals, contacts, activities, stages, members, com
         </div>
 
         <div>
-          <Label className="text-[10px]">Campos</Label>
+          <Label className="text-xs">Campos</Label>
           <div className="flex flex-wrap gap-1 mt-1">
             {fieldOptions[entity].map((f) => (
               <Badge
                 key={f.key}
                 variant={selectedFields.includes(f.key) ? "default" : "outline"}
-                className="cursor-pointer text-[9px]"
+                className="cursor-pointer text-xs"
                 onClick={() => toggleField(f.key)}
               >
                 {f.label}
@@ -1216,9 +1216,9 @@ function CustomReportBuilder({ deals, contacts, activities, stages, members, com
       {/* Saved reports */}
       {savedReports.length > 0 && (
         <div className="flex gap-1 flex-wrap">
-          <span className="text-[10px] text-muted-foreground mr-1">Salvos:</span>
+          <span className="text-xs text-muted-foreground mr-1">Salvos:</span>
           {savedReports.map((r) => (
-            <Badge key={r.id} variant="secondary" className="cursor-pointer text-[9px]" onClick={() => loadReport(r)}>
+            <Badge key={r.id} variant="secondary" className="cursor-pointer text-xs" onClick={() => loadReport(r)}>
               {r.name}
             </Badge>
           ))}
@@ -1233,7 +1233,7 @@ function CustomReportBuilder({ deals, contacts, activities, stages, members, com
               <TableHeader>
                 <TableRow>
                   {selectedFields.map((f) => (
-                    <TableHead key={f} className="text-[10px] whitespace-nowrap">
+                    <TableHead key={f} className="text-xs whitespace-nowrap">
                       {fieldOptions[entity].find((fo) => fo.key === f)?.label || f}
                     </TableHead>
                   ))}
@@ -1251,7 +1251,7 @@ function CustomReportBuilder({ deals, contacts, activities, stages, members, com
             </Table>
           </div>
           {tableData.length > 100 && (
-            <p className="text-[10px] text-muted-foreground text-center py-2">Mostrando 100 de {tableData.length} registros. Exporte CSV para ver todos.</p>
+            <p className="text-xs text-muted-foreground text-center py-2">Mostrando 100 de {tableData.length} registros. Exporte CSV para ver todos.</p>
           )}
         </CardContent>
       </Card>

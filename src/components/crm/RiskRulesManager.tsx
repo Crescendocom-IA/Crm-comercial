@@ -186,7 +186,7 @@ export function RiskRulesManager({ open, onOpenChange }: RiskRulesManagerProps) 
                           <p className="text-sm font-medium truncate">{rule.name}</p>
                           <div className="flex items-center gap-1 mt-0.5">
                             <Icon className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-[10px] text-muted-foreground">{metricLabel(rule.metric)}</span>
+                            <span className="text-xs text-muted-foreground">{metricLabel(rule.metric)}</span>
                           </div>
                         </div>
                         <div className="flex items-center gap-1.5 ml-2">
@@ -198,16 +198,16 @@ export function RiskRulesManager({ open, onOpenChange }: RiskRulesManagerProps) 
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <Badge variant="secondary" className="text-[9px]">
+                        <Badge variant="secondary" className="text-xs">
                           {rule.threshold_days} dias
                         </Badge>
                         <Badge
                           variant="secondary"
-                          className={`text-[9px] ${rule.risk_level === "high" ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"}`}
+                          className={`text-xs ${rule.risk_level === "high" ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"}`}
                         >
                           {rule.risk_level === "high" ? "Alto risco" : "Médio risco"}
                         </Badge>
-                        <Badge variant="outline" className="text-[9px]">
+                        <Badge variant="outline" className="text-xs">
                           {APPLIES_TO.find((x) => x.value === rule.applies_to)?.label}
                         </Badge>
                       </div>

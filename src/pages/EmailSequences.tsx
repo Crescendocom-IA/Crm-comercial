@@ -178,12 +178,12 @@ export default function EmailSequences() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium truncate">{seq.name}</p>
-                        <Badge variant={seq.is_active ? "default" : "secondary"} className="text-[8px] px-1">
+                        <Badge variant={seq.is_active ? "default" : "secondary"} className="text-xs px-1">
                           {seq.is_active ? "Ativa" : "Inativa"}
                         </Badge>
                       </div>
                       {seq.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{seq.description}</p>}
-                      <div className="flex items-center gap-3 mt-1.5 text-[10px] text-muted-foreground">
+                      <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
                         <span className="flex items-center gap-0.5"><Mail className="h-2.5 w-2.5" />{st.length} etapas</span>
                         <span className="flex items-center gap-0.5"><Users className="h-2.5 w-2.5" />{en.length} inscritos</span>
                       </div>
@@ -251,12 +251,12 @@ export default function EmailSequences() {
                           <p className="text-sm font-medium">{step.subject || "(sem assunto)"}</p>
                         </div>
                         {step.delay_days > 0 && (
-                          <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                          <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
                             <Clock className="h-2.5 w-2.5" />Enviar D+{step.delay_days}
                           </p>
                         )}
                         {step.body_html && (
-                          <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2">
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                             {step.body_html.replace(/<[^>]*>/g, "").slice(0, 100)}
                           </p>
                         )}
@@ -283,11 +283,11 @@ export default function EmailSequences() {
                     <div key={en.id} className="flex items-center justify-between rounded-md border border-border px-3 py-2">
                       <div>
                         <p className="text-sm font-medium">{contact ? `${contact.first_name} ${contact.last_name || ""}` : "Desconhecido"}</p>
-                        <p className="text-[10px] text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           Etapa {en.current_step + 1}/{seqSteps(selectedSeq.id).length}
                         </p>
                       </div>
-                      <Badge className={`text-[8px] ${statusColors[en.status] || ""}`}>
+                      <Badge className={`text-xs ${statusColors[en.status] || ""}`}>
                         {statusLabels[en.status] || en.status}
                       </Badge>
                     </div>

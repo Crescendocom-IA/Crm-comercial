@@ -198,7 +198,7 @@ function IntegrationsTab({ orgId, userId }: { orgId: string | null; userId?: str
                     </div>
                     <div>
                       <CardTitle className="text-sm">{intg.name}</CardTitle>
-                      <CardDescription className="text-[10px]">{intg.description}</CardDescription>
+                      <CardDescription className="text-xs">{intg.description}</CardDescription>
                     </div>
                   </div>
                   {cfg && <Switch checked={cfg.is_active} onCheckedChange={(v) => toggleActive(cfg.id, v)} />}
@@ -208,16 +208,16 @@ function IntegrationsTab({ orgId, userId }: { orgId: string | null; userId?: str
                 <div className="flex items-center gap-2">
                   {cfg ? (
                     <>
-                      <Badge variant={cfg.is_active ? "default" : "secondary"} className="text-[9px]">
+                      <Badge variant={cfg.is_active ? "default" : "secondary"} className="text-xs">
                         {cfg.is_active ? "Conectado" : "Inativo"}
                       </Badge>
-                      <Button variant="outline" size="sm" className="ml-auto h-7 text-[10px]"
+                      <Button variant="outline" size="sm" className="ml-auto h-7 text-xs"
                         onClick={() => { setEditProvider(intg.provider); setEditConfig(cfg.config || {}); }}>
                         Configurar
                       </Button>
                     </>
                   ) : (
-                    <Button size="sm" className="h-7 text-[10px]"
+                    <Button size="sm" className="h-7 text-xs"
                       disabled={intg.connectLoading}
                       onClick={() => intg.connectAction ? intg.connectAction() : (() => { setEditProvider(intg.provider); setEditConfig({}); })()}>
                       {intg.connectLoading ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Conectando...</> : <><Plus className="mr-1 h-3 w-3" />Conectar</>}
@@ -296,7 +296,7 @@ function IntegrationsTab({ orgId, userId }: { orgId: string | null; userId?: str
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">3</span>
                 <div>
                   <p className="text-sm font-medium">Instale o app e copie o token</p>
-                  <p className="text-xs text-muted-foreground">Clique em "Install to Workspace", autorize, e copie o <strong>Bot User OAuth Token</strong> (começa com <code className="text-[10px] bg-muted px-1 rounded">xoxb-</code>)</p>
+                  <p className="text-xs text-muted-foreground">Clique em "Install to Workspace", autorize, e copie o <strong>Bot User OAuth Token</strong> (começa com <code className="text-xs bg-muted px-1 rounded">xoxb-</code>)</p>
                 </div>
               </div>
 
@@ -304,17 +304,17 @@ function IntegrationsTab({ orgId, userId }: { orgId: string | null; userId?: str
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">4</span>
                 <div>
                   <p className="text-sm font-medium">Salve o token e volte aqui</p>
-                  <p className="text-xs text-muted-foreground">No Supabase, vá em Edge Functions → Secrets e salve o token como <code className="text-[10px] bg-muted px-1 rounded">SLACK_BOT_TOKEN</code>. Depois clique em "Conectar" e o FlowCRM detectará seus canais</p>
+                  <p className="text-xs text-muted-foreground">No Supabase, vá em Edge Functions → Secrets e salve o token como <code className="text-xs bg-muted px-1 rounded">SLACK_BOT_TOKEN</code>. Depois clique em "Conectar" e o FlowCRM detectará seus canais</p>
                 </div>
               </div>
             </div>
 
             <div className="rounded-lg border border-border bg-muted/50 p-3 space-y-2">
               <p className="text-xs text-muted-foreground">
-                <strong>Escopos necessários:</strong> <code className="text-[10px] bg-muted px-1 rounded">chat:write</code> <code className="text-[10px] bg-muted px-1 rounded">channels:read</code>
+                <strong>Escopos necessários:</strong> <code className="text-xs bg-muted px-1 rounded">chat:write</code> <code className="text-xs bg-muted px-1 rounded">channels:read</code>
               </p>
               <p className="text-xs text-muted-foreground">
-                <strong>Opcionais:</strong> <code className="text-[10px] bg-muted px-1 rounded">chat:write.public</code> para postar em canais públicos sem convidar o bot, e <code className="text-[10px] bg-muted px-1 rounded">chat:write.customize</code> para o bot aparecer como "FlowCRM". Sem <code className="text-[10px] bg-muted px-1 rounded">chat:write.public</code>, convide o bot no canal com <code className="text-[10px] bg-muted px-1 rounded">/invite @FlowCRM</code>.
+                <strong>Opcionais:</strong> <code className="text-xs bg-muted px-1 rounded">chat:write.public</code> para postar em canais públicos sem convidar o bot, e <code className="text-xs bg-muted px-1 rounded">chat:write.customize</code> para o bot aparecer como "FlowCRM". Sem <code className="text-xs bg-muted px-1 rounded">chat:write.public</code>, convide o bot no canal com <code className="text-xs bg-muted px-1 rounded">/invite @FlowCRM</code>.
               </p>
             </div>
           </div>
@@ -425,9 +425,9 @@ function WebhooksTab({ orgId }: { orgId: string | null }) {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-sm">Webhooks de Saída</CardTitle>
-              <CardDescription className="text-[10px]">Envie notificações para URLs externas quando eventos ocorrerem</CardDescription>
+              <CardDescription className="text-xs">Envie notificações para URLs externas quando eventos ocorrerem</CardDescription>
             </div>
-            <Button size="sm" className="h-7 text-[10px]" onClick={() => setShowCreate(true)}>
+            <Button size="sm" className="h-7 text-xs" onClick={() => setShowCreate(true)}>
               <Plus className="mr-1 h-3 w-3" />Novo Webhook
             </Button>
           </div>
@@ -442,14 +442,14 @@ function WebhooksTab({ orgId }: { orgId: string | null }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{wh.name}</span>
-                      <Badge variant={wh.is_active ? "default" : "secondary"} className="text-[8px]">
+                      <Badge variant={wh.is_active ? "default" : "secondary"} className="text-xs">
                         {wh.is_active ? "Ativo" : "Inativo"}
                       </Badge>
                     </div>
-                    <p className="text-[10px] text-muted-foreground truncate">{wh.url}</p>
+                    <p className="text-xs text-muted-foreground truncate">{wh.url}</p>
                     <div className="flex gap-1 mt-1">
                       {wh.events?.map((e) => (
-                        <Badge key={e} variant="outline" className="text-[7px]">{e}</Badge>
+                        <Badge key={e} variant="outline" className="text-xs">{e}</Badge>
                       ))}
                     </div>
                   </div>
@@ -479,7 +479,7 @@ function WebhooksTab({ orgId }: { orgId: string | null }) {
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Webhook de Entrada</CardTitle>
-          <CardDescription className="text-[10px]">
+          <CardDescription className="text-xs">
             Receba dados de ferramentas externas (Zapier, Make, etc.) via POST
           </CardDescription>
         </CardHeader>
@@ -489,22 +489,22 @@ function WebhooksTab({ orgId }: { orgId: string | null }) {
             {inboundSecret ? (
               <>
                 <div className="flex gap-2">
-                  <Input value={inboundUrl} readOnly className="h-8 text-[10px] font-mono" />
+                  <Input value={inboundUrl} readOnly className="h-8 text-xs font-mono" />
                   <Button variant="outline" size="sm" className="h-8"
                     onClick={() => { navigator.clipboard.writeText(inboundUrl); toast({ title: "Copiado!" }); }}>
                     <Copy className="h-3 w-3" />
                   </Button>
                 </div>
                 <div className="flex items-center justify-between">
-                  <p className="text-[9px] text-muted-foreground">A URL contém o secret de autenticação — trate-a como credencial.</p>
-                  <Button variant="ghost" size="sm" className="h-6 text-[9px]" disabled={generatingSecret} onClick={generateInboundSecret}>
+                  <p className="text-xs text-muted-foreground">A URL contém o secret de autenticação — trate-a como credencial.</p>
+                  <Button variant="ghost" size="sm" className="h-6 text-xs" disabled={generatingSecret} onClick={generateInboundSecret}>
                     <RefreshCw className="mr-1 h-2.5 w-2.5" /> Regenerar
                   </Button>
                 </div>
               </>
             ) : (
               <div className="rounded-md border border-dashed p-3 text-center">
-                <p className="text-[10px] text-muted-foreground mb-2">
+                <p className="text-xs text-muted-foreground mb-2">
                   Gere um secret para habilitar o webhook de entrada. Sem ele, a URL fica desativada e ninguém consegue inserir dados na sua organização.
                 </p>
                 <Button size="sm" className="h-7 text-xs" disabled={generatingSecret} onClick={generateInboundSecret}>
@@ -514,8 +514,8 @@ function WebhooksTab({ orgId }: { orgId: string | null }) {
             )}
           </div>
           <div className="rounded-md bg-muted p-3">
-            <p className="text-[10px] text-muted-foreground mb-1 font-medium">Payload esperado (JSON POST):</p>
-            <pre className="text-[9px] font-mono text-muted-foreground">{`{
+            <p className="text-xs text-muted-foreground mb-1 font-medium">Payload esperado (JSON POST):</p>
+            <pre className="text-xs font-mono text-muted-foreground">{`{
   "entity": "contact",
   "action": "create",
   "data": {
@@ -551,7 +551,7 @@ function WebhooksTab({ orgId }: { orgId: string | null }) {
               <Label className="text-xs">Eventos</Label>
               <div className="grid grid-cols-2 gap-2">
                 {WEBHOOK_EVENTS.map((ev) => (
-                  <label key={ev.value} className="flex items-center gap-2 text-[10px]">
+                  <label key={ev.value} className="flex items-center gap-2 text-xs">
                     <Checkbox
                       checked={form.events.includes(ev.value)}
                       onCheckedChange={(checked) => {
@@ -643,7 +643,7 @@ function ApiKeysTab({ orgId, userId }: { orgId: string | null; userId?: string }
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-sm">API Keys</CardTitle>
-              <CardDescription className="text-[10px]">
+              <CardDescription className="text-xs">
                 Gere chaves para acessar a API REST do CRM. Rate limit: 1000 req/hora.
               </CardDescription>
             </div>
@@ -660,15 +660,15 @@ function ApiKeysTab({ orgId, userId }: { orgId: string | null; userId?: string }
 
           {generatedKey && showKey && (
             <div className="rounded-md border border-warning/30 bg-warning/5 p-3 space-y-2">
-              <p className="text-[10px] font-medium text-warning">⚠️ Copie esta chave agora — ela não será exibida novamente</p>
+              <p className="text-xs font-medium text-warning">⚠️ Copie esta chave agora — ela não será exibida novamente</p>
               <div className="flex gap-2">
-                <Input value={generatedKey} readOnly className="h-8 text-[10px] font-mono" />
+                <Input value={generatedKey} readOnly className="h-8 text-xs font-mono" />
                 <Button variant="outline" size="sm" className="h-8"
                   onClick={() => { navigator.clipboard.writeText(generatedKey); toast({ title: "Copiado!" }); }}>
                   <Copy className="h-3 w-3" />
                 </Button>
               </div>
-              <Button variant="ghost" size="sm" className="h-6 text-[9px]"
+              <Button variant="ghost" size="sm" className="h-6 text-xs"
                 onClick={() => { setShowKey(false); setGeneratedKey(null); }}>
                 Esconder
               </Button>
@@ -679,12 +679,12 @@ function ApiKeysTab({ orgId, userId }: { orgId: string | null; userId?: string }
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-[10px]">Nome</TableHead>
-                  <TableHead className="text-[10px]">Prefixo</TableHead>
-                  <TableHead className="text-[10px]">Status</TableHead>
-                  <TableHead className="text-[10px]">Requests</TableHead>
-                  <TableHead className="text-[10px]">Criada</TableHead>
-                  <TableHead className="text-[10px]" />
+                  <TableHead className="text-xs">Nome</TableHead>
+                  <TableHead className="text-xs">Prefixo</TableHead>
+                  <TableHead className="text-xs">Status</TableHead>
+                  <TableHead className="text-xs">Requests</TableHead>
+                  <TableHead className="text-xs">Criada</TableHead>
+                  <TableHead className="text-xs" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -693,7 +693,7 @@ function ApiKeysTab({ orgId, userId }: { orgId: string | null; userId?: string }
                     <TableCell className="text-xs">{k.name}</TableCell>
                     <TableCell className="text-xs font-mono">{k.key_prefix}...</TableCell>
                     <TableCell>
-                      <Badge variant={k.is_active ? "default" : "destructive"} className="text-[8px]">
+                      <Badge variant={k.is_active ? "default" : "destructive"} className="text-xs">
                         {k.is_active ? "Ativa" : "Revogada"}
                       </Badge>
                     </TableCell>
@@ -730,14 +730,14 @@ function ApiKeysTab({ orgId, userId }: { orgId: string | null; userId?: string }
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Documentação da API</CardTitle>
-          <CardDescription className="text-[10px]">
+          <CardDescription className="text-xs">
             Endpoints REST disponíveis: contacts, companies, deals, activities
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="rounded-md bg-muted p-4 space-y-3">
-            <p className="text-[10px] font-medium">Base URL</p>
-            <code className="text-[10px] font-mono bg-background px-2 py-1 rounded">
+            <p className="text-xs font-medium">Base URL</p>
+            <code className="text-xs font-mono bg-background px-2 py-1 rounded">
               {import.meta.env.VITE_SUPABASE_URL}/functions/v1/public-api
             </code>
 
@@ -746,15 +746,15 @@ function ApiKeysTab({ orgId, userId }: { orgId: string | null; userId?: string }
                 "GET /companies", "POST /companies", "GET /deals", "POST /deals",
                 "GET /activities", "POST /activities"].map((endpoint) => (
                 <div key={endpoint} className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-[8px] w-12 justify-center">
+                  <Badge variant="outline" className="text-xs w-12 justify-center">
                     {endpoint.split(" ")[0]}
                   </Badge>
-                  <code className="text-[9px] font-mono text-muted-foreground">{endpoint.split(" ")[1]}</code>
+                  <code className="text-xs font-mono text-muted-foreground">{endpoint.split(" ")[1]}</code>
                 </div>
               ))}
             </div>
 
-            <p className="text-[9px] text-muted-foreground mt-2">
+            <p className="text-xs text-muted-foreground mt-2">
               Headers: <code className="bg-background px-1 rounded">Authorization: Bearer fc_xxx</code>
             </p>
           </div>
@@ -831,18 +831,18 @@ function TrackingTab({ orgId }: { orgId: string | null }) {
             <Globe className="h-4 w-4" />
             Rastreamento de Website
           </CardTitle>
-          <CardDescription className="text-[10px]">
+          <CardDescription className="text-xs">
             Adicione este snippet ao seu site para rastrear visitantes e aumentar o lead score automaticamente
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="relative">
-            <pre className="rounded-md bg-muted p-4 text-[9px] font-mono overflow-x-auto max-h-64 overflow-y-auto whitespace-pre">
+            <pre className="rounded-md bg-muted p-4 text-xs font-mono overflow-x-auto max-h-64 overflow-y-auto whitespace-pre">
               {snippet}
             </pre>
             <Button
               variant="outline" size="sm"
-              className="absolute top-2 right-2 h-7 text-[9px]"
+              className="absolute top-2 right-2 h-7 text-xs"
               onClick={copySnippet}
             >
               {copied ? <Check className="mr-1 h-3 w-3" /> : <Copy className="mr-1 h-3 w-3" />}
@@ -852,7 +852,7 @@ function TrackingTab({ orgId }: { orgId: string | null }) {
 
           <div className="space-y-2 rounded-md border border-border p-3">
             <p className="text-xs font-medium">Como funciona:</p>
-            <ul className="text-[10px] text-muted-foreground space-y-1">
+            <ul className="text-xs text-muted-foreground space-y-1">
               <li>• <strong>Pageviews</strong> são registrados automaticamente como atividades</li>
               <li>• <strong>Identificação</strong>: chame <code className="bg-muted px-1 rounded">FlowCRM.identify("email@exemplo.com")</code> após formulários</li>
               <li>• <strong>Eventos customizados</strong>: <code className="bg-muted px-1 rounded">{'FlowCRM.track("demo_request", {"plan": "pro"})'}</code></li>
@@ -916,7 +916,7 @@ function ImportExportTab({ orgId, userId }: { orgId: string | null; userId?: str
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Exportar Dados</CardTitle>
-          <CardDescription className="text-[10px]">
+          <CardDescription className="text-xs">
             Exporte qualquer entidade como arquivo CSV
           </CardDescription>
         </CardHeader>
@@ -935,7 +935,7 @@ function ImportExportTab({ orgId, userId }: { orgId: string | null; userId?: str
                 ) : (
                   <span className="text-lg">{ent.icon}</span>
                 )}
-                <span className="text-[10px]">{ent.label}</span>
+                <span className="text-xs">{ent.label}</span>
               </Button>
             ))}
           </div>
@@ -945,19 +945,19 @@ function ImportExportTab({ orgId, userId }: { orgId: string | null; userId?: str
       <Card>
         <CardHeader>
           <CardTitle className="text-sm">Importar Dados</CardTitle>
-          <CardDescription className="text-[10px]">
+          <CardDescription className="text-xs">
             Importe contatos e empresas via CSV. Acesse a lista de contatos ou empresas e use o botão "Importar CSV".
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="rounded-md bg-muted p-4 space-y-2">
-            <p className="text-[10px] font-medium">Formatos suportados:</p>
-            <ul className="text-[9px] text-muted-foreground space-y-1">
+            <p className="text-xs font-medium">Formatos suportados:</p>
+            <ul className="text-xs text-muted-foreground space-y-1">
               <li>• <strong>CSV genérico</strong> — mapeamento de colunas manual</li>
               <li>• <strong>HubSpot Export</strong> — detecta automaticamente colunas "First Name", "Last Name", "Email"</li>
               <li>• <strong>Pipedrive Export</strong> — detecta "Person - Name", "Organization - Name"</li>
             </ul>
-            <p className="text-[9px] text-muted-foreground mt-2">
+            <p className="text-xs text-muted-foreground mt-2">
               A importação inclui preview, mapeamento e detecção de duplicatas por email.
             </p>
           </div>

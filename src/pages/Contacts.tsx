@@ -442,7 +442,7 @@ export default function Contacts() {
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span className={`inline-flex items-center gap-0.5 text-[9px] font-semibold px-1 py-0.5 rounded ${isHigh ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"}`}>
+                                    <span className={`inline-flex items-center gap-0.5 text-xs font-semibold px-1 py-0.5 rounded ${isHigh ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"}`}>
                                       <AlertTriangle className="h-2.5 w-2.5" />{days}d
                                     </span>
                                   </TooltipTrigger>
@@ -500,7 +500,7 @@ export default function Contacts() {
                   </div>
                 </div>
                 {c.email && <p className="text-xs text-muted-foreground truncate">{c.email}</p>}
-                <Badge variant="secondary" className={`text-[10px] ${statusColors[c.status || "lead"]}`}>
+                <Badge variant="secondary" className={`text-xs ${statusColors[c.status || "lead"]}`}>
                   {statusLabels[c.status || "lead"]}
                 </Badge>
               </CardContent>

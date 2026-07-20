@@ -325,7 +325,7 @@ export default function Team() {
                     </div>
                     {isAdmin && m.id !== user?.id ? (
                       <Select value={m.role || "member"} onValueChange={(v) => changeRole(m.id, v)}>
-                        <SelectTrigger className={`h-7 text-[11px] w-36 gap-1 ${roleColor(m.role || "member")}`}>
+                        <SelectTrigger className={`h-7 text-xs w-36 gap-1 ${roleColor(m.role || "member")}`}>
                           {roleIcon(m.role || "member")}
                           <SelectValue />
                         </SelectTrigger>
@@ -336,7 +336,7 @@ export default function Team() {
                         </SelectContent>
                       </Select>
                     ) : (
-                      <Badge variant="outline" className={`text-[10px] gap-1 ${roleColor(m.role || "member")}`}>
+                      <Badge variant="outline" className={`text-xs gap-1 ${roleColor(m.role || "member")}`}>
                         {roleIcon(m.role || "member")}
                         {ROLES.find((r) => r.value === m.role)?.label || "Membro"}
                       </Badge>
@@ -385,7 +385,7 @@ export default function Team() {
                                   value={allowed ? "yes" : "no"}
                                   onValueChange={() => togglePermission(r.value, perm.key, allowed)}
                                 >
-                                  <SelectTrigger className={`h-7 text-[11px] w-20 mx-auto ${allowed ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                                  <SelectTrigger className={`h-7 text-xs w-20 mx-auto ${allowed ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -394,7 +394,7 @@ export default function Team() {
                                   </SelectContent>
                                 </Select>
                               ) : (
-                                <Badge variant={allowed ? "default" : "secondary"} className={`text-[10px] ${allowed ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+                                <Badge variant={allowed ? "default" : "secondary"} className={`text-xs ${allowed ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
                                   {allowed ? "Sim" : "Não"}
                                 </Badge>
                               )}
@@ -480,7 +480,7 @@ export default function Team() {
                         >
                           <Avatar className="h-5 w-5">
                             <AvatarImage src={m.avatar_url || ""} />
-                            <AvatarFallback className="text-[8px]">{m.name?.charAt(0)?.toUpperCase() || "U"}</AvatarFallback>
+                            <AvatarFallback className="text-xs">{m.name?.charAt(0)?.toUpperCase() || "U"}</AvatarFallback>
                           </Avatar>
                           {m.name || m.email}
                         </button>

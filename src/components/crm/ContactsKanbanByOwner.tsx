@@ -56,7 +56,7 @@ function ContactCard({
             <div className="flex-1 overflow-hidden space-y-1">
               <div className="flex items-center gap-2">
                 <Avatar className="h-6 w-6 shrink-0">
-                  <AvatarFallback className="bg-primary/10 text-primary text-[9px]">
+                  <AvatarFallback className="bg-primary/10 text-primary text-xs">
                     {contact.first_name[0]}{contact.last_name?.[0] || ""}
                   </AvatarFallback>
                 </Avatar>
@@ -68,7 +68,7 @@ function ContactCard({
               {contact.email && (
                 <p className="truncate text-xs text-muted-foreground">{contact.email}</p>
               )}
-              <Badge variant="secondary" className={`text-[10px] ${statusColors[contact.status || "lead"]}`}>
+              <Badge variant="secondary" className={`text-xs ${statusColors[contact.status || "lead"]}`}>
                 {statusLabels[contact.status || "lead"]}
               </Badge>
             </div>
@@ -106,7 +106,7 @@ function OwnerColumn({
           {owner ? (
             <Avatar className="h-6 w-6">
               <AvatarImage src={owner.avatar_url || ""} />
-              <AvatarFallback className="bg-primary/10 text-primary text-[9px]">
+              <AvatarFallback className="bg-primary/10 text-primary text-xs">
                 {owner.name?.charAt(0)?.toUpperCase() || "?"}
               </AvatarFallback>
             </Avatar>
@@ -118,7 +118,7 @@ function OwnerColumn({
           <h3 className="text-sm font-semibold truncate max-w-[140px]">
             {owner?.name || "Sem responsável"}
           </h3>
-          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+          <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
             {contacts.length}
           </span>
         </div>

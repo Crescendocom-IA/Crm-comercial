@@ -448,12 +448,12 @@ export default function Dashboard() {
         <Card className="cursor-pointer hover:border-primary/30 transition-colors" onClick={() => navigate("/deals")}>
           <CardContent className="p-3">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Receita</span>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Receita</span>
               <DollarSign className="h-3.5 w-3.5 text-success" />
             </div>
             <p className="text-xl font-bold">{fmt(wonRevenue)}</p>
             {revenueVariation !== 0 && (
-              <div className={`flex items-center gap-0.5 text-[10px] ${revenueVariation > 0 ? "text-success" : "text-destructive"}`}>
+              <div className={`flex items-center gap-0.5 text-xs ${revenueVariation > 0 ? "text-success" : "text-destructive"}`}>
                 {revenueVariation > 0 ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
                 {revenueVariation > 0 ? "+" : ""}{revenueVariation}% vs anterior
               </div>
@@ -464,29 +464,29 @@ export default function Dashboard() {
         <Card className="cursor-pointer hover:border-primary/30 transition-colors" onClick={() => navigate("/deals")}>
           <CardContent className="p-3">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Ganhos</span>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Ganhos</span>
               <Handshake className="h-3.5 w-3.5 text-success" />
             </div>
             <p className="text-xl font-bold">{wonDeals.length}</p>
-            <p className="text-[10px] text-muted-foreground">{fmt(pipelineValue)} em pipeline</p>
+            <p className="text-xs text-muted-foreground">{fmt(pipelineValue)} em pipeline</p>
           </CardContent>
         </Card>
 
         <Card className="cursor-pointer hover:border-primary/30 transition-colors" onClick={() => navigate("/deals")}>
           <CardContent className="p-3">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Win Rate</span>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Win Rate</span>
               <Target className="h-3.5 w-3.5 text-primary" />
             </div>
             <p className="text-xl font-bold">{winRate}%</p>
-            <p className="text-[10px] text-muted-foreground">{totalClosed} fechados</p>
+            <p className="text-xs text-muted-foreground">{totalClosed} fechados</p>
           </CardContent>
         </Card>
 
         <Card className="cursor-pointer hover:border-primary/30 transition-colors" onClick={() => navigate("/deals")}>
           <CardContent className="p-3">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Ticket Médio</span>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Ticket Médio</span>
               <BarChart3 className="h-3.5 w-3.5 text-primary" />
             </div>
             <p className="text-xl font-bold">{fmt(avgTicket)}</p>
@@ -496,22 +496,22 @@ export default function Dashboard() {
         <Card className="cursor-pointer hover:border-primary/30 transition-colors" onClick={() => navigate("/activities")}>
           <CardContent className="p-3">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Ciclo Médio</span>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Ciclo Médio</span>
               <Clock className="h-3.5 w-3.5 text-warning" />
             </div>
             <p className="text-xl font-bold">{avgCycle}</p>
-            <p className="text-[10px] text-muted-foreground">dias</p>
+            <p className="text-xs text-muted-foreground">dias</p>
           </CardContent>
         </Card>
 
         <Card className="cursor-pointer hover:border-primary/30 transition-colors" onClick={() => navigate("/contacts")}>
           <CardContent className="p-3">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Contatos</span>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Contatos</span>
               <Users className="h-3.5 w-3.5 text-primary" />
             </div>
             <p className="text-xl font-bold">{contacts.length}</p>
-            <p className="text-[10px] text-muted-foreground">{contacts.filter((c) => inPeriod(c.created_at, periodStart)).length} novos</p>
+            <p className="text-xs text-muted-foreground">{contacts.filter((c) => inPeriod(c.created_at, periodStart)).length} novos</p>
           </CardContent>
         </Card>
       </div>
@@ -560,7 +560,7 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm">Pipeline por Estágio</CardTitle>
-              <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => navigate("/deals")}>
+              <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => navigate("/deals")}>
                 Ver pipeline <ArrowRight className="ml-1 h-3 w-3" />
               </Button>
             </div>
@@ -574,7 +574,7 @@ export default function Dashboard() {
                     <div key={s.name}>
                       <div className="flex items-center justify-between mb-0.5">
                         <span className="text-xs font-medium">{s.name}</span>
-                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <span>{s.count} negócios</span>
                           <span className="font-medium text-foreground">{fmt(s.value)}</span>
                         </div>
@@ -632,13 +632,13 @@ export default function Dashboard() {
                 {topPerformers.slice(0, 5).map((p, i) => (
                   <div key={p.name} className="flex items-center justify-between">
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold ${i === 0 ? "bg-warning/20 text-warning" : i === 1 ? "bg-muted text-muted-foreground" : "bg-muted text-muted-foreground"}`}>
+                      <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${i === 0 ? "bg-warning/20 text-warning" : i === 1 ? "bg-muted text-muted-foreground" : "bg-muted text-muted-foreground"}`}>
                         {i + 1}
                       </div>
                       <span className="text-xs font-medium truncate">{p.name}</span>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
-                      <Badge variant="secondary" className="text-[9px]">{p.deals} deals</Badge>
+                      <Badge variant="secondary" className="text-xs">{p.deals} deals</Badge>
                       <span className="text-xs font-bold text-success">{fmt(p.revenue)}</span>
                     </div>
                   </div>
@@ -674,7 +674,7 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm">Novos Contatos por Status</CardTitle>
-              <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => navigate("/contacts")}>
+              <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => navigate("/contacts")}>
                 Ver todos <ArrowRight className="ml-1 h-3 w-3" />
               </Button>
             </div>
@@ -702,7 +702,7 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm">Distribuição de Lead Score</CardTitle>
-              <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => navigate("/lead-scoring")}>
+              <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => navigate("/lead-scoring")}>
                 Ver scoring <ArrowRight className="ml-1 h-3 w-3" />
               </Button>
             </div>
@@ -742,7 +742,7 @@ export default function Dashboard() {
                     <div key={d.id} className="flex items-center justify-between rounded-md border border-destructive/20 bg-destructive/5 p-2 cursor-pointer hover:bg-destructive/10 transition-colors" onClick={() => navigate(`/deals/${d.id}`)}>
                       <div className="min-w-0">
                         <p className="text-xs font-medium truncate">{d.title}</p>
-                        <p className="text-[10px] text-muted-foreground">{daysSince} dias sem atividade</p>
+                        <p className="text-xs text-muted-foreground">{daysSince} dias sem atividade</p>
                       </div>
                       <span className="text-xs font-bold text-destructive shrink-0">{fmt(Number(d.value) || 0)}</span>
                     </div>
@@ -770,7 +770,7 @@ export default function Dashboard() {
                     <div key={d.id} className="flex items-center justify-between rounded-md border border-warning/20 bg-warning/5 p-2 cursor-pointer hover:bg-warning/10 transition-colors" onClick={() => navigate(`/deals/${d.id}`)}>
                       <div className="min-w-0">
                         <p className="text-xs font-medium truncate">{d.title}</p>
-                        <p className="text-[10px] text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           {daysLeft <= 0 ? "Vencido" : `${daysLeft} dias`} · {Number(d.probability) || 0}% prob
                         </p>
                       </div>

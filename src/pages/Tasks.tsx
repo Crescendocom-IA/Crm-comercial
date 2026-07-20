@@ -291,7 +291,7 @@ export default function Tasks() {
             >
               {dateFilterLabels[key]}
               {count > 0 && (
-                <span className={`ml-1 text-[10px] ${isOverdueTab ? "text-destructive" : ""}`}>
+                <span className={`ml-1 text-xs ${isOverdueTab ? "text-destructive" : ""}`}>
                   ({count})
                 </span>
               )}
@@ -342,7 +342,7 @@ export default function Tasks() {
                   </TableCell>
                   <TableCell>
                     {deal && (
-                      <Badge variant="secondary" className="text-[10px] font-normal max-w-[160px] truncate">
+                      <Badge variant="secondary" className="text-xs font-normal max-w-[160px] truncate">
                         {deal.title}
                       </Badge>
                     )}

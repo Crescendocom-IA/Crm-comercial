@@ -51,7 +51,7 @@ function DealCard({
         onClick={onClick}
       >
         {/* Title */}
-        <p className="truncate text-[13px] font-medium leading-snug text-foreground">
+        <p className="truncate text-sm font-medium leading-snug text-foreground">
           {deal.title}
         </p>
 
@@ -75,7 +75,7 @@ function DealCard({
             {deal.owner && (
               <Avatar className="h-5 w-5">
                 <AvatarImage src={deal.owner.avatar_url || ""} />
-                <AvatarFallback className="bg-primary/10 text-primary text-[8px]">
+                <AvatarFallback className="bg-primary/10 text-primary text-xs">
                   {deal.owner.name?.charAt(0)?.toUpperCase() || "?"}
                 </AvatarFallback>
               </Avatar>
@@ -112,12 +112,12 @@ function StageColumn({
     >
       {/* Header — Pipedrive style */}
       <div className="mb-1 px-1">
-        <h3 className="text-[13px] font-bold text-foreground leading-tight">{stage.name}</h3>
+        <h3 className="text-sm font-bold text-foreground leading-tight">{stage.name}</h3>
         <div className="flex items-center gap-1">
-          <span className="text-[11px] text-muted-foreground font-medium">
+          <span className="text-xs text-muted-foreground font-medium">
             {formatCurrency(total)}
           </span>
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             · {deals.length} {deals.length === 1 ? "negócio" : "negócios"}
           </span>
         </div>
@@ -180,7 +180,7 @@ function CollapsibleStatusColumn({
         <div className="flex items-center gap-2">
           <Icon className={`h-4 w-4 ${color}`} />
           <span className="text-sm font-semibold">{title}</span>
-          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+          <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
             {deals.length}
           </span>
         </div>
@@ -197,9 +197,9 @@ function CollapsibleStatusColumn({
               className="cursor-pointer rounded-md border border-border bg-card p-2 hover:shadow-sm transition-shadow"
               onClick={() => onDealClick(deal)}
             >
-              <p className="truncate text-[13px] font-medium">{deal.title}</p>
+              <p className="truncate text-sm font-medium">{deal.title}</p>
               {deal.company && (
-                <p className="truncate text-[11px] text-muted-foreground">{deal.company.name}</p>
+                <p className="truncate text-xs text-muted-foreground">{deal.company.name}</p>
               )}
               <p className={`text-xs font-semibold mt-0.5 ${color}`}>
                 {formatCurrency(Number(deal.value) || 0, deal.currency || "BRL")}
@@ -235,7 +235,7 @@ function WonLostDropZone({
       }`}
     >
       <Icon className={`h-5 w-5 ${color}`} />
-      <span className={`mt-1 text-[10px] font-medium ${color}`}>{label}</span>
+      <span className={`mt-1 text-xs font-medium ${color}`}>{label}</span>
     </div>
   );
 }
@@ -328,7 +328,7 @@ export function DealsKanban({
           {activeDeal && (
             <div className="w-[220px] opacity-90">
               <div className="rounded-md border border-primary bg-card p-2.5 shadow-lg">
-                <p className="text-[13px] font-medium">{activeDeal.title}</p>
+                <p className="text-sm font-medium">{activeDeal.title}</p>
                 <p className="text-xs font-semibold text-foreground mt-0.5">
                   {formatCurrency(Number(activeDeal.value) || 0, activeDeal.currency || "BRL")}
                 </p>

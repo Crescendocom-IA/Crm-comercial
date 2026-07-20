@@ -97,7 +97,7 @@ function RulePointsInput({ initial, onCommit }: { initial: number; onCommit: (po
       type="number"
       value={value}
       onChange={(e) => setValue(Number(e.target.value))}
-      className="w-16 h-6 text-[10px] text-center"
+      className="w-16 h-6 text-xs text-center"
     />
   );
 }
@@ -353,7 +353,7 @@ export default function LeadScoring() {
                     <Switch checked={r.is_active} onCheckedChange={(v) => toggleRule(r.id, v)} className="scale-75" />
                     <div className="min-w-0">
                       <p className="text-xs font-medium truncate">{r.label}</p>
-                      <p className="text-[9px] text-muted-foreground">{r.event_type}</p>
+                      <p className="text-xs text-muted-foreground">{r.event_type}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -361,7 +361,7 @@ export default function LeadScoring() {
                       initial={r.points}
                       onCommit={(pts) => updateRulePoints(r.id, pts)}
                     />
-                    <span className="text-[9px] text-muted-foreground">pts</span>
+                    <span className="text-xs text-muted-foreground">pts</span>
                     <button onClick={() => openEditRule(r)} className="p-0.5 rounded hover:bg-accent text-muted-foreground">
                       <Edit2 className="h-3 w-3" />
                     </button>
@@ -399,7 +399,7 @@ export default function LeadScoring() {
                       <TableCell className="font-medium text-sm">{c.first_name} {c.last_name}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{c.email}</TableCell>
                       <TableCell>
-                        {c.status && <Badge variant="secondary" className="text-[9px]">{c.status}</Badge>}
+                        {c.status && <Badge variant="secondary" className="text-xs">{c.status}</Badge>}
                       </TableCell>
                       <TableCell className="text-center">
                         <LeadScoreBadge score={c.lead_score || 0} />
@@ -455,20 +455,20 @@ export default function LeadScoring() {
                       </DropdownMenu>
                     </div>
                     <div className="mt-3 flex items-center gap-2">
-                      <Badge variant="secondary" className="text-[9px]">{segContacts.length} contatos</Badge>
-                      {f.minScore !== undefined && <Badge variant="outline" className="text-[8px]">Score ≥ {f.minScore}</Badge>}
-                      {f.maxScore !== undefined && <Badge variant="outline" className="text-[8px]">Score ≤ {f.maxScore}</Badge>}
-                      {f.status && <Badge variant="outline" className="text-[8px]">{f.status}</Badge>}
+                      <Badge variant="secondary" className="text-xs">{segContacts.length} contatos</Badge>
+                      {f.minScore !== undefined && <Badge variant="outline" className="text-xs">Score ≥ {f.minScore}</Badge>}
+                      {f.maxScore !== undefined && <Badge variant="outline" className="text-xs">Score ≤ {f.maxScore}</Badge>}
+                      {f.status && <Badge variant="outline" className="text-xs">{f.status}</Badge>}
                     </div>
                     {/* Mini list */}
                     <div className="mt-2 space-y-0.5 max-h-24 overflow-hidden">
                       {segContacts.slice(0, 4).map((c) => (
-                        <div key={c.id} className="flex items-center justify-between text-[10px]">
+                        <div key={c.id} className="flex items-center justify-between text-xs">
                           <span className="truncate">{c.first_name} {c.last_name}</span>
                           <LeadScoreBadge score={c.lead_score || 0} />
                         </div>
                       ))}
-                      {segContacts.length > 4 && <p className="text-[9px] text-muted-foreground">+{segContacts.length - 4} mais</p>}
+                      {segContacts.length > 4 && <p className="text-xs text-muted-foreground">+{segContacts.length - 4} mais</p>}
                     </div>
                   </CardContent>
                 </Card>
@@ -563,7 +563,7 @@ export default function LeadScoring() {
                         {h.created_at ? new Date(h.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
                       </TableCell>
                       <TableCell className="text-sm font-medium">{c ? `${c.first_name} ${c.last_name || ""}` : "—"}</TableCell>
-                      <TableCell><Badge variant="outline" className="text-[8px]">{h.event_type || "manual"}</Badge></TableCell>
+                      <TableCell><Badge variant="outline" className="text-xs">{h.event_type || "manual"}</Badge></TableCell>
                       <TableCell className="text-xs text-muted-foreground">{h.reason}</TableCell>
                       <TableCell className="text-center">
                         <span className={`text-xs font-bold ${isPositive ? "text-success" : "text-destructive"}`}>

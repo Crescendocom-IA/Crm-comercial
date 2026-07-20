@@ -102,7 +102,7 @@ export function DealQualification({ dealId, qualification, qualificationScore, o
           <div className="flex items-center gap-2">
             <span className={`text-lg font-bold ${getScoreColor(score)}`}>{score}%</span>
             {!editing && (
-              <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={() => setEditing(true)}>Editar</Button>
+              <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => setEditing(true)}>Editar</Button>
             )}
           </div>
         </div>
@@ -125,7 +125,7 @@ export function DealQualification({ dealId, qualification, qualificationScore, o
                     <span className="text-sm">{icon}</span>
                     <div>
                       <p className="text-xs font-semibold">{label}</p>
-                      <p className="text-[10px] text-muted-foreground">{description}</p>
+                      <p className="text-xs text-muted-foreground">{description}</p>
                     </div>
                   </div>
                   {editing ? (
@@ -146,14 +146,14 @@ export function DealQualification({ dealId, qualification, qualificationScore, o
                 </div>
                 {editing && (
                   <Input
-                    className="mt-1.5 h-7 text-[10px]"
+                    className="mt-1.5 h-7 text-xs"
                     placeholder="Notas..."
                     value={(bant[notesKey] as string) || ""}
                     onChange={(e) => setBant({ ...bant, [notesKey]: e.target.value })}
                   />
                 )}
                 {!editing && bant[notesKey] && (
-                  <p className="mt-1 text-[10px] text-muted-foreground italic">{bant[notesKey] as string}</p>
+                  <p className="mt-1 text-xs text-muted-foreground italic">{bant[notesKey] as string}</p>
                 )}
               </div>
             );
@@ -179,7 +179,7 @@ export function LeadScoreBadge({ score }: { score: number }) {
     : "bg-muted text-muted-foreground";
 
   return (
-    <div className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${color}`}>
+    <div className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs font-bold ${color}`}>
       <div className="h-1.5 w-1.5 rounded-full bg-current" />
       {score}
     </div>
@@ -193,7 +193,7 @@ export function QualificationBar({ score }: { score: number }) {
       <div className="h-1.5 w-16 rounded-full bg-muted overflow-hidden">
         <div className={`h-full rounded-full ${getProgressColor(score)}`} style={{ width: `${score}%` }} />
       </div>
-      <span className={`text-[9px] font-bold ${getScoreColor(score)}`}>{score}%</span>
+      <span className={`text-xs font-bold ${getScoreColor(score)}`}>{score}%</span>
     </div>
   );
 }

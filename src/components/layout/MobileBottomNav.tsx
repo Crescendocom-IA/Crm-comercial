@@ -42,7 +42,7 @@ export function MobileBottomNav() {
           aria-label={item.title}
         >
           <item.icon className="h-5 w-5" />
-          <span className="text-[9px] font-medium">{item.title}</span>
+          <span className="text-xs font-medium">{item.title}</span>
         </NavLink>
       ))}
 
@@ -50,7 +50,7 @@ export function MobileBottomNav() {
         <DropdownMenuTrigger asChild>
           <button className="flex flex-col items-center gap-0.5 px-3 py-1.5 text-muted-foreground" aria-label="Mais opções">
             <MoreHorizontal className="h-5 w-5" />
-            <span className="text-[9px] font-medium">Mais</span>
+            <span className="text-xs font-medium">Mais</span>
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" side="top" className="mb-2">

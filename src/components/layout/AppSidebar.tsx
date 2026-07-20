@@ -81,7 +81,7 @@ export function AppSidebar() {
     <SidebarGroup>
       <SidebarGroupContent>
         {label && !collapsed && (
-          <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {label}
           </p>
         )}
@@ -117,7 +117,7 @@ export function AppSidebar() {
           <SidebarGroup>
             <SidebarGroupContent>
               {!collapsed && (
-                <p className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <p className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   Geral
                 </p>
               )}

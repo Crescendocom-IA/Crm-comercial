@@ -185,11 +185,11 @@ export function AICopilot() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold">AI Copilot</h3>
-                <p className="text-[9px] text-muted-foreground">⌘+J para abrir · Powered by Claude</p>
+                <p className="text-xs text-muted-foreground">⌘+J para abrir · Powered by Claude</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <Badge variant="outline" className="text-[8px]">{messages.filter((m) => m.role === "user").length} msgs</Badge>
+              <Badge variant="outline" className="text-xs">{messages.filter((m) => m.role === "user").length} msgs</Badge>
             </div>
           </div>
 
@@ -205,7 +205,7 @@ export function AICopilot() {
                       <button
                         key={s}
                         onClick={() => sendMessage(s)}
-                        className="text-[10px] px-2.5 py-1.5 rounded-full border border-border hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+                        className="text-xs px-2.5 py-1.5 rounded-full border border-border hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
                       >
                         {s}
                       </button>
@@ -227,7 +227,7 @@ export function AICopilot() {
                       : "bg-muted"
                   }`}>
                     {msg.role === "assistant" ? (
-                      <div className="prose prose-xs prose-neutral dark:prose-invert max-w-none [&_p]:m-0 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5 [&_h1]:text-sm [&_h2]:text-xs [&_h3]:text-xs [&_code]:text-[10px]">
+                      <div className="prose prose-xs prose-neutral dark:prose-invert max-w-none [&_p]:m-0 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5 [&_h1]:text-sm [&_h2]:text-xs [&_h3]:text-xs [&_code]:text-xs">
                         <Markdown>{msg.content}</Markdown>
                       </div>
                     ) : (

@@ -262,8 +262,8 @@ export function ContactDrawer({ contact, onClose, onUpdate, companies, members }
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-[10px] font-medium text-muted-foreground uppercase">{activityLabels[a.type]}</span>
-                        <span className="text-[10px] text-muted-foreground">
+                        <span className="text-xs font-medium text-muted-foreground uppercase">{activityLabels[a.type]}</span>
+                        <span className="text-xs text-muted-foreground">
                           {a.created_at ? new Date(a.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
                         </span>
                       </div>
@@ -289,11 +289,11 @@ export function ContactDrawer({ contact, onClose, onUpdate, companies, members }
                         <p className="text-sm font-medium">{d.title}</p>
                         <div className="flex items-center gap-2 mt-1">
                           {stage && (
-                            <Badge variant="secondary" className="text-[10px]">
+                            <Badge variant="secondary" className="text-xs">
                               {stage.name}
                             </Badge>
                           )}
-                          <Badge variant="secondary" className={`text-[10px] ${d.status === "won" ? "bg-success/10 text-success" : d.status === "lost" ? "bg-destructive/10 text-destructive" : ""}`}>
+                          <Badge variant="secondary" className={`text-xs ${d.status === "won" ? "bg-success/10 text-success" : d.status === "lost" ? "bg-destructive/10 text-destructive" : ""}`}>
                             {d.status === "open" ? "Aberto" : d.status === "won" ? "Ganho" : "Perdido"}
                           </Badge>
                         </div>

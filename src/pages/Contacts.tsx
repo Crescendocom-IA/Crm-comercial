@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
+import { useDebounce } from "@/hooks/useDebounce";
 import { EmptyState } from "@/components/crm/EmptyState";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { useSearchParams } from "react-router-dom";
@@ -79,6 +80,9 @@ export default function Contacts() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [members, setMembers] = useState<Profile[]>([]);
   const [search, setSearch] = useState("");
+  // O input segue controlado por `search` (digitação instantânea); só a
+  // filtragem, que percorre a lista inteira, espera a pausa.
+  const debouncedSearch = useDebounce(search, 300);
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -167,7 +171,7 @@ export default function Contacts() {
   const filtered = useMemo(() => {
     return contacts.filter((c) => {
       const searchStr = `${c.first_name} ${c.last_name} ${c.email}`.toLowerCase();
-      if (search && !searchStr.includes(search.toLowerCase())) return false;
+      if (debouncedSearch && !searchStr.includes(debouncedSearch.toLowerCase())) return false;
       if (filters.status && filters.status !== "all" && c.status !== filters.status) return false;
       if (filters.ownerId && c.owner_id !== filters.ownerId) return false;
       if (filters.companyId && (c as any).company_id !== filters.companyId) return false;
@@ -178,7 +182,7 @@ export default function Contacts() {
       if (filters.createdTo && c.created_at && c.created_at.slice(0, 10) > filters.createdTo) return false;
       return true;
     });
-  }, [contacts, search, filters]);
+  }, [contacts, debouncedSearch, filters]);
 
   // Sorting
   const sorted = useMemo(() => {

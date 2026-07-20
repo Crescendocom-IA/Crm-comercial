@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
+import { useDebounce } from "@/hooks/useDebounce";
 import { EmptyState } from "@/components/crm/EmptyState";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { useSearchParams } from "react-router-dom";
@@ -51,6 +52,8 @@ export default function Companies() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [members, setMembers] = useState<Profile[]>([]);
   const [search, setSearch] = useState("");
+  // Mesma ideia do Contacts: input instantâneo, filtragem esperando a pausa.
+  const debouncedSearch = useDebounce(search, 300);
   const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -110,13 +113,13 @@ export default function Companies() {
   const filtered = useMemo(() => {
     return companies.filter((c) => {
       const s = `${c.name} ${c.domain} ${c.industry}`.toLowerCase();
-      if (search && !s.includes(search.toLowerCase())) return false;
+      if (debouncedSearch && !s.includes(debouncedSearch.toLowerCase())) return false;
       if (filters.industry && c.industry !== filters.industry) return false;
       if (filters.size && c.size !== filters.size) return false;
       if (filters.ownerId && c.owner_id !== filters.ownerId) return false;
       return true;
     });
-  }, [companies, search, filters]);
+  }, [companies, debouncedSearch, filters]);
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) => {

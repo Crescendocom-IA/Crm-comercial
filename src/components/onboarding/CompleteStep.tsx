@@ -8,6 +8,8 @@ interface CheckItem {
   label: string;
   value?: string;
   configured: boolean;
+  /** Onde este item se configura de fato. Antes todos caíam em /settings. */
+  route: string;
 }
 
 export function CompleteStep({ stepData, completedSteps, onComplete }: OnboardingStepProps) {
@@ -31,6 +33,7 @@ export function CompleteStep({ stepData, completedSteps, onComplete }: Onboardin
       label: "Empresa",
       value: stepData.orgName || undefined,
       configured: completedSteps.has("company") || !!stepData.orgName,
+      route: "/settings?tab=general",
     },
     {
       key: "pipeline",
@@ -39,24 +42,28 @@ export function CompleteStep({ stepData, completedSteps, onComplete }: Onboardin
         ? `${stepData.pipelineName} — ${stepData.stageCount} stages`
         : undefined,
       configured: completedSteps.has("pipeline") || !!stepData.pipelineName,
+      route: "/settings?tab=pipelines",
     },
     {
       key: "ai",
       label: "AI Copilot",
       value: stepData.aiConfigured ? "Claude ativo" : "Não configurado",
       configured: !!stepData.aiConfigured,
+      route: "/settings/integrations",
     },
     {
       key: "email",
       label: "Email (Resend)",
       value: stepData.emailFrom || "Não configurado",
       configured: !!stepData.emailConfigured,
+      route: "/settings/integrations",
     },
     {
       key: "slack",
       label: "Slack",
       value: stepData.slackWorkspace || "Não configurado",
       configured: !!stepData.slackConfigured,
+      route: "/settings/integrations",
     },
   ];
 
@@ -97,7 +104,7 @@ export function CompleteStep({ stepData, completedSteps, onComplete }: Onboardin
             </div>
             {!item.configured && (
               <button
-                onClick={() => handleAction("/settings")}
+                onClick={() => handleAction(item.route)}
                 className="text-xs text-primary hover:underline shrink-0"
               >
                 configurar
@@ -124,7 +131,7 @@ export function CompleteStep({ stepData, completedSteps, onComplete }: Onboardin
         <Button
           variant="outline"
           className="h-auto py-3 flex-col gap-1"
-          onClick={() => handleAction("/deals")}
+          onClick={() => handleAction("/deals?action=new")}
         >
           <Plus className="h-5 w-5" />
           <span className="text-xs">Criar primeiro negócio</span>

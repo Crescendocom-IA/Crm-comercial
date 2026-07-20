@@ -172,11 +172,16 @@ export function OnboardingModal() {
       }
     }
 
+    // O efeito que abre o modal é reativo a profile.onboarding_completed. Sem
+    // recarregar o perfil, o contexto segue com o valor antigo e o onboarding
+    // reabre na próxima navegação, mesmo já concluído no banco.
+    await refreshProfile();
+
     setTimeout(() => {
       setIsOpen(false);
       if (navigateTo) navigate(navigateTo);
     }, 600);
-  }, [user, navigate, orgId, completedSteps, stepData]);
+  }, [user, navigate, orgId, completedSteps, stepData, refreshProfile]);
 
   /**
    * Saída de emergência do onboarding. Sem isto, uma falha em um passo

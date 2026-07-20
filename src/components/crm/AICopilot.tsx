@@ -57,11 +57,11 @@ export function AICopilot() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  // Auto-scroll
+  // Auto-scroll: o Radix ScrollArea rola no viewport interno, não no root (onde o
+  // ref aponta). Sem isso, o scrollTop era aplicado no elemento errado e não rolava.
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    const viewport = scrollRef.current?.querySelector<HTMLElement>("[data-radix-scroll-area-viewport]");
+    if (viewport) viewport.scrollTop = viewport.scrollHeight;
   }, [messages]);
 
   // Focus input when opened

@@ -82,6 +82,7 @@ export default function Deals() {
   const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
   const [editingStages, setEditingStages] = useState<{ id?: string; name: string; color: string; win_probability: number; order: number }[]>([]);
   const [savingPipeline, setSavingPipeline] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const openPipelineEditor = () => {
     const current = stages
@@ -299,30 +300,35 @@ export default function Deals() {
   };
 
   const handleSave = async () => {
-    if (!orgId || !form.title) return;
-    if (editing) {
-      const { error } = await supabase.from("deals").update({
-        title: form.title, value: Number(form.value) || 0, currency: form.currency,
-        stage_id: form.stage_id, probability: Number(form.probability) || 0,
-        close_date: form.close_date, contact_id: form.contact_id || null,
-        company_id: form.company_id || null, owner_id: form.owner_id || null,
-      }).eq("id", editing.id);
-      if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
-    } else {
-      const { data: inserted, error } = await supabase.from("deals").insert({
-        org_id: orgId, title: form.title!, value: Number(form.value) || 0,
-        currency: form.currency || "BRL", stage_id: form.stage_id,
-        probability: Number(form.probability) || 0, close_date: form.close_date,
-        status: "open", owner_id: form.owner_id || user?.id,
-        contact_id: form.contact_id || null, company_id: form.company_id || null,
-      }).select().single();
-      if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
-      fireWebhook(orgId, "deal.created", inserted ?? {});
-      if (inserted?.contact_id) applyScoreEvent(orgId, inserted.contact_id, "deal_created");
+    if (!orgId || !form.title || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      if (editing) {
+        const { error } = await supabase.from("deals").update({
+          title: form.title, value: Number(form.value) || 0, currency: form.currency,
+          stage_id: form.stage_id, probability: Number(form.probability) || 0,
+          close_date: form.close_date, contact_id: form.contact_id || null,
+          company_id: form.company_id || null, owner_id: form.owner_id || null,
+        }).eq("id", editing.id);
+        if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
+      } else {
+        const { data: inserted, error } = await supabase.from("deals").insert({
+          org_id: orgId, title: form.title!, value: Number(form.value) || 0,
+          currency: form.currency || "BRL", stage_id: form.stage_id,
+          probability: Number(form.probability) || 0, close_date: form.close_date,
+          status: "open", owner_id: form.owner_id || user?.id,
+          contact_id: form.contact_id || null, company_id: form.company_id || null,
+        }).select().single();
+        if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
+        fireWebhook(orgId, "deal.created", inserted ?? {});
+        if (inserted?.contact_id) applyScoreEvent(orgId, inserted.contact_id, "deal_created");
+      }
+      setSheetOpen(false);
+      fetchData();
+      toast({ title: editing ? "Negócio atualizado" : "Negócio criado" });
+    } finally {
+      setIsSubmitting(false);
     }
-    setSheetOpen(false);
-    fetchData();
-    toast({ title: editing ? "Negócio atualizado" : "Negócio criado" });
   };
 
   const markAsWon = async (dealId: string) => {
@@ -565,7 +571,9 @@ export default function Deals() {
                 <Input type="date" value={form.close_date || ""} onChange={(e) => setForm({ ...form, close_date: e.target.value })} />
               </div>
             </div>
-            <Button onClick={handleSave} className="w-full">{editing ? "Salvar" : "Criar Negócio"}</Button>
+            <Button onClick={handleSave} disabled={isSubmitting} className="w-full">
+              {isSubmitting ? "Salvando..." : editing ? "Salvar" : "Criar Negócio"}
+            </Button>
           </div>
         </SheetContent>
       </Sheet>

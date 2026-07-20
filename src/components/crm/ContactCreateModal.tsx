@@ -34,6 +34,7 @@ export function ContactCreateModal({ open, onOpenChange, onCreated, companies }:
     status: "lead" as ContactStatus, linkedin_url: "", company_id: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const validate = () => {
     const errs: Record<string, string> = {};
@@ -44,20 +45,25 @@ export function ContactCreateModal({ open, onOpenChange, onCreated, companies }:
   };
 
   const handleCreate = async () => {
-    if (!orgId || !validate()) return;
-    const { data: inserted, error } = await supabase.from("contacts").insert({
-      org_id: orgId, first_name: form.first_name, last_name: form.last_name || null,
-      email: form.email || null, phone: form.phone || null, title: form.title || null,
-      status: form.status, linkedin_url: form.linkedin_url || null, owner_id: user?.id,
-      company_id: form.company_id || null,
-    }).select().single();
-    if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
-    fireWebhook(orgId, "contact.created", inserted ?? {});
-    fireAutomations(orgId, "contact.created", { contact_id: inserted?.id, lead_score: inserted?.lead_score, status: inserted?.status });
-    onOpenChange(false);
-    setForm({ first_name: "", last_name: "", email: "", phone: "", title: "", status: "lead", linkedin_url: "", company_id: "" });
-    onCreated();
-    toast({ title: "Contato criado" });
+    if (!orgId || !validate() || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const { data: inserted, error } = await supabase.from("contacts").insert({
+        org_id: orgId, first_name: form.first_name, last_name: form.last_name || null,
+        email: form.email || null, phone: form.phone || null, title: form.title || null,
+        status: form.status, linkedin_url: form.linkedin_url || null, owner_id: user?.id,
+        company_id: form.company_id || null,
+      }).select().single();
+      if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
+      fireWebhook(orgId, "contact.created", inserted ?? {});
+      fireAutomations(orgId, "contact.created", { contact_id: inserted?.id, lead_score: inserted?.lead_score, status: inserted?.status });
+      onOpenChange(false);
+      setForm({ first_name: "", last_name: "", email: "", phone: "", title: "", status: "lead", linkedin_url: "", company_id: "" });
+      onCreated();
+      toast({ title: "Contato criado" });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -118,7 +124,9 @@ export function ContactCreateModal({ open, onOpenChange, onCreated, companies }:
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={handleCreate} className="w-full">Criar Contato</Button>
+          <Button onClick={handleCreate} disabled={isSubmitting} className="w-full">
+            {isSubmitting ? "Criando..." : "Criar Contato"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

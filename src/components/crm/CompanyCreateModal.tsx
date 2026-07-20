@@ -41,6 +41,7 @@ export function CompanyCreateModal({ open, onOpenChange, onCreated }: CompanyCre
   });
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Contacts multi-select
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -91,32 +92,36 @@ export function CompanyCreateModal({ open, onOpenChange, onCreated }: CompanyCre
   };
 
   const handleCreate = async () => {
-    if (!orgId || !validate()) return;
-    const { data, error } = await supabase.from("companies").insert({
-      org_id: orgId, name: form.name, domain: form.domain || null,
-      industry: form.industry || null, size: form.size || null,
-      revenue: form.revenue ? Number(form.revenue) : null,
-      website: form.website || null, linkedin_url: form.linkedin_url || null,
-      owner_id: user?.id,
-    }).select("id").single();
-    if (error || !data) { toast({ title: "Erro", description: error?.message, variant: "destructive" }); return; }
-    fireWebhook(orgId, "company.created", { id: data.id, name: form.name });
+    if (!orgId || !validate() || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const { data, error } = await supabase.from("companies").insert({
+        org_id: orgId, name: form.name, domain: form.domain || null,
+        industry: form.industry || null, size: form.size || null,
+        revenue: form.revenue ? Number(form.revenue) : null,
+        website: form.website || null, linkedin_url: form.linkedin_url || null,
+        owner_id: user?.id,
+      }).select("id").single();
+      if (error || !data) { toast({ title: "Erro", description: error?.message, variant: "destructive" }); return; }
+      fireWebhook(orgId, "company.created", { id: data.id, name: form.name });
 
+      // Link selected contacts to the new company
+      if (selectedContactIds.length > 0) {
+        const updates = selectedContactIds.map((cid) =>
+          supabase.from("contacts").update({ company_id: data.id }).eq("id", cid)
+        );
+        await Promise.all(updates);
+      }
 
-    // Link selected contacts to the new company
-    if (selectedContactIds.length > 0) {
-      const updates = selectedContactIds.map((cid) =>
-        supabase.from("contacts").update({ company_id: data.id }).eq("id", cid)
-      );
-      await Promise.all(updates);
+      onOpenChange(false);
+      setForm({ name: "", domain: "", industry: "", size: "", revenue: "", website: "", linkedin_url: "" });
+      setSelectedContactIds([]);
+      setContactSearch("");
+      onCreated();
+      toast({ title: "Empresa criada", description: selectedContactIds.length > 0 ? `${selectedContactIds.length} contato(s) vinculado(s)` : undefined });
+    } finally {
+      setIsSubmitting(false);
     }
-
-    onOpenChange(false);
-    setForm({ name: "", domain: "", industry: "", size: "", revenue: "", website: "", linkedin_url: "" });
-    setSelectedContactIds([]);
-    setContactSearch("");
-    onCreated();
-    toast({ title: "Empresa criada", description: selectedContactIds.length > 0 ? `${selectedContactIds.length} contato(s) vinculado(s)` : undefined });
   };
 
   return (
@@ -248,7 +253,9 @@ export function CompanyCreateModal({ open, onOpenChange, onCreated }: CompanyCre
               </Popover>
             </div>
 
-            <Button onClick={handleCreate} className="w-full">Criar Empresa</Button>
+            <Button onClick={handleCreate} disabled={isSubmitting} className="w-full">
+              {isSubmitting ? "Criando..." : "Criar Empresa"}
+            </Button>
           </div>
         </ScrollArea>
       </DialogContent>

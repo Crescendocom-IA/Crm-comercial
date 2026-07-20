@@ -28,7 +28,7 @@ const STEPS = [
 ];
 
 export function OnboardingModal() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -178,6 +178,22 @@ export function OnboardingModal() {
     }, 600);
   }, [user, navigate, orgId, completedSteps, stepData]);
 
+  /**
+   * Saída de emergência do onboarding. Sem isto, uma falha em um passo
+   * obrigatório (ex: o RPC de criar organização) deixava o usuário preso: Escape
+   * é bloqueado, não há X, e o modal cobre o header — inclusive o logout.
+   * Marca o onboarding como concluído para não reaparecer e leva ao dashboard.
+   */
+  const handleSkipOnboarding = useCallback(async () => {
+    if (!user) return;
+    await supabase.from("profiles").update({ onboarding_completed: true } as any).eq("id", user.id);
+    // O efeito de abertura observa profile.onboarding_completed — sem atualizar
+    // o contexto, o modal voltaria a abrir.
+    await refreshProfile();
+    setIsOpen(false);
+    navigate("/dashboard");
+  }, [user, refreshProfile, navigate]);
+
   const updateStepData = useCallback((key: string, value: any) => {
     setStepData(prev => ({ ...prev, [key]: value }));
   }, []);
@@ -255,9 +271,17 @@ export function OnboardingModal() {
 
         {showFooter && (
           <div className="border-t border-border px-6 py-4 flex items-center justify-between shrink-0">
-            <Button variant="ghost" size="sm" onClick={handleBack} disabled={currentStep <= 1}>
-              <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" onClick={handleBack} disabled={currentStep <= 1}>
+                <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
+              </Button>
+              {/* A partir do 2º passo (o de Boas-vindas não precisa de escape). */}
+              {currentStep >= 1 && (
+                <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={handleSkipOnboarding}>
+                  Configurar depois
+                </Button>
+              )}
+            </div>
             <div className="flex flex-col items-end gap-1">
               <Button size="sm" onClick={handleNext} disabled={step.required && !canContinue}>
                 Continuar <ArrowRight className="ml-1 h-4 w-4" />

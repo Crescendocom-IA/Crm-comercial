@@ -25,10 +25,13 @@ function DealCard({
   deal: DealWithRelations;
   onClick: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: deal.id });
-  const style = transform
-    ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 50 }
-    : undefined;
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: deal.id });
+  /*
+   * O `transform` do useDraggable não é aplicado de propósito. Com ele, o card
+   * de origem seguia o cursor ao mesmo tempo que o DragOverlay renderizava uma
+   * cópia — dois cards arrastando juntos. O DragOverlay é o visual do arraste;
+   * aqui o card só desbota para marcar de onde a peça saiu.
+   */
 
   // Build subtitle: company, contact names
   const subtitleParts: string[] = [];
@@ -39,10 +42,9 @@ function DealCard({
   return (
     <div
       ref={setNodeRef}
-      style={style}
       {...attributes}
       {...listeners}
-      className="group"
+      className={`group ${isDragging ? "opacity-30" : ""}`}
     >
       <div
         className="cursor-pointer rounded-md border border-border bg-card p-2.5 transition-all hover:shadow-md active:cursor-grabbing"

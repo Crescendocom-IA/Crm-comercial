@@ -32,7 +32,6 @@ const Integrations = lazy(() => import("./pages/Integrations"));
 const SecuritySettings = lazy(() => import("./pages/SecuritySettings"));
 const SalesGoals = lazy(() => import("./pages/SalesGoals"));
 const Team = lazy(() => import("./pages/Team"));
-const Setup = lazy(() => import("./pages/Setup"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -73,7 +72,6 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Login />} />
               <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/setup" element={<SuspenseRoute><Setup /></SuspenseRoute>} />
               
               <Route element={<AppLayout />}>
                 <Route path="/dashboard" element={<SuspenseRoute><Dashboard /></SuspenseRoute>} />

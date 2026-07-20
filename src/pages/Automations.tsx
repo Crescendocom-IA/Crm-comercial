@@ -189,6 +189,10 @@ export default function Automations() {
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [pendingDeleteAuto, setPendingDeleteAuto] = useState<string | null>(null);
   const [logs, setLogs] = useState<AutomationLog[]>([]);
+  // Opções dos selects que substituíram os campos de UUID digitado à mão.
+  const [stages, setStages] = useState<{ id: string; name: string }[]>([]);
+  const [templates, setTemplates] = useState<{ id: string; name: string }[]>([]);
+  const [members, setMembers] = useState<{ id: string; name: string | null; email: string | null }[]>([]);
   const [tab, setTab] = useState<"list" | "templates" | "history">("list");
 
   // Builder state
@@ -206,12 +210,18 @@ export default function Automations() {
 
   const fetchAll = useCallback(async () => {
     if (!orgId) return;
-    const [aRes, lRes] = await Promise.all([
+    const [aRes, lRes, sRes, tRes, mRes] = await Promise.all([
       supabase.from("automations").select("*").eq("org_id", orgId).order("created_at", { ascending: false }),
       supabase.from("automation_logs").select("*").eq("org_id", orgId).order("executed_at", { ascending: false }).limit(100),
+      supabase.from("pipeline_stages").select("id,name").eq("org_id", orgId).order("order"),
+      supabase.from("email_templates").select("id,name").eq("org_id", orgId).order("name"),
+      supabase.from("profiles").select("id,name,email").eq("org_id", orgId).order("name"),
     ]);
     setAutomations((aRes.data as any as Automation[]) || []);
     setLogs((lRes.data as any as AutomationLog[]) || []);
+    setStages(sRes.data || []);
+    setTemplates(tRes.data || []);
+    setMembers(mRes.data || []);
   }, [orgId]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
@@ -332,8 +342,18 @@ export default function Automations() {
     if (t === "deal.stage_changed") return (
       <div className="space-y-2">
         <div className="space-y-1">
-          <Label className="text-xs">Stage de destino (ID ou nome)</Label>
-          <Input className="h-7 text-xs" value={cfg.to_stage || ""} onChange={(e) => upd("to_stage", e.target.value)} placeholder="Ex: Proposta" />
+          <Label className="text-xs">Stage de destino</Label>
+          {/*
+            Grava o NOME, não o id: o executor procura o stage com
+            ilike name (process-automation, case move_deal_stage). Um uuid aqui
+            não casaria com nada.
+          */}
+          <Select value={cfg.to_stage || ""} onValueChange={(v) => upd("to_stage", v)}>
+            <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Selecionar stage" /></SelectTrigger>
+            <SelectContent>
+              {stages.map((s) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
       </div>
     );
@@ -433,7 +453,12 @@ export default function Automations() {
         </div>
       );
       case "send_email_template": return (
-        <Input className="h-7 text-xs" placeholder="ID do template" value={cfg.template_id || ""} onChange={(e) => upd("template_id", e.target.value)} />
+        <Select value={cfg.template_id || ""} onValueChange={(v) => upd("template_id", v)}>
+          <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Selecionar template" /></SelectTrigger>
+          <SelectContent>
+            {templates.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
       );
       case "assign_owner": return (
         <div className="space-y-2">
@@ -445,12 +470,24 @@ export default function Automations() {
             </SelectContent>
           </Select>
           {cfg.strategy === "specific" && (
-            <Input className="h-7 text-xs" placeholder="ID do usuário" value={cfg.user_id || ""} onChange={(e) => upd("user_id", e.target.value)} />
+            /* Aqui é o id mesmo: o executor grava cfg.user_id direto em owner_id. */
+            <Select value={cfg.user_id || ""} onValueChange={(v) => upd("user_id", v)}>
+              <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Selecionar usuário" /></SelectTrigger>
+              <SelectContent>
+                {members.map((m) => <SelectItem key={m.id} value={m.id}>{m.name || m.email || m.id}</SelectItem>)}
+              </SelectContent>
+            </Select>
           )}
         </div>
       );
       case "move_deal_stage": return (
-        <Input className="h-7 text-xs" placeholder="Stage de destino" value={cfg.to_stage || ""} onChange={(e) => upd("to_stage", e.target.value)} />
+        /* Nome, não id — mesmo motivo do trigger: o executor casa com ilike name. */
+        <Select value={cfg.to_stage || ""} onValueChange={(v) => upd("to_stage", v)}>
+          <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Selecionar stage" /></SelectTrigger>
+          <SelectContent>
+            {stages.map((s) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
       );
       case "add_tag": case "remove_tag": return (
         <Input className="h-7 text-xs" placeholder="Nome da tag" value={cfg.tag_name || ""} onChange={(e) => upd("tag_name", e.target.value)} />

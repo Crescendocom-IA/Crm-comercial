@@ -87,7 +87,7 @@ interface AutomationLog {
 
 // ── Constants ──────────────────────────────────────────
 const TRIGGER_LABELS: Record<TriggerType, { label: string; icon: string }> = {
-  "deal.stage_changed": { label: "Negócio muda de estágio", icon: "🔄" },
+  "deal.stage_changed": { label: "Negócio muda de estágio (qualquer)", icon: "🔄" },
   "deal.won": { label: "Negócio ganho", icon: "🏆" },
   "deal.lost": { label: "Negócio perdido", icon: "❌" },
   "contact.created": { label: "Contato criado", icon: "👤" },
@@ -339,24 +339,14 @@ export default function Automations() {
     const cfg = formTrigger.config;
     const upd = (k: string, v: any) => setFormTrigger({ ...formTrigger, config: { ...cfg, [k]: v } });
 
-    if (t === "deal.stage_changed") return (
-      <div className="space-y-2">
-        <div className="space-y-1">
-          <Label className="text-xs">Stage de destino</Label>
-          {/*
-            Grava o NOME, não o id: o executor procura o stage com
-            ilike name (process-automation, case move_deal_stage). Um uuid aqui
-            não casaria com nada.
-          */}
-          <Select value={cfg.to_stage || ""} onValueChange={(v) => upd("to_stage", v)}>
-            <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Selecionar stage" /></SelectTrigger>
-            <SelectContent>
-              {stages.map((s) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-    );
+    /*
+     * deal.stage_changed não tem configuração. Havia um campo "Stage de
+     * destino" aqui, mas process-automation nunca lê trigger.config — só o
+     * trigger_payload e as condições. O campo era gravado e ignorado, e a
+     * automação disparava em qualquer mudança de estágio.
+     *
+     * Para filtrar por estágio, use uma condição sobre stage_id.
+     */
     if (t === "score.threshold") return (
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">

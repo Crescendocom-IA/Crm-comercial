@@ -194,8 +194,21 @@ export default function Deals() {
   });
 
   const handleDragEnd = async (dealId: string, newStageId: string) => {
+    // Guarda o estágio anterior ANTES do update otimista, para poder reverter.
+    const previousStageId = deals.find((d) => d.id === dealId)?.stage_id ?? null;
+
+    // Update otimista — mantém o arraste fluido.
     setDeals((prev) => prev.map((d) => d.id === dealId ? { ...d, stage_id: newStageId } : d));
-    await supabase.from("deals").update({ stage_id: newStageId }).eq("id", dealId);
+
+    const { error } = await supabase.from("deals").update({ stage_id: newStageId }).eq("id", dealId);
+    if (error) {
+      // Sem isto o card ficava na coluna nova mesmo com a escrita falhando, e o
+      // usuário seguia o dia inteiro achando que a mudança tinha sido salva.
+      setDeals((prev) => prev.map((d) => d.id === dealId ? { ...d, stage_id: previousStageId } : d));
+      toast({ title: "Não foi possível mover o negócio. Tente novamente.", variant: "destructive" });
+      return;
+    }
+
     fireAutomations(orgId, "deal.stage_changed", { deal_id: dealId, stage_id: newStageId });
   };
 

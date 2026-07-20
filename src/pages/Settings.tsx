@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -31,9 +32,30 @@ import type { Database } from "@/integrations/supabase/types";
 type PipelineStage = Database["public"]["Tables"]["pipeline_stages"]["Row"];
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 
+/*
+ * Valores das abas, usados também para validar o ?tab= da URL — sem isso
+ * /settings?tab=qualquer-coisa renderizaria a página com nenhum painel ativo.
+ */
+const TAB_VALUES = [
+  "general", "pipelines", "custom-fields", "members",
+  "notifications", "appearance", "billing",
+] as const;
+type TabValue = (typeof TAB_VALUES)[number];
+
 export default function Settings() {
   const { user, profile } = useAuth();
   const { orgId } = useOrg();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  /*
+   * Aba controlada pela URL (value), não defaultValue: com defaultValue a aba
+   * só seria lida na montagem, então voltar no histórico mudaria a URL sem
+   * mover a aba, e a página passaria a mentir sobre onde está.
+   */
+  const urlTab = searchParams.get("tab");
+  const activeTab: TabValue = TAB_VALUES.includes(urlTab as TabValue)
+    ? (urlTab as TabValue)
+    : "general";
 
   return (
     <div className="space-y-6">
@@ -42,7 +64,7 @@ export default function Settings() {
         <p className="text-muted-foreground">Gerencie seu perfil, organização e preferências</p>
       </div>
 
-      <Tabs defaultValue="general">
+      <Tabs value={activeTab} onValueChange={(v) => setSearchParams({ tab: v }, { replace: true })}>
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="general">Geral</TabsTrigger>
           <TabsTrigger value="pipelines">Pipelines</TabsTrigger>

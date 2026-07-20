@@ -239,7 +239,7 @@ export default function Reports() {
 
         {/* ═══════════════════════ TAB 3: FORECAST ═══════════════════ */}
         <TabsContent value="forecast">
-          <ForecastReport deals={deals} stages={stages} members={members} ownerFilter={ownerFilter} pipelineFilter={pipelineFilter} />
+          <ForecastReport deals={filteredDeals} stages={stages} members={members} ownerFilter={ownerFilter} pipelineFilter={pipelineFilter} />
         </TabsContent>
 
         {/* ═══════════════════════ TAB 4: CONTATOS ═══════════════════ */}

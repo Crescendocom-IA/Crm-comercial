@@ -23,3 +23,8 @@ verify_jwt = false
 # JWT e bloquear chamadas anônimas de terceiros.
 [functions.dispatch-webhook]
 verify_jwt = true
+
+# process-sequences é disparada pelo pg_cron (sem JWT de usuário). Pública no
+# gateway, mas protegida internamente pelo segredo CRON_SECRET.
+[functions.process-sequences]
+verify_jwt = false

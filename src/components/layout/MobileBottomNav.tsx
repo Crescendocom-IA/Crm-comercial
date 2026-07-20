@@ -7,7 +7,7 @@ import {
 import { useNavigate } from "react-router-dom";
 
 const mainItems = [
-  { title: "Home", url: "/", icon: LayoutDashboard },
+  { title: "Home", url: "/dashboard", icon: LayoutDashboard },
   { title: "Contatos", url: "/contacts", icon: Users },
   { title: "Negócios", url: "/deals", icon: Handshake },
   { title: "Tarefas", url: "/activities", icon: CheckSquare },

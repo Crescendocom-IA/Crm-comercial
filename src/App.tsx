@@ -1,10 +1,10 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -51,6 +51,19 @@ function RouteLoader() {
   );
 }
 
+/**
+ * A raiz não renderiza mais o Login: ela decide o destino. Quatro pontos do app
+ * rotulavam "/" como "Dashboard"/"Home" e entregavam a tela de login. Também é
+ * para cá que os redirects de auth do Supabase (confirmação de email, magic
+ * link) voltam — agora caem direto no lugar certo.
+ */
+function RootRedirect() {
+  const { user, loading } = useAuth();
+  // Sem isto, piscaria o /login antes da sessão resolver.
+  if (loading) return <RouteLoader />;
+  return <Navigate to={user ? "/dashboard" : "/login"} replace />;
+}
+
 function SuspenseRoute({ children }: { children: React.ReactNode }) {
   return (
     <ErrorBoundary>
@@ -70,7 +83,8 @@ const App = () => (
         <BrowserRouter>
           <AuthProvider>
             <Routes>
-              <Route path="/" element={<Login />} />
+              <Route path="/" element={<RootRedirect />} />
+              <Route path="/login" element={<Login />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               
               <Route element={<AppLayout />}>

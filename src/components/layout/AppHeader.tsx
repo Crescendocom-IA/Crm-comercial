@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/breadcrumb";
 
 const routeLabels: Record<string, string> = {
-  "/": "Dashboard",
+  "/dashboard": "Dashboard",
   "/contacts": "Contatos",
   "/companies": "Empresas",
   "/deals": "Negócios",
@@ -44,7 +44,7 @@ export function AppHeader({ onOpenSearch, actions }: AppHeaderProps) {
     { label: "Nova Atividade", icon: ClipboardList, path: "/activities?action=new" },
   ];
 
-  const parts: { label: string; href?: string }[] = [{ label: "FlowCRM", href: "/" }];
+  const parts: { label: string; href?: string }[] = [{ label: "FlowCRM", href: "/dashboard" }];
 
   if (location.pathname.startsWith("/deals/") && location.pathname !== "/deals") {
     parts.push({ label: "Negócios", href: "/deals" });

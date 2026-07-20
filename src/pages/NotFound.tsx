@@ -23,7 +23,7 @@ const NotFound = () => {
           <Button onClick={() => navigate(-1)} variant="outline">
             <ArrowLeft className="mr-2 h-4 w-4" />Voltar
           </Button>
-          <Button onClick={() => navigate("/")}>
+          <Button onClick={() => navigate("/dashboard")}>
             <Home className="mr-2 h-4 w-4" />Dashboard
           </Button>
         </div>

@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Check, Upload, Plus, Rocket } from "lucide-react";
-import confetti from "canvas-confetti";
 import type { OnboardingStepProps } from "./types";
 
 interface CheckItem {
@@ -13,9 +12,17 @@ interface CheckItem {
 
 export function CompleteStep({ stepData, completedSteps, onComplete }: OnboardingStepProps) {
   useEffect(() => {
-    confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-    const t = setTimeout(() => confetti({ particleCount: 50, spread: 100, origin: { y: 0.5 } }), 400);
-    return () => clearTimeout(t);
+    // canvas-confetti só importa aqui dentro: é decoração de uma tela que a
+    // maioria dos usuários vê uma única vez, e importar no topo o colocava no
+    // bundle do shell, baixado em todo first paint.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancelled = false;
+    import("canvas-confetti").then(({ default: confetti }) => {
+      if (cancelled) return;
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      timer = setTimeout(() => confetti({ particleCount: 50, spread: 100, origin: { y: 0.5 } }), 400);
+    });
+    return () => { cancelled = true; clearTimeout(timer); };
   }, []);
 
   const items: CheckItem[] = [

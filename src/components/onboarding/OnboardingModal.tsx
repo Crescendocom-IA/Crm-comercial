@@ -5,7 +5,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, ArrowRight } from "lucide-react";
-import confetti from "canvas-confetti";
 import { WelcomeStep } from "./WelcomeStep";
 import { CompanyStep } from "./CompanyStep";
 
@@ -145,7 +144,12 @@ export function OnboardingModal() {
 
   const handleComplete = useCallback(async (navigateTo?: string) => {
     if (!user) return;
-    confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+    // Import dinâmico pelo mesmo motivo do CompleteStep: OnboardingModal vive
+    // no shell (AppLayout), então um import estático aqui arrastava
+    // canvas-confetti para o bundle de first paint de todo mundo.
+    import("canvas-confetti").then(({ default: confetti }) => {
+      confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+    });
 
     // Mark onboarding as completed in profile
     await supabase.from("profiles").update({ onboarding_completed: true, onboarding_step: STEPS.length } as any).eq("id", user.id);

@@ -1,10 +1,18 @@
-import { useState, useEffect, memo } from "react";
+import { useState, useEffect, memo, lazy, Suspense } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { AppHeader } from "./AppHeader";
 import { MobileBottomNav } from "./MobileBottomNav";
-import { CommandPalette } from "@/components/CommandPalette";
+/**
+ * cmdk entra no bundle inteiro por causa do CommandPalette, e o shadcn não faz
+ * lazy de nada — o command.tsx importa cmdk estaticamente. Como a paleta só
+ * existe depois de ⌘K, ela é carregada sob demanda e só montada quando abre;
+ * antes disso o chunk nem é requisitado.
+ */
+const CommandPalette = lazy(() =>
+  import("@/components/CommandPalette").then((m) => ({ default: m.CommandPalette }))
+);
 import { AICopilot } from "@/components/crm/AICopilot";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { useAuth } from "@/contexts/AuthContext";
@@ -55,7 +63,11 @@ export function AppLayout() {
         </div>
       </div>
       {isMobile && <MobileBottomNav />}
-      <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />
+      {searchOpen && (
+        <Suspense fallback={null}>
+          <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} />
+        </Suspense>
+      )}
       <AICopilot />
       <OnboardingModal />
     </SidebarProvider>

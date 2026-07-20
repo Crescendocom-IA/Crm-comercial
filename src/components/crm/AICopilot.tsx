@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useLocation } from "react-router-dom";
-import ReactMarkdown from "react-markdown";
+import { Markdown } from "@/components/crm/Markdown";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -228,7 +228,7 @@ export function AICopilot() {
                   }`}>
                     {msg.role === "assistant" ? (
                       <div className="prose prose-xs prose-neutral dark:prose-invert max-w-none [&_p]:m-0 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5 [&_h1]:text-sm [&_h2]:text-xs [&_h3]:text-xs [&_code]:text-[10px]">
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        <Markdown>{msg.content}</Markdown>
                       </div>
                     ) : (
                       msg.content

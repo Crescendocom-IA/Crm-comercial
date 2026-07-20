@@ -38,6 +38,21 @@
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
+
+    /*
+     * Paleta categórica: séries de gráfico, tipos de atividade, tipos de meta.
+     * São cores para *distinguir* itens, não para comunicar estado — por isso
+     * não usam success/warning/destructive, que carregam significado.
+     * No claro são mais saturadas e escuras para contrastar com fundo claro.
+     */
+    --chart-1: 221 83% 53%;
+    --chart-2: 142 71% 34%;
+    --chart-3: 38 92% 42%;
+    --chart-4: 0 72% 51%;
+    --chart-5: 262 72% 52%;
+    --chart-6: 190 90% 33%;
+    --chart-7: 326 72% 48%;
+    --chart-8: 25 90% 45%;
   }
 
   .dark {
@@ -72,6 +87,16 @@
     --success-foreground: 0 0% 98%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 98%;
+
+    /* Mesma paleta, clareada para ler sobre fundo escuro. */
+    --chart-1: 217 91% 65%;
+    --chart-2: 142 71% 50%;
+    --chart-3: 38 92% 58%;
+    --chart-4: 0 84% 65%;
+    --chart-5: 262 83% 68%;
+    --chart-6: 190 95% 50%;
+    --chart-7: 326 78% 65%;
+    --chart-8: 25 95% 60%;
   }
 }
 

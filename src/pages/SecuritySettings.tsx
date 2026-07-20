@@ -61,9 +61,11 @@ function AuditLogTab({ orgId }: { orgId: string | null }) {
   };
 
   const actionColors: Record<string, string> = {
-    create: "bg-emerald-500/10 text-emerald-400", update: "bg-blue-500/10 text-blue-400",
-    delete: "bg-red-500/10 text-red-400", login: "bg-primary/10 text-primary",
-    export: "bg-amber-500/10 text-amber-400",
+    // "delete" usa destructive porque a ação é destrutiva de fato; as demais
+    // são categorias de auditoria e usam a paleta categórica.
+    create: "bg-chart-2/10 text-chart-2", update: "bg-chart-1/10 text-chart-1",
+    delete: "bg-destructive/10 text-destructive", login: "bg-primary/10 text-primary",
+    export: "bg-chart-3/10 text-chart-3",
   };
 
   const filtered = logs.filter((l) => !searchTerm || l.entity_type?.includes(searchTerm) || l.action?.includes(searchTerm));
@@ -170,7 +172,7 @@ function SessionsTab() {
                 <Clock className="h-3 w-3" />Sessão ativa agora
               </p>
             </div>
-            <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-400">Ativa</Badge>
+            <Badge variant="secondary" className="bg-success/10 text-success">Ativa</Badge>
           </div>
 
           <Button variant="destructive" size="sm" onClick={handleSignOutAll} className="w-full">

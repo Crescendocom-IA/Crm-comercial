@@ -52,9 +52,9 @@ const fmt = (v: number) =>
 const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
 
 const CHART_COLORS = [
-  "hsl(217, 91%, 60%)", "hsl(142, 76%, 36%)", "hsl(38, 92%, 50%)",
-  "hsl(0, 84%, 60%)", "hsl(262, 83%, 58%)", "hsl(190, 95%, 39%)",
-  "hsl(326, 78%, 55%)", "hsl(25, 95%, 53%)",
+  "hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))", "hsl(var(--chart-5))", "hsl(var(--chart-6))",
+  "hsl(var(--chart-7))", "hsl(var(--chart-8))",
 ];
 
 const tooltipStyle = {

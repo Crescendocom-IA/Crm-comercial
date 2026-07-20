@@ -215,7 +215,7 @@ export default function Team() {
   };
 
   const roleColor = (role: string) => {
-    if (role === "owner") return "text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800";
+    if (role === "owner") return "text-warning border-warning/30";
     if (role === "admin") return "text-primary border-primary/30";
     return "text-muted-foreground";
   };
@@ -385,7 +385,7 @@ export default function Team() {
                                   value={allowed ? "yes" : "no"}
                                   onValueChange={() => togglePermission(r.value, perm.key, allowed)}
                                 >
-                                  <SelectTrigger className={`h-7 text-xs w-20 mx-auto ${allowed ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}>
+                                  <SelectTrigger className={`h-7 text-xs w-20 mx-auto ${allowed ? "text-success" : "text-destructive"}`}>
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -394,7 +394,7 @@ export default function Team() {
                                   </SelectContent>
                                 </Select>
                               ) : (
-                                <Badge variant={allowed ? "default" : "secondary"} className={`text-xs ${allowed ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+                                <Badge variant={allowed ? "default" : "secondary"} className={`text-xs ${allowed ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"}`}>
                                   {allowed ? "Sim" : "Não"}
                                 </Badge>
                               )}

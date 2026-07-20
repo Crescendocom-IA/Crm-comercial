@@ -53,11 +53,11 @@ const typeLabels: Record<ActivityType, string> = {
   call: "Ligação", email: "Email", meeting: "Reunião", note: "Nota", task: "Tarefa",
 };
 const typeColors: Record<ActivityType, string> = {
-  call: "text-emerald-600",
-  email: "text-blue-600",
-  meeting: "text-amber-600",
+  call: "text-chart-2",
+  email: "text-chart-1",
+  meeting: "text-chart-3",
   note: "text-muted-foreground",
-  task: "text-violet-600",
+  task: "text-chart-5",
 };
 
 type ViewMode = "list" | "calendar";

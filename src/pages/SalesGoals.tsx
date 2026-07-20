@@ -26,10 +26,10 @@ import {
 import { useToast } from "@/hooks/use-toast";
 
 const GOAL_TYPES = [
-  { value: "revenue", label: "Receita (R$)", icon: TrendingUp, color: "text-emerald-500" },
-  { value: "deals_closed", label: "Deals Fechados", icon: Handshake, color: "text-blue-500" },
-  { value: "activities", label: "Atividades", icon: Phone, color: "text-amber-500" },
-  { value: "new_contacts", label: "Novos Contatos", icon: UserPlus, color: "text-violet-500" },
+  { value: "revenue", label: "Receita (R$)", icon: TrendingUp, color: "text-chart-2" },
+  { value: "deals_closed", label: "Deals Fechados", icon: Handshake, color: "text-chart-1" },
+  { value: "activities", label: "Atividades", icon: Phone, color: "text-chart-3" },
+  { value: "new_contacts", label: "Novos Contatos", icon: UserPlus, color: "text-chart-5" },
 ];
 
 const ASSIGN_TYPES = [
@@ -295,7 +295,7 @@ export default function SalesGoals() {
                   <Progress value={p} className="h-1.5" />
                   <div className="flex items-center justify-between mt-1">
                     <span className="text-xs text-muted-foreground">{p}% atingido</span>
-                    {p >= 100 && <Trophy className="h-3 w-3 text-amber-500" />}
+                    {p >= 100 && <Trophy className="h-3 w-3 text-warning" />}
                   </div>
                 </CardContent>
               </Card>
@@ -361,7 +361,7 @@ export default function SalesGoals() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Progress value={p} className="h-1.5 flex-1" />
-                          <span className={`text-xs font-medium ${p >= 100 ? "text-emerald-500" : ""}`}>
+                          <span className={`text-xs font-medium ${p >= 100 ? "text-success" : ""}`}>
                             {p}%
                           </span>
                         </div>

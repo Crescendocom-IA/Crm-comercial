@@ -100,8 +100,10 @@ export default function Contacts() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
-    if (searchParams.get("action") === "new") {
-      setCreateOpen(true);
+    const action = searchParams.get("action");
+    if (action === "new" || action === "import") {
+      if (action === "new") setCreateOpen(true);
+      else setCsvOpen(true);
       searchParams.delete("action");
       setSearchParams(searchParams, { replace: true });
     }

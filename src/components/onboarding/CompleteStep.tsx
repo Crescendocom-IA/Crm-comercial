@@ -123,7 +123,7 @@ export function CompleteStep({ stepData, completedSteps, onComplete }: Onboardin
         <Button
           variant="outline"
           className="h-auto py-3 flex-col gap-1"
-          onClick={() => handleAction("/contacts")}
+          onClick={() => handleAction("/contacts?action=import")}
         >
           <Upload className="h-5 w-5" />
           <span className="text-xs">Importar contatos CSV</span>

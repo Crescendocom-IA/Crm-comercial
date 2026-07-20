@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { EmptyState } from "@/components/crm/EmptyState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -195,6 +196,30 @@ export default function Reports() {
   }, [contacts, ownerFilter, periodRange]);
 
   if (!orgId) return <div className="py-20 text-center text-muted-foreground">Crie uma organização primeiro.</div>;
+
+  /*
+   * Sem nenhum negócio, todos os gráficos renderizam eixos vazios e "Sem dados"
+   * repetido — parece defeito, não conta nova. Aqui a página inteira explica o
+   * que falta. Os "Sem dados" internos seguem valendo para o caso em que há
+   * negócios mas o recorte de período/dono não devolveu nada.
+   */
+  if (!loading && deals.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Relatórios</h1>
+          <p className="text-xs text-muted-foreground">Análises completas de vendas, atividades e previsão</p>
+        </div>
+        <EmptyState
+          icon={<BarChart3 className="h-7 w-7 text-muted-foreground" />}
+          title="Nenhum dado para relatar ainda"
+          description="Os relatórios são calculados a partir dos seus negócios. Crie o primeiro para ver receita, conversão e previsão."
+          actionLabel="Criar negócio"
+          onAction={() => navigate("/deals?action=new")}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

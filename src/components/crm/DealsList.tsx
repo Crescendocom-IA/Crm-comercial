@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { EmptyState } from "@/components/crm/EmptyState";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { ArrowUpDown, Trophy, XCircle, Trash2, AlertTriangle } from "lucide-react";
+import { ArrowUpDown, Trophy, XCircle, Trash2, AlertTriangle, Handshake } from "lucide-react";
 import type { DealWithRelations } from "@/pages/Deals";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -182,8 +183,12 @@ export function DealsList({
             })}
             {sorted.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
-                  Nenhum negócio encontrado
+                <TableCell colSpan={8} className="p-0">
+                  <EmptyState
+                    icon={<Handshake className="h-7 w-7 text-muted-foreground" />}
+                    title="Nenhum negócio encontrado"
+                    description="Nenhum negócio neste pipeline corresponde aos filtros aplicados."
+                  />
                 </TableCell>
               </TableRow>
             )}

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
+import { EmptyState } from "@/components/crm/EmptyState";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -257,6 +258,27 @@ export default function Contacts() {
 
   if (!orgId) return <div className="py-20 text-center text-muted-foreground">Crie uma organização em Configurações primeiro.</div>;
 
+  /*
+   * "Nenhum contato encontrado" cobria dois casos bem diferentes: a conta que
+   * ainda não tem contato nenhum e a busca que não casou com nada. Só o
+   * primeiro merece um CTA de criar — no segundo o caminho é ajustar o filtro.
+   */
+  const emptyState = contacts.length === 0 ? (
+    <EmptyState
+      icon={<Users className="h-7 w-7 text-muted-foreground" />}
+      title="Nenhum contato ainda"
+      description="Contatos são as pessoas com quem você negocia. Adicione o primeiro ou importe uma lista via CSV."
+      actionLabel="Adicionar contato"
+      onAction={() => setCreateOpen(true)}
+    />
+  ) : (
+    <EmptyState
+      icon={<Search className="h-7 w-7 text-muted-foreground" />}
+      title="Nenhum contato encontrado"
+      description="Nenhum contato corresponde à busca ou aos filtros aplicados."
+    />
+  );
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -453,7 +475,7 @@ export default function Contacts() {
                 </TableRow>
               ))}
               {paginated.length === 0 && (
-                <TableRow><TableCell colSpan={8} className="py-10 text-center text-muted-foreground">Nenhum contato encontrado</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="p-0">{emptyState}</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -485,7 +507,7 @@ export default function Contacts() {
             </Card>
           ))}
           {paginated.length === 0 && (
-            <div className="col-span-full py-10 text-center text-muted-foreground">Nenhum contato encontrado</div>
+            <div className="col-span-full">{emptyState}</div>
           )}
         </div>
       )}

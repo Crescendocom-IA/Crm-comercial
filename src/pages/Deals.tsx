@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
+import { EmptyState } from "@/components/crm/EmptyState";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
@@ -17,7 +18,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Kanban, List, TrendingUp, Plus, Filter, Settings2, Trash2, GripVertical, Loader2 } from "lucide-react";
+import { Kanban, List, TrendingUp, Plus, Filter, Settings2, Trash2, GripVertical, Loader2, Handshake } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { DealsKanban } from "@/components/crm/DealsKanban";
 
@@ -385,7 +386,23 @@ export default function Deals() {
 
       {loading && (viewMode === "list" ? <TableSkeleton rows={8} cols={6} /> : <CardSkeleton count={8} />)}
 
-      {!loading && viewMode === "kanban" && (
+      {/*
+        Conta sem nenhum negócio troca as três visualizações por um convite a
+        criar o primeiro — um kanban de colunas vazias não explica o que fazer.
+        Quando há negócios mas o filtro não casou, cada visualização mostra o
+        próprio vazio, que fala de filtro em vez de oferecer criar.
+      */}
+      {!loading && deals.length === 0 && (
+        <EmptyState
+          icon={<Handshake className="h-7 w-7 text-muted-foreground" />}
+          title="Nenhum negócio ainda"
+          description="Negócios são as oportunidades que você acompanha pelo pipeline até fechar."
+          actionLabel="Criar negócio"
+          onAction={() => openNew()}
+        />
+      )}
+
+      {!loading && deals.length > 0 && viewMode === "kanban" && (
         <DealsKanban
           deals={openDeals}
           wonDeals={wonDeals}
@@ -399,7 +416,7 @@ export default function Deals() {
         />
       )}
 
-      {!loading && viewMode === "list" && (
+      {!loading && deals.length > 0 && viewMode === "list" && (
         <DealsList
           deals={filteredDeals}
           stages={stages}
@@ -410,7 +427,7 @@ export default function Deals() {
         />
       )}
 
-      {!loading && viewMode === "forecast" && (
+      {!loading && deals.length > 0 && viewMode === "forecast" && (
         <DealsForecast deals={openDeals} stages={pipelineStages} />
       )}
 

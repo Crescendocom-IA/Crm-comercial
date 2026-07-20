@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
+import { EmptyState } from "@/components/crm/EmptyState";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -171,6 +172,23 @@ export default function Companies() {
 
   if (!orgId) return <div className="py-20 text-center text-muted-foreground">Crie uma organização em Configurações primeiro.</div>;
 
+  /* Conta sem nenhuma empresa pede CTA; filtro sem resultado pede ajuste. */
+  const emptyState = companies.length === 0 ? (
+    <EmptyState
+      icon={<Building2 className="h-7 w-7 text-muted-foreground" />}
+      title="Nenhuma empresa ainda"
+      description="Empresas agrupam contatos e negócios por organização. Cadastre a primeira ou importe via CSV."
+      actionLabel="Adicionar empresa"
+      onAction={() => setCreateOpen(true)}
+    />
+  ) : (
+    <EmptyState
+      icon={<Search className="h-7 w-7 text-muted-foreground" />}
+      title="Nenhuma empresa encontrada"
+      description="Nenhuma empresa corresponde à busca ou aos filtros aplicados."
+    />
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -318,7 +336,7 @@ export default function Companies() {
                 </TableRow>
               ))}
               {paginated.length === 0 && (
-                <TableRow><TableCell colSpan={7} className="py-10 text-center text-muted-foreground">Nenhuma empresa encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="p-0">{emptyState}</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -346,7 +364,7 @@ export default function Companies() {
               </CardContent>
             </Card>
           ))}
-          {paginated.length === 0 && <div className="col-span-full py-10 text-center text-muted-foreground">Nenhuma empresa encontrada</div>}
+          {paginated.length === 0 && <div className="col-span-full">{emptyState}</div>}
         </div>
       )}
 

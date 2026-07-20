@@ -85,8 +85,10 @@ function inPeriod(dateStr: string | null, range: { start: Date | null; end: Date
   return true;
 }
 
-function downloadCSV(rows: Record<string, any>[], filename: string) {
-  if (rows.length === 0) return;
+/** Retorna false quando não havia nada para baixar — o chamador usa isso para
+ *  não anunciar "CSV exportado!" sem que nenhum arquivo tenha saído. */
+function downloadCSV(rows: Record<string, any>[], filename: string): boolean {
+  if (rows.length === 0) return false;
   const headers = Object.keys(rows[0]);
   const csv = [
     headers.join(","),
@@ -96,7 +98,14 @@ function downloadCSV(rows: Record<string, any>[], filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a"); a.href = url; a.download = `${filename}.csv`; a.click();
   URL.revokeObjectURL(url);
+  return true;
 }
+
+/** Toast padrão de export: só confirma sucesso se algo foi realmente baixado. */
+const EMPTY_EXPORT_TOAST = {
+  title: "Nenhum dado para exportar com os filtros atuais",
+  variant: "destructive" as const,
+};
 
 // ══════════════════════════════════════════════
 export default function Reports() {
@@ -164,8 +173,10 @@ export default function Reports() {
   const filteredContacts = useMemo(() => {
     let list = contacts;
     if (ownerFilter !== "all") list = list.filter((c) => c.owner_id === ownerFilter);
-    return list;
-  }, [contacts, ownerFilter]);
+    // O período estava sendo ignorado: trocar o filtro não mudava nem a aba de
+    // Contatos nem o CSV dela, sem qualquer sinal para o usuário.
+    return list.filter((c) => inPeriod(c.created_at, periodRange));
+  }, [contacts, ownerFilter, periodRange]);
 
   if (!orgId) return <div className="py-20 text-center text-muted-foreground">Crie uma organização primeiro.</div>;
 
@@ -238,7 +249,7 @@ export default function Reports() {
 
         {/* ═══════════════════════ TAB 5: CUSTOM ═══════════════════ */}
         <TabsContent value="custom">
-          <CustomReportBuilder deals={deals} contacts={contacts} activities={activities} stages={stages} members={members} companies={companies} orgId={orgId} />
+          <CustomReportBuilder deals={filteredDeals} contacts={filteredContacts} activities={filteredActivities} stages={stages} members={members} companies={companies} orgId={orgId} />
         </TabsContent>
       </Tabs>
     </div>
@@ -357,14 +368,14 @@ function SalesReport({ deals, stages, members, companies, allDeals, periodRange 
   }), [stages, deals]);
 
   const exportDealsCSV = () => {
-    downloadCSV(deals.map((d) => ({
+    const exported = downloadCSV(deals.map((d) => ({
       Título: d.title, Valor: d.value, Status: d.status,
       Estágio: stages.find((s) => s.id === d.stage_id)?.name || "",
       Dono: members.find((m) => m.id === d.owner_id)?.name || "",
       Probabilidade: d.probability, "Data Fechamento": d.close_date,
       "Motivo Perda": d.loss_reason || "", Criado: d.created_at,
     })), "relatorio-vendas");
-    toast({ title: "CSV exportado!" });
+    toast(exported ? { title: "CSV exportado!" } : EMPTY_EXPORT_TOAST);
   };
 
   const { toast } = useToast();
@@ -617,10 +628,11 @@ function ActivitiesReport({ activities, members }: { activities: ActivityRow[]; 
   const completionRate = pct(completed, activities.length);
 
   const exportCSV = () => {
-    downloadCSV(userActivity.map((u) => ({
+    const exported = downloadCSV(userActivity.map((u) => ({
       Vendedor: u.name, Total: u.total,
       Ligações: u.call, Emails: u.email, Reuniões: u.meeting, Notas: u.note, Tarefas: u.task,
     })), "relatorio-atividades");
+    toast(exported ? { title: "CSV exportado!" } : EMPTY_EXPORT_TOAST);
   };
 
   return (
@@ -877,6 +889,7 @@ function ForecastReport({ deals, stages, members, ownerFilter, pipelineFilter }:
 // TAB 4: Contacts Report
 // ══════════════════════════════════════════════
 function ContactsReport({ contacts, members }: { contacts: Contact[]; members: Profile[] }) {
+  const { toast } = useToast();
   // Monthly growth (last 12 months)
   const monthlyGrowth = useMemo(() => {
     const now = new Date();
@@ -919,12 +932,13 @@ function ContactsReport({ contacts, members }: { contacts: Contact[]; members: P
   );
 
   const exportCSV = () => {
-    downloadCSV(contacts.map((c) => ({
+    const exported = downloadCSV(contacts.map((c) => ({
       Nome: `${c.first_name} ${c.last_name || ""}`.trim(),
       Status: c.status, Score: c.lead_score,
       Dono: members.find((m) => m.id === c.owner_id)?.name || "",
       Criado: c.created_at,
     })), "relatorio-contatos");
+    toast(exported ? { title: "CSV exportado!" } : EMPTY_EXPORT_TOAST);
   };
 
   return (
@@ -1088,8 +1102,8 @@ function CustomReportBuilder({ deals, contacts, activities, stages, members, com
       selectedFields.forEach((f) => { obj[fieldOptions[entity].find((fo) => fo.key === f)?.label || f] = (row as any)[f]; });
       return obj;
     });
-    downloadCSV(filtered, `relatorio-${entity}`);
-    toast({ title: "CSV exportado!" });
+    const exported = downloadCSV(filtered, `relatorio-${entity}`);
+    toast(exported ? { title: "CSV exportado!" } : EMPTY_EXPORT_TOAST);
   };
 
   const saveReport = async () => {

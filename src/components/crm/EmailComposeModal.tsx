@@ -16,6 +16,7 @@ import {
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Send, FileText, ChevronDown, X, Variable, Sparkles, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -57,6 +58,7 @@ export function EmailComposeModal({ open, onOpenChange, onSent, defaultTo, defau
   const [deals, setDeals] = useState<Deal[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
+  const [resendConfigured, setResendConfigured] = useState<boolean | null>(null);
   const [sending, setSending] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiTone, setAiTone] = useState("formal");
@@ -72,13 +74,15 @@ export function EmailComposeModal({ open, onOpenChange, onSent, defaultTo, defau
       supabase.from("deals").select("id,title,org_id,contact_id").eq("org_id", orgId),
       supabase.from("email_templates").select("*").eq("org_id", orgId),
       supabase.from("companies").select("id,name").eq("org_id", orgId),
-    ]).then(([c, d, t, co]) => {
+      supabase.from("integration_configs").select("is_active").eq("org_id", orgId).eq("provider", "resend").maybeSingle(),
+    ]).then(([c, d, t, co, resend]) => {
       const contactsList = (c.data as Contact[]) || [];
       const dealsList = (d.data as Deal[]) || [];
       setContacts(contactsList);
       setDeals(dealsList);
       setTemplates((t.data as Template[]) || []);
       setCompanies((co.data as { id: string; name: string }[]) || []);
+      setResendConfigured(Boolean((resend.data as { is_active?: boolean } | null)?.is_active));
       // Auto-fill "to" from defaultContactId
       if (!defaultTo && defaultContactId && defaultContactId !== "none") {
         const contact = contactsList.find((ct) => ct.id === defaultContactId);
@@ -141,6 +145,19 @@ export function EmailComposeModal({ open, onOpenChange, onSent, defaultTo, defau
       return;
     }
     setSending(true);
+
+    const toList = to.split(",").map((e) => e.trim()).filter(Boolean);
+    const ccList = cc ? cc.split(",").map((e) => e.trim()).filter(Boolean) : [];
+    const bccList = bcc ? bcc.split(",").map((e) => e.trim()).filter(Boolean) : [];
+
+    // Envio real via Resend. Só depois de confirmar a entrega é que a linha é
+    // gravada como "sent" — antes o app inseria "sent" sem enviar nada.
+    const { data: sendResult, error: fnError } = await supabase.functions.invoke("send-email", {
+      body: { org_id: orgId, to: toList, cc: ccList, bcc: bccList, subject, html: body },
+    });
+    const sendFailed = Boolean(fnError) || Boolean(sendResult?.error);
+    const failureMessage = sendResult?.message || fnError?.message || "Falha ao enviar o email.";
+
     const { error } = await supabase.from("emails").insert({
       org_id: orgId,
       user_id: user?.id,
@@ -150,15 +167,28 @@ export function EmailComposeModal({ open, onOpenChange, onSent, defaultTo, defau
       subject,
       body_html: body,
       from_email: user?.email || profile?.email,
-      to_emails: to.split(",").map((e) => e.trim()).filter(Boolean),
-      cc_emails: cc ? cc.split(",").map((e) => e.trim()).filter(Boolean) : [],
-      bcc_emails: bcc ? bcc.split(",").map((e) => e.trim()).filter(Boolean) : [],
-      status: "sent",
-      provider: "manual",
-      sent_at: new Date().toISOString(),
+      to_emails: toList,
+      cc_emails: ccList,
+      bcc_emails: bccList,
+      // Falhou o envio? guarda como rascunho — nunca como enviado.
+      status: sendFailed ? "draft" : "sent",
+      provider: "resend",
+      sent_at: sendFailed ? null : new Date().toISOString(),
     } as any);
     setSending(false);
-    if (error) { toast({ title: "Erro ao enviar", description: error.message, variant: "destructive" }); return; }
+
+    if (error) { toast({ title: "Erro ao salvar o email", description: error.message, variant: "destructive" }); return; }
+
+    if (sendFailed) {
+      toast({
+        title: "Email não enviado — salvo como rascunho",
+        description: failureMessage,
+        variant: "destructive",
+      });
+      onSent?.();
+      return;
+    }
+
     onOpenChange(false);
     onSent?.();
     toast({ title: "Email enviado" });
@@ -364,9 +394,25 @@ export function EmailComposeModal({ open, onOpenChange, onSent, defaultTo, defau
 
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button onClick={handleSend} disabled={sending || !to.trim() || !subject.trim()}>
-              <Send className="mr-1.5 h-4 w-4" />{sending ? "Enviando..." : "Enviar"}
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                {/* span wrapper: botão desabilitado não dispara eventos de mouse,
+                    então o tooltip precisa de um elemento habilitado por fora. */}
+                <TooltipTrigger asChild>
+                  <span tabIndex={resendConfigured === false ? 0 : -1}>
+                    <Button
+                      onClick={handleSend}
+                      disabled={sending || !to.trim() || !subject.trim() || resendConfigured === false}
+                    >
+                      <Send className="mr-1.5 h-4 w-4" />{sending ? "Enviando..." : "Enviar"}
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {resendConfigured === false && (
+                  <TooltipContent>Configure o Resend em Integrações para enviar emails</TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
       </DialogContent>

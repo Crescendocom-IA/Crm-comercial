@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
 import { EmptyState } from "@/components/crm/EmptyState";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
@@ -67,6 +68,12 @@ export default function Deals() {
   const [form, setForm] = useState<Partial<Deal>>({});
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<DealFilters>({});
+  /*
+   * Só a busca é debouncada, não o objeto `filters` inteiro: atrasar o objeto
+   * faria escolher um responsável ou uma data esperar 300ms sem motivo. O
+   * input segue controlado pelo valor imediato, então a digitação não trava.
+   */
+  const debouncedSearch = useDebounce(filters.search ?? "", 300);
   const [presetStageId, setPresetStageId] = useState<string | null>(null);
 
   // Loss reason modal
@@ -241,6 +248,7 @@ export default function Deals() {
 
   // Apply filters
   const filteredDeals = deals.filter((d) => {
+    if (debouncedSearch && !(d.title || "").toLowerCase().includes(debouncedSearch.toLowerCase())) return false;
     if (filters.ownerId && d.owner_id !== filters.ownerId) return false;
     if (filters.minValue && (Number(d.value) || 0) < filters.minValue) return false;
     if (filters.maxValue && (Number(d.value) || 0) > filters.maxValue) return false;

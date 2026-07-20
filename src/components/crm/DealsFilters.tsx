@@ -4,12 +4,13 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
+import { X, Search } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 
 export interface DealFilters {
+  search?: string;
   ownerId?: string;
   minValue?: number;
   maxValue?: number;
@@ -28,6 +29,19 @@ export function DealsFilters({ filters, onFiltersChange, members }: DealsFilters
 
   return (
     <div className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-muted/30 p-3">
+      <div className="space-y-1">
+        <Label className="text-xs">Buscar</Label>
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            className="h-8 w-48 pl-8 text-xs"
+            placeholder="Título do negócio..."
+            value={filters.search || ""}
+            onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
+          />
+        </div>
+      </div>
+
       <div className="space-y-1">
         <Label className="text-xs">Responsável</Label>
         <Select

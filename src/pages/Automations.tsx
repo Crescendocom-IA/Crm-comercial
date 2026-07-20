@@ -113,6 +113,22 @@ const ACTION_LABELS: Record<ActionType, { label: string; icon: string }> = {
   send_whatsapp: { label: "Enviar WhatsApp", icon: "💬" },
 };
 
+/*
+ * Ações que o builder oferecia mas process-automation não executa: o case
+ * existe, devolve uma nota e não faz nada. Ficam visíveis e desabilitadas em
+ * vez de removidas, porque automações já salvas podem usá-las e precisam
+ * continuar editáveis.
+ *
+ * `wait` é o mais enganoso dos quatro: não agenda nada e as ações seguintes
+ * rodam na mesma passada, então "esperar 3 dias e depois enviar" envia agora.
+ */
+const UNAVAILABLE_ACTIONS: Partial<Record<ActionType, string>> = {
+  send_email_template: "Disponível em breve — requer integração de email",
+  remove_tag: "Disponível em breve — ainda não implementado no executor",
+  notify_user: "Disponível em breve — requer canal de notificação (push, email ou Slack)",
+  wait: "Disponível em breve — requer agendamento; hoje as ações seguintes rodariam na hora",
+};
+
 const CONDITION_OPERATORS = [
   { value: "equals", label: "igual a" },
   { value: "not_equals", label: "diferente de" },
@@ -423,6 +439,19 @@ export default function Automations() {
   const renderActionConfig = (action: ActionConfig, i: number) => {
     const cfg = action.config;
     const upd = (k: string, v: any) => updateActionConfig(i, k, v);
+
+    // Automação salva antes desta mudança pode conter uma ação que não roda.
+    // Aqui é onde a pessoa a encontra ao editar, então o aviso vai no lugar da
+    // configuração — não adianta configurar algo que o executor ignora.
+    const unavailable = UNAVAILABLE_ACTIONS[action.type];
+    if (unavailable) {
+      return (
+        <p className="flex items-start gap-1.5 text-xs text-warning">
+          <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
+          {unavailable}. Esta ação não será executada.
+        </p>
+      );
+    }
 
     switch (action.type) {
       case "create_task": return (
@@ -809,11 +838,20 @@ export default function Automations() {
                       <Button variant="ghost" size="sm" className="h-6 text-xs"><Plus className="mr-1 h-3 w-3" />Ação</Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="max-h-64 overflow-auto">
-                      {Object.entries(ACTION_LABELS).map(([k, v]) => (
-                        <DropdownMenuItem key={k} onClick={() => addAction(k as ActionType)}>
-                          <span className="mr-1.5">{v.icon}</span>{v.label}
-                        </DropdownMenuItem>
-                      ))}
+                      {Object.entries(ACTION_LABELS).map(([k, v]) => {
+                        const unavailable = UNAVAILABLE_ACTIONS[k as ActionType];
+                        return (
+                          <DropdownMenuItem
+                            key={k}
+                            disabled={!!unavailable}
+                            onClick={() => { if (!unavailable) addAction(k as ActionType); }}
+                            className="flex-col items-start gap-0"
+                          >
+                            <span><span className="mr-1.5">{v.icon}</span>{v.label}</span>
+                            {unavailable && <span className="text-xs text-muted-foreground">Em breve</span>}
+                          </DropdownMenuItem>
+                        );
+                      })}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

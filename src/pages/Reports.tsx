@@ -154,15 +154,31 @@ export default function Reports() {
   // ── Filtered data ──────────────────
   const periodRange = getPeriodRange(period);
 
-  const filteredDeals = useMemo(() => {
+  /** Deals após dono e pipeline, antes do recorte de período. */
+  const scopedDeals = useMemo(() => {
     let list = deals;
     if (ownerFilter !== "all") list = list.filter((d) => d.owner_id === ownerFilter);
     if (pipelineFilter !== "all") {
       const pipeStages = stages.filter((s) => s.pipeline_id === pipelineFilter).map((s) => s.id);
       list = list.filter((d) => d.stage_id && pipeStages.includes(d.stage_id));
     }
-    return list.filter((d) => inPeriod(d.created_at, periodRange));
-  }, [deals, ownerFilter, pipelineFilter, stages, periodRange]);
+    return list;
+  }, [deals, ownerFilter, pipelineFilter, stages]);
+
+  const filteredDeals = useMemo(
+    () => scopedDeals.filter((d) => inPeriod(d.created_at, periodRange)),
+    [scopedDeals, periodRange],
+  );
+
+  /**
+   * Forecast é sobre quando o negócio fecha, não quando foi criado — um deal
+   * aberto há 6 meses que fecha no mês que vem pertence ao forecast do mês que
+   * vem. Deals sem close_date ficam de fora: não há como projetá-los num período.
+   */
+  const forecastDeals = useMemo(
+    () => scopedDeals.filter((d) => d.close_date !== null && inPeriod(d.close_date, periodRange)),
+    [scopedDeals, periodRange],
+  );
 
   const filteredActivities = useMemo(() => {
     let list = activities;
@@ -239,7 +255,7 @@ export default function Reports() {
 
         {/* ═══════════════════════ TAB 3: FORECAST ═══════════════════ */}
         <TabsContent value="forecast">
-          <ForecastReport deals={filteredDeals} stages={stages} members={members} ownerFilter={ownerFilter} pipelineFilter={pipelineFilter} />
+          <ForecastReport deals={forecastDeals} stages={stages} members={members} ownerFilter={ownerFilter} pipelineFilter={pipelineFilter} />
         </TabsContent>
 
         {/* ═══════════════════════ TAB 4: CONTATOS ═══════════════════ */}

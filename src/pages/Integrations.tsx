@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useRole } from "@/hooks/useRole";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -95,6 +96,7 @@ export default function Integrations() {
 // ── Integrations Tab ──
 function IntegrationsTab({ orgId, userId }: { orgId: string | null; userId?: string }) {
   const { toast } = useToast();
+  const { canManage } = useRole();
   const [configs, setConfigs] = useState<IntegrationConfig[]>([]);
   const [editProvider, setEditProvider] = useState<string | null>(null);
   const [editConfig, setEditConfig] = useState<any>({});
@@ -211,14 +213,14 @@ function IntegrationsTab({ orgId, userId }: { orgId: string | null; userId?: str
                       <Badge variant={cfg.is_active ? "default" : "secondary"} className="text-xs">
                         {cfg.is_active ? "Conectado" : "Inativo"}
                       </Badge>
-                      <Button variant="outline" size="sm" className="ml-auto h-7 text-xs"
+                      <Button variant="outline" size="sm" className="ml-auto h-7 text-xs" disabled={!canManage}
                         onClick={() => { setEditProvider(intg.provider); setEditConfig(cfg.config || {}); }}>
                         Configurar
                       </Button>
                     </>
                   ) : (
                     <Button size="sm" className="h-7 text-xs"
-                      disabled={intg.connectLoading}
+                      disabled={intg.connectLoading || !canManage}
                       onClick={() => intg.connectAction ? intg.connectAction() : (() => { setEditProvider(intg.provider); setEditConfig({}); })()}>
                       {intg.connectLoading ? <><Loader2 className="mr-1 h-3 w-3 animate-spin" />Conectando...</> : <><Plus className="mr-1 h-3 w-3" />Conectar</>}
                     </Button>

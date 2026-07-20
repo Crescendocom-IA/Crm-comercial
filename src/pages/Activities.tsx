@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useRole } from "@/hooks/useRole";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -93,6 +94,7 @@ export default function Activities() {
 
   const [activities, setActivities] = useState<Activity[]>([]);
   const [pendingDeleteActivity, setPendingDeleteActivity] = useState<string | null>(null);
+  const { canDelete } = useRole();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
@@ -469,7 +471,7 @@ export default function Activities() {
                           <DropdownMenuItem onClick={() => setEditActivity(a)}>
                             <Edit2 className="mr-2 h-3.5 w-3.5" />Editar
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setPendingDeleteActivity(a.id)} className="text-destructive">
+                          <DropdownMenuItem disabled={!canDelete} onClick={() => setPendingDeleteActivity(a.id)} className="text-destructive">
                             <Trash2 className="mr-2 h-3.5 w-3.5" />Excluir
                           </DropdownMenuItem>
                         </DropdownMenuContent>

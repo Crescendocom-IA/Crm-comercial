@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useRole } from "@/hooks/useRole";
 import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
 import { useDebounce } from "@/hooks/useDebounce";
 import { EmptyState } from "@/components/crm/EmptyState";
@@ -91,6 +92,7 @@ export default function Contacts() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const { canDelete } = useRole();
   const [loading, setLoading] = useState(true);
 
   // Drawers & modals
@@ -393,9 +395,11 @@ export default function Contacts() {
               <DropdownMenuItem onClick={() => batchChangeStatus("churned")}>Churned</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button size="sm" variant="destructive" onClick={() => setConfirmDeleteOpen(true)}>
-            <Trash2 className="mr-1 h-3.5 w-3.5" />Excluir
-          </Button>
+          {canDelete && (
+            <Button size="sm" variant="destructive" onClick={() => setConfirmDeleteOpen(true)}>
+              <Trash2 className="mr-1 h-3.5 w-3.5" />Excluir
+            </Button>
+          )}
         </div>
       )}
 

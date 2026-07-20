@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useRole } from "@/hooks/useRole";
 import { EmptyState } from "@/components/crm/EmptyState";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +44,7 @@ export function DealsList({
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const { canDelete } = useRole();
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
@@ -96,9 +98,11 @@ export function DealsList({
           <Button size="sm" variant="outline" onClick={() => onBatchAction("lost")}>
             <XCircle className="mr-1 h-3.5 w-3.5 text-destructive" />Perdidos
           </Button>
-          <Button size="sm" variant="destructive" onClick={() => setConfirmDeleteOpen(true)}>
-            <Trash2 className="mr-1 h-3.5 w-3.5" />Excluir
-          </Button>
+          {canDelete && (
+            <Button size="sm" variant="destructive" onClick={() => setConfirmDeleteOpen(true)}>
+              <Trash2 className="mr-1 h-3.5 w-3.5" />Excluir
+            </Button>
+          )}
         </div>
       )}
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useRole } from "@/hooks/useRole";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -53,10 +54,20 @@ export default function Settings() {
    * só seria lida na montagem, então voltar no histórico mudaria a URL sem
    * mover a aba, e a página passaria a mentir sobre onde está.
    */
+  const { canManage } = useRole();
+
   const urlTab = searchParams.get("tab");
-  const activeTab: TabValue = TAB_VALUES.includes(urlTab as TabValue)
+  const requested: TabValue = TAB_VALUES.includes(urlTab as TabValue)
     ? (urlTab as TabValue)
     : "general";
+
+  /*
+   * Esconder o gatilho da aba não basta: /settings?tab=pipelines montaria o
+   * painel mesmo sem a aba visível. A resolução da aba também respeita o papel.
+   */
+  const RESTRICTED: TabValue[] = ["pipelines", "custom-fields"];
+  const activeTab: TabValue =
+    RESTRICTED.includes(requested) && !canManage ? "general" : requested;
 
   return (
     <div className="space-y-6">
@@ -68,8 +79,8 @@ export default function Settings() {
       <Tabs value={activeTab} onValueChange={(v) => setSearchParams({ tab: v }, { replace: true })}>
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="general">Geral</TabsTrigger>
-          <TabsTrigger value="pipelines">Pipelines</TabsTrigger>
-          <TabsTrigger value="custom-fields">Campos</TabsTrigger>
+          {canManage && <TabsTrigger value="pipelines">Pipelines</TabsTrigger>}
+          {canManage && <TabsTrigger value="custom-fields">Campos</TabsTrigger>}
           {/*
             "Membros" não é uma aba de verdade: mora em /team, página própria.
             Era window.location.href, que recarregava o app inteiro — perdendo

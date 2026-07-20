@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useRole } from "@/hooks/useRole";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
@@ -204,6 +205,7 @@ export default function Automations() {
 
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [pendingDeleteAuto, setPendingDeleteAuto] = useState<string | null>(null);
+  const { canDelete, canManage } = useRole();
   const [logs, setLogs] = useState<AutomationLog[]>([]);
   // Opções dos selects que substituíram os campos de UUID digitado à mão.
   const [stages, setStages] = useState<{ id: string; name: string }[]>([]);
@@ -568,9 +570,11 @@ export default function Automations() {
             {automations.length} automações · {automations.filter((a) => a.is_active).length} ativas
           </p>
         </div>
-        <Button onClick={() => openBuilder()}>
-          <Plus className="mr-2 h-4 w-4" />Nova Automação
-        </Button>
+        {canManage && (
+          <Button onClick={() => openBuilder()}>
+            <Plus className="mr-2 h-4 w-4" />Nova Automação
+          </Button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -654,15 +658,15 @@ export default function Automations() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      <Switch checked={auto.is_active} onCheckedChange={(v) => toggleActive(auto.id, v)} />
+                      <Switch disabled={!canManage} checked={auto.is_active} onCheckedChange={(v) => toggleActive(auto.id, v)} />
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <button className="p-1.5 rounded-md hover:bg-accent transition-colors"><MoreHorizontal className="h-4 w-4 text-muted-foreground" /></button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openBuilder(auto)}><Settings2 className="mr-2 h-3.5 w-3.5" />Editar</DropdownMenuItem>
+                          <DropdownMenuItem disabled={!canManage} onClick={() => openBuilder(auto)}><Settings2 className="mr-2 h-3.5 w-3.5" />Editar</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => duplicateAutomation(auto)}><Copy className="mr-2 h-3.5 w-3.5" />Duplicar</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setPendingDeleteAuto(auto.id)} className="text-destructive"><Trash2 className="mr-2 h-3.5 w-3.5" />Excluir</DropdownMenuItem>
+                          <DropdownMenuItem disabled={!canDelete} onClick={() => setPendingDeleteAuto(auto.id)} className="text-destructive"><Trash2 className="mr-2 h-3.5 w-3.5" />Excluir</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>

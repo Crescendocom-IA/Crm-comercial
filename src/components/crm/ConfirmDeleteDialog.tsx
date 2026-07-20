@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useRole } from "@/hooks/useRole";
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -44,6 +45,18 @@ export function ConfirmDeleteDialog({
   confirmLabel = "Excluir",
   onConfirm,
 }: Props) {
+  const { canDelete } = useRole();
+
+  /*
+   * Em modo trigger o botão de excluir é este componente, então esconder aqui
+   * cobre o call site inteiro — e nenhum ponto de exclusão fica esquecido.
+   *
+   * Isso NÃO vale para o modo controlado por estado: lá o botão vive no
+   * componente pai e sumir só o diálogo deixaria um botão que não faz nada.
+   * Esses call sites checam canDelete por conta própria.
+   */
+  if (trigger && !canDelete) return null;
+
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       {trigger && <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>}

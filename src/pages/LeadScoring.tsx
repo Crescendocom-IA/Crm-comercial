@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useRole } from "@/hooks/useRole";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { useDebounce } from "@/hooks/useDebounce";
 import { supabase } from "@/integrations/supabase/client";
@@ -109,6 +110,7 @@ export default function LeadScoring() {
 
   const [tab, setTab] = useState<Tab>("scoring");
   const [pendingDeleteRule, setPendingDeleteRule] = useState<string | null>(null);
+  const { canDelete } = useRole();
   const [pendingDeleteSegment, setPendingDeleteSegment] = useState<string | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [rules, setRules] = useState<ScoringRule[]>([]);
@@ -365,7 +367,7 @@ export default function LeadScoring() {
                     <button onClick={() => openEditRule(r)} className="p-0.5 rounded hover:bg-accent text-muted-foreground">
                       <Edit2 className="h-3 w-3" />
                     </button>
-                    <button onClick={() => setPendingDeleteRule(r.id)} className="p-0.5 rounded hover:bg-accent text-muted-foreground">
+                    <button hidden={!canDelete} onClick={() => setPendingDeleteRule(r.id)} className="p-0.5 rounded hover:bg-accent text-muted-foreground">
                       <Trash2 className="h-3 w-3" />
                     </button>
                   </div>
@@ -450,7 +452,7 @@ export default function LeadScoring() {
                             setSegFormOpen(true);
                           }}><Edit2 className="mr-2 h-3.5 w-3.5" />Editar</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => exportSegmentCSV(seg)}><Download className="mr-2 h-3.5 w-3.5" />Exportar CSV</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setPendingDeleteSegment(seg.id)} className="text-destructive"><Trash2 className="mr-2 h-3.5 w-3.5" />Excluir</DropdownMenuItem>
+                          <DropdownMenuItem disabled={!canDelete} onClick={() => setPendingDeleteSegment(seg.id)} className="text-destructive"><Trash2 className="mr-2 h-3.5 w-3.5" />Excluir</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>

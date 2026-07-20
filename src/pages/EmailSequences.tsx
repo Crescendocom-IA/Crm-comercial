@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useRole } from "@/hooks/useRole";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
@@ -58,6 +59,7 @@ export default function EmailSequences() {
 
   const [sequences, setSequences] = useState<Sequence[]>([]);
   const [pendingDeleteSeq, setPendingDeleteSeq] = useState<string | null>(null);
+  const { canDelete } = useRole();
   const [pendingDeleteStep, setPendingDeleteStep] = useState<string | null>(null);
   const [steps, setSteps] = useState<Step[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
@@ -198,7 +200,7 @@ export default function EmailSequences() {
                         <DropdownMenuItem onClick={() => toggleActive(seq)}>
                           {seq.is_active ? <><Pause className="mr-2 h-3.5 w-3.5" />Pausar</> : <><Play className="mr-2 h-3.5 w-3.5" />Ativar</>}
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setPendingDeleteSeq(seq.id)} className="text-destructive">
+                        <DropdownMenuItem disabled={!canDelete} onClick={() => setPendingDeleteSeq(seq.id)} className="text-destructive">
                           <Trash2 className="mr-2 h-3.5 w-3.5" />Excluir
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -261,7 +263,7 @@ export default function EmailSequences() {
                           </p>
                         )}
                       </div>
-                      <button onClick={() => setPendingDeleteStep(step.id)} className="p-1 rounded hover:bg-accent text-muted-foreground">
+                      <button hidden={!canDelete} onClick={() => setPendingDeleteStep(step.id)} className="p-1 rounded hover:bg-accent text-muted-foreground">
                         <Trash2 className="h-3 w-3" />
                       </button>
                     </div>

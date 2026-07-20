@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useRole } from "@/hooks/useRole";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -66,6 +67,7 @@ export default function Team() {
   }, [members, user]);
 
   const isAdmin = currentUserRole === "owner" || currentUserRole === "admin";
+  const isOwner = currentUserRole === "owner";
 
   const fetchAll = useCallback(async () => {
     if (!orgId) return;
@@ -323,7 +325,12 @@ export default function Team() {
                       <p className="text-sm font-medium truncate">{m.name || "Sem nome"}</p>
                       <p className="text-xs text-muted-foreground truncate">{m.email} {m.title ? `· ${m.title}` : ""}</p>
                     </div>
-                    {isAdmin && m.id !== user?.id ? (
+                    {/*
+                      Alterar papel é exclusivo do owner: um admin que pudesse
+                      promover outros a admin (ou rebaixar o owner) contornaria
+                      a própria hierarquia. O resto da página segue em isAdmin.
+                    */}
+                    {isOwner && m.id !== user?.id ? (
                       <Select value={m.role || "member"} onValueChange={(v) => changeRole(m.id, v)}>
                         <SelectTrigger className={`h-7 text-xs w-36 gap-1 ${roleColor(m.role || "member")}`}>
                           {roleIcon(m.role || "member")}

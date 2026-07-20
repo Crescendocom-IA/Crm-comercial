@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useRole } from "@/hooks/useRole";
 import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
 import { useDebounce } from "@/hooks/useDebounce";
 import { EmptyState } from "@/components/crm/EmptyState";
@@ -62,6 +63,7 @@ export default function Companies() {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const { canDelete } = useRole();
   const [loading, setLoading] = useState(true);
 
   const [drawerCompany, setDrawerCompany] = useState<Company | null>(null);
@@ -290,9 +292,11 @@ export default function Companies() {
       {selectedCompanies.size > 0 && (
         <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 p-2">
           <span className="text-sm font-medium">{selectedCompanies.size} selecionadas</span>
-          <Button size="sm" variant="destructive" onClick={() => setConfirmDeleteOpen(true)}>
-            <Trash2 className="mr-1 h-3.5 w-3.5" />Excluir
-          </Button>
+          {canDelete && (
+            <Button size="sm" variant="destructive" onClick={() => setConfirmDeleteOpen(true)}>
+              <Trash2 className="mr-1 h-3.5 w-3.5" />Excluir
+            </Button>
+          )}
         </div>
       )}
 

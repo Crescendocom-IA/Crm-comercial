@@ -1,13 +1,10 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 
 type Theme = "light" | "dark" | "system";
-type Density = "compact" | "normal" | "comfortable";
 
 interface ThemeContextType {
   theme: Theme;
   setTheme: (t: Theme) => void;
-  density: Density;
-  setDensity: (d: Density) => void;
   accentColor: string;
   setAccentColor: (c: string) => void;
 }
@@ -15,8 +12,6 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType>({
   theme: "system",
   setTheme: () => {},
-  density: "normal",
-  setDensity: () => {},
   accentColor: "blue",
   setAccentColor: () => {},
 });
@@ -33,7 +28,6 @@ const ACCENT_COLORS: Record<string, { light: string; dark: string; ring: string 
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => (localStorage.getItem("fc-theme") as Theme) || "light");
-  const [density, setDensityState] = useState<Density>(() => (localStorage.getItem("fc-density") as Density) || "normal");
   const [accentColor, setAccentState] = useState(() => localStorage.getItem("fc-accent") || "blue");
 
   const applyTheme = (t: Theme) => {
@@ -71,11 +65,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [theme, accentColor]);
 
   const setTheme = (t: Theme) => { setThemeState(t); localStorage.setItem("fc-theme", t); };
-  const setDensity = (d: Density) => { setDensityState(d); localStorage.setItem("fc-density", d); };
   const setAccentColor = (c: string) => { setAccentState(c); localStorage.setItem("fc-accent", c); };
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, density, setDensity, accentColor, setAccentColor }}>
+    <ThemeContext.Provider value={{ theme, setTheme, accentColor, setAccentColor }}>
       {children}
     </ThemeContext.Provider>
   );

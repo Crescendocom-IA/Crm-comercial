@@ -887,7 +887,7 @@ function NotificationsTab({ orgId, userId }: { orgId: string | null; userId?: st
 
 // ── Appearance Tab ──
 function AppearanceTab() {
-  const { theme, setTheme, density, setDensity, accentColor, setAccentColor } = useTheme();
+  const { theme, setTheme, accentColor, setAccentColor } = useTheme();
 
   const themes = [
     { value: "light" as const, label: "Claro", icon: Sun },
@@ -901,12 +901,6 @@ function AppearanceTab() {
     { value: "emerald", label: "Esmeralda", color: "hsl(160, 84%, 39%)" },
     { value: "orange", label: "Laranja", color: "hsl(25, 95%, 53%)" },
     { value: "rose", label: "Rosa", color: "hsl(347, 77%, 50%)" },
-  ];
-
-  const densities = [
-    { value: "compact" as const, label: "Compacta", desc: "Menos espaçamento, mais dados visíveis" },
-    { value: "normal" as const, label: "Normal", desc: "Espaçamento padrão" },
-    { value: "comfortable" as const, label: "Confortável", desc: "Mais espaçamento, leitura facilitada" },
   ];
 
   return (
@@ -950,22 +944,6 @@ function AppearanceTab() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Densidade da Tabela</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-3">
-            {densities.map((d) => (
-              <button key={d.value} onClick={() => setDensity(d.value)}
-                className={`text-left rounded-lg border-2 p-3 transition-colors ${density === d.value ? "border-primary bg-primary/5" : "border-border hover:bg-accent/50"}`}>
-                <p className="text-xs font-medium">{d.label}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{d.desc}</p>
-              </button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
@@ -55,6 +56,7 @@ export default function Companies() {
   const [filters, setFilters] = useState<CompanyFilters>({});
   const [showFilters, setShowFilters] = useState(false);
   const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const [drawerCompany, setDrawerCompany] = useState<Company | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -249,11 +251,18 @@ export default function Companies() {
       {selectedCompanies.size > 0 && (
         <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 p-2">
           <span className="text-sm font-medium">{selectedCompanies.size} selecionadas</span>
-          <Button size="sm" variant="destructive" onClick={batchDelete}>
+          <Button size="sm" variant="destructive" onClick={() => setConfirmDeleteOpen(true)}>
             <Trash2 className="mr-1 h-3.5 w-3.5" />Excluir
           </Button>
         </div>
       )}
+
+      <ConfirmDeleteDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        title={`Excluir ${selectedCompanies.size} ${selectedCompanies.size === 1 ? "empresa" : "empresas"}?`}
+        onConfirm={() => { setConfirmDeleteOpen(false); batchDelete(); }}
+      />
 
       {viewMode === "table" && (
         <div className="rounded-md border border-border overflow-x-auto">

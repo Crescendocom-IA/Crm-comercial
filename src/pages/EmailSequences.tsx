@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { useAuth } from "@/contexts/AuthContext";
@@ -56,6 +57,8 @@ export default function EmailSequences() {
   const { toast } = useToast();
 
   const [sequences, setSequences] = useState<Sequence[]>([]);
+  const [pendingDeleteSeq, setPendingDeleteSeq] = useState<string | null>(null);
+  const [pendingDeleteStep, setPendingDeleteStep] = useState<string | null>(null);
   const [steps, setSteps] = useState<Step[]>([]);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -195,7 +198,7 @@ export default function EmailSequences() {
                         <DropdownMenuItem onClick={() => toggleActive(seq)}>
                           {seq.is_active ? <><Pause className="mr-2 h-3.5 w-3.5" />Pausar</> : <><Play className="mr-2 h-3.5 w-3.5" />Ativar</>}
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => deleteSequence(seq.id)} className="text-destructive">
+                        <DropdownMenuItem onClick={() => setPendingDeleteSeq(seq.id)} className="text-destructive">
                           <Trash2 className="mr-2 h-3.5 w-3.5" />Excluir
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -258,7 +261,7 @@ export default function EmailSequences() {
                           </p>
                         )}
                       </div>
-                      <button onClick={() => deleteStep(step.id)} className="p-1 rounded hover:bg-accent text-muted-foreground">
+                      <button onClick={() => setPendingDeleteStep(step.id)} className="p-1 rounded hover:bg-accent text-muted-foreground">
                         <Trash2 className="h-3 w-3" />
                       </button>
                     </div>
@@ -366,6 +369,20 @@ export default function EmailSequences() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDeleteDialog
+        open={pendingDeleteSeq !== null}
+        onOpenChange={(open) => { if (!open) setPendingDeleteSeq(null); }}
+        title="Excluir sequência?"
+        onConfirm={() => { if (pendingDeleteSeq) deleteSequence(pendingDeleteSeq); setPendingDeleteSeq(null); }}
+      />
+
+      <ConfirmDeleteDialog
+        open={pendingDeleteStep !== null}
+        onOpenChange={(open) => { if (!open) setPendingDeleteStep(null); }}
+        title="Excluir passo?"
+        onConfirm={() => { if (pendingDeleteStep) deleteStep(pendingDeleteStep); setPendingDeleteStep(null); }}
+      />
     </div>
   );
 }

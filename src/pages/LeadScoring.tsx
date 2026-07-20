@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { useDebounce } from "@/hooks/useDebounce";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
@@ -107,6 +108,8 @@ export default function LeadScoring() {
   const { toast } = useToast();
 
   const [tab, setTab] = useState<Tab>("scoring");
+  const [pendingDeleteRule, setPendingDeleteRule] = useState<string | null>(null);
+  const [pendingDeleteSegment, setPendingDeleteSegment] = useState<string | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [rules, setRules] = useState<ScoringRule[]>([]);
   const [segments, setSegments] = useState<Segment[]>([]);
@@ -362,7 +365,7 @@ export default function LeadScoring() {
                     <button onClick={() => openEditRule(r)} className="p-0.5 rounded hover:bg-accent text-muted-foreground">
                       <Edit2 className="h-3 w-3" />
                     </button>
-                    <button onClick={() => deleteRule(r.id)} className="p-0.5 rounded hover:bg-accent text-muted-foreground">
+                    <button onClick={() => setPendingDeleteRule(r.id)} className="p-0.5 rounded hover:bg-accent text-muted-foreground">
                       <Trash2 className="h-3 w-3" />
                     </button>
                   </div>
@@ -447,7 +450,7 @@ export default function LeadScoring() {
                             setSegFormOpen(true);
                           }}><Edit2 className="mr-2 h-3.5 w-3.5" />Editar</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => exportSegmentCSV(seg)}><Download className="mr-2 h-3.5 w-3.5" />Exportar CSV</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => deleteSegment(seg.id)} className="text-destructive"><Trash2 className="mr-2 h-3.5 w-3.5" />Excluir</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setPendingDeleteSegment(seg.id)} className="text-destructive"><Trash2 className="mr-2 h-3.5 w-3.5" />Excluir</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -648,6 +651,20 @@ export default function LeadScoring() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDeleteDialog
+        open={pendingDeleteRule !== null}
+        onOpenChange={(open) => { if (!open) setPendingDeleteRule(null); }}
+        title="Excluir regra?"
+        onConfirm={() => { if (pendingDeleteRule) deleteRule(pendingDeleteRule); setPendingDeleteRule(null); }}
+      />
+
+      <ConfirmDeleteDialog
+        open={pendingDeleteSegment !== null}
+        onOpenChange={(open) => { if (!open) setPendingDeleteSegment(null); }}
+        title="Excluir segmento?"
+        onConfirm={() => { if (pendingDeleteSegment) deleteSegment(pendingDeleteSegment); setPendingDeleteSegment(null); }}
+      />
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { useAuth } from "@/contexts/AuthContext";
@@ -186,6 +187,7 @@ export default function Automations() {
   const { toast } = useToast();
 
   const [automations, setAutomations] = useState<Automation[]>([]);
+  const [pendingDeleteAuto, setPendingDeleteAuto] = useState<string | null>(null);
   const [logs, setLogs] = useState<AutomationLog[]>([]);
   const [tab, setTab] = useState<"list" | "templates" | "history">("list");
 
@@ -604,7 +606,7 @@ export default function Automations() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => openBuilder(auto)}><Settings2 className="mr-2 h-3.5 w-3.5" />Editar</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => duplicateAutomation(auto)}><Copy className="mr-2 h-3.5 w-3.5" />Duplicar</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => deleteAutomation(auto.id)} className="text-destructive"><Trash2 className="mr-2 h-3.5 w-3.5" />Excluir</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setPendingDeleteAuto(auto.id)} className="text-destructive"><Trash2 className="mr-2 h-3.5 w-3.5" />Excluir</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -870,6 +872,13 @@ export default function Automations() {
           )}
         </DialogContent>
       </Dialog>
+
+      <ConfirmDeleteDialog
+        open={pendingDeleteAuto !== null}
+        onOpenChange={(open) => { if (!open) setPendingDeleteAuto(null); }}
+        title="Excluir automação?"
+        onConfirm={() => { if (pendingDeleteAuto) deleteAutomation(pendingDeleteAuto); setPendingDeleteAuto(null); }}
+      />
     </div>
   );
 }

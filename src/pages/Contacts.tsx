@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
@@ -83,6 +84,7 @@ export default function Contacts() {
   const [filters, setFilters] = useState<ContactFilters>({});
   const [showFilters, setShowFilters] = useState(false);
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   // Drawers & modals
   const [drawerContact, setDrawerContact] = useState<Contact | null>(null);
@@ -360,11 +362,18 @@ export default function Contacts() {
               <DropdownMenuItem onClick={() => batchChangeStatus("churned")}>Churned</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button size="sm" variant="destructive" onClick={batchDelete}>
+          <Button size="sm" variant="destructive" onClick={() => setConfirmDeleteOpen(true)}>
             <Trash2 className="mr-1 h-3.5 w-3.5" />Excluir
           </Button>
         </div>
       )}
+
+      <ConfirmDeleteDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        title={`Excluir ${selectedContacts.size} ${selectedContacts.size === 1 ? "contato" : "contatos"}?`}
+        onConfirm={() => { setConfirmDeleteOpen(false); batchDelete(); }}
+      />
 
       {/* Table View */}
       {viewMode === "table" && (

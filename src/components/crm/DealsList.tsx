@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -40,6 +41,7 @@ export function DealsList({
 }: DealsListProps) {
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
@@ -93,11 +95,18 @@ export function DealsList({
           <Button size="sm" variant="outline" onClick={() => onBatchAction("lost")}>
             <XCircle className="mr-1 h-3.5 w-3.5 text-destructive" />Perdidos
           </Button>
-          <Button size="sm" variant="destructive" onClick={() => onBatchAction("delete")}>
+          <Button size="sm" variant="destructive" onClick={() => setConfirmDeleteOpen(true)}>
             <Trash2 className="mr-1 h-3.5 w-3.5" />Excluir
           </Button>
         </div>
       )}
+
+      <ConfirmDeleteDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        title={`Excluir ${selectedDeals.size} ${selectedDeals.size === 1 ? "negócio" : "negócios"}?`}
+        onConfirm={() => { setConfirmDeleteOpen(false); onBatchAction("delete"); }}
+      />
 
       <div className="rounded-md border border-border overflow-x-auto">
         <Table>

@@ -29,7 +29,7 @@ export default function ResetPassword() {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Senha atualizada!" });
-      navigate("/");
+      navigate("/dashboard");
     }
     setLoading(false);
   };

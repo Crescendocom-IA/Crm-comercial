@@ -24,6 +24,7 @@ import { DealsList } from "@/components/crm/DealsList";
 import { DealsForecast } from "@/components/crm/DealsForecast";
 import { DealsFilters, type DealFilters } from "@/components/crm/DealsFilters";
 import { fireWebhook, fireAutomations } from "@/lib/webhooks";
+import { applyScoreEvent } from "@/lib/scoring";
 import type { Database } from "@/integrations/supabase/types";
 
 type Deal = Database["public"]["Tables"]["deals"]["Row"];
@@ -244,6 +245,7 @@ export default function Deals() {
       }).select().single();
       if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
       fireWebhook(orgId, "deal.created", inserted ?? {});
+      if (inserted?.contact_id) applyScoreEvent(orgId, inserted.contact_id, "deal_created");
     }
     setSheetOpen(false);
     fetchData();

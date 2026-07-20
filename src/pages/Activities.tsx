@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { applyScoreEvent } from "@/lib/scoring";
 import { useOrg } from "@/hooks/useOrg";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -629,6 +630,12 @@ function ActivityCreateEditModal({ open, onOpenChange, activity, contacts, compa
       : await supabase.from("activities").insert(payload);
 
     if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
+    // Lead scoring: só ao CRIAR (não em edições, para não pontuar duas vezes) e
+    // quando a atividade tem um contato. meeting/call são eventos de engajamento.
+    if (!isEdit && resolvedContactId) {
+      const scoreEvent = type === "meeting" ? "meeting_done" : type === "call" ? "call_done" : null;
+      if (scoreEvent) applyScoreEvent(orgId, resolvedContactId, scoreEvent);
+    }
     onOpenChange(false);
     onSaved();
     toast({ title: isEdit ? "Atividade atualizada" : "Atividade criada" });

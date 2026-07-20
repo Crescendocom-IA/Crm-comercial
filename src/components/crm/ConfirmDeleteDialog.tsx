@@ -1,5 +1,7 @@
+import type { ReactNode } from "react";
 import {
   AlertDialog,
+  AlertDialogTrigger,
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
@@ -10,8 +12,17 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type Props = {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  /**
+   * Botão que abre o diálogo. Quando presente, o componente se controla sozinho
+   * e `open`/`onOpenChange` são desnecessários.
+   *
+   * NÃO use com um DropdownMenuItem: o menu desmonta o gatilho ao fechar e o
+   * diálogo nunca aparece. Nesse caso, controle por estado (`open`) a partir do
+   * componente pai, fora do DropdownMenuContent.
+   */
+  trigger?: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   /** Ex: "Excluir 5 negócios?" ou "Excluir sequência?" */
   title: string;
   description?: string;
@@ -25,6 +36,7 @@ type Props = {
  * confirmação, e um clique errado apagava sem volta.
  */
 export function ConfirmDeleteDialog({
+  trigger,
   open,
   onOpenChange,
   title,
@@ -34,6 +46,7 @@ export function ConfirmDeleteDialog({
 }: Props) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
+      {trigger && <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>

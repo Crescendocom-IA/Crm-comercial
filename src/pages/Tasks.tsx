@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { useAuth } from "@/contexts/AuthContext";
@@ -62,6 +63,7 @@ export default function Tasks() {
   const { toast } = useToast();
 
   const [tasks, setTasks] = useState<Activity[]>([]);
+  const [pendingDeleteTask, setPendingDeleteTask] = useState<string | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [members, setMembers] = useState<Profile[]>([]);
@@ -377,7 +379,7 @@ export default function Tasks() {
                         <DropdownMenuItem onClick={() => openEdit(t)}>
                           <Edit2 className="mr-2 h-3.5 w-3.5" />Editar
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => deleteTask(t.id)} className="text-destructive">
+                        <DropdownMenuItem onClick={() => setPendingDeleteTask(t.id)} className="text-destructive">
                           <Trash2 className="mr-2 h-3.5 w-3.5" />Excluir
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -463,6 +465,13 @@ export default function Tasks() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDeleteDialog
+        open={pendingDeleteTask !== null}
+        onOpenChange={(o) => { if (!o) setPendingDeleteTask(null); }}
+        title="Excluir tarefa?"
+        onConfirm={() => { if (pendingDeleteTask) deleteTask(pendingDeleteTask); setPendingDeleteTask(null); }}
+      />
     </div>
   );
 }

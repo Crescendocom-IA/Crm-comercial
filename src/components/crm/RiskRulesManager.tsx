@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { Button } from "@/components/ui/button";
@@ -214,9 +215,15 @@ export function RiskRulesManager({ open, onOpenChange }: RiskRulesManagerProps) 
                         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => openEdit(rule)}>
                           <Pencil className="mr-1 h-3 w-3" />Editar
                         </Button>
-                        <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive hover:text-destructive" onClick={() => deleteRule(rule.id)}>
-                          <Trash2 className="mr-1 h-3 w-3" />Excluir
-                        </Button>
+                        <ConfirmDeleteDialog
+                          title="Excluir regra de risco?"
+                          onConfirm={() => deleteRule(rule.id)}
+                          trigger={
+                            <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive hover:text-destructive">
+                              <Trash2 className="mr-1 h-3 w-3" />Excluir
+                            </Button>
+                          }
+                        />
                       </div>
                     </CardContent>
                   </Card>

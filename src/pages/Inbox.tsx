@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import DOMPurify from "dompurify";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
@@ -346,9 +347,15 @@ export default function Inbox() {
                       <DropdownMenuItem onClick={() => snoozeEmail(selectedEmail.id, 24)}>Amanhã</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                  <Button variant="ghost" size="sm" onClick={() => deleteEmail(selectedEmail.id)}>
-                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                  </Button>
+                  <ConfirmDeleteDialog
+                    title="Excluir e-mail?"
+                    onConfirm={() => deleteEmail(selectedEmail.id)}
+                    trigger={
+                      <Button variant="ghost" size="sm">
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    }
+                  />
                 </div>
               </div>
               <h2 className="text-lg font-semibold">{selectedEmail.subject || "(sem assunto)"}</h2>

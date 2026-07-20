@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrg } from "@/hooks/useOrg";
@@ -370,9 +371,15 @@ export default function SalesGoals() {
                           <button onClick={() => openEdit(g)} className="p-1 text-muted-foreground hover:text-foreground">
                             <Pencil className="h-3 w-3" />
                           </button>
-                          <button onClick={() => deleteGoal(g.id)} className="p-1 text-muted-foreground hover:text-destructive">
-                            <Trash2 className="h-3 w-3" />
-                          </button>
+                          <ConfirmDeleteDialog
+                            title="Excluir meta?"
+                            onConfirm={() => deleteGoal(g.id)}
+                            trigger={
+                              <button className="p-1 text-muted-foreground hover:text-destructive">
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            }
+                          />
                         </div>
                       </TableCell>
                     </TableRow>

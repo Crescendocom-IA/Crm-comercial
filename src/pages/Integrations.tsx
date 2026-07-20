@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrg } from "@/hooks/useOrg";
@@ -457,9 +458,15 @@ function WebhooksTab({ orgId }: { orgId: string | null }) {
                     <Button variant="ghost" size="icon" className="h-7 w-7" title="Enviar teste" onClick={() => testWebhook(wh)}>
                       <Send className="h-3 w-3" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deleteWebhook(wh.id)}>
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+                    <ConfirmDeleteDialog
+                      title="Excluir webhook?"
+                      onConfirm={() => deleteWebhook(wh.id)}
+                      trigger={
+                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      }
+                    />
                   </div>
                 </div>
               ))}
@@ -699,9 +706,16 @@ function ApiKeysTab({ orgId, userId }: { orgId: string | null; userId?: string }
                             <EyeOff className="h-3 w-3" />
                           </Button>
                         )}
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => deleteKey(k.id)}>
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+                        <ConfirmDeleteDialog
+                          title="Excluir chave de API?"
+                          description="Integrações que usam esta chave vão parar de funcionar imediatamente. Esta ação não pode ser desfeita."
+                          onConfirm={() => deleteKey(k.id)}
+                          trigger={
+                            <Button variant="ghost" size="icon" className="h-6 w-6">
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          }
+                        />
                       </div>
                     </TableCell>
                   </TableRow>

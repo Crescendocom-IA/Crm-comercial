@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { applyScoreEvent } from "@/lib/scoring";
@@ -91,6 +92,7 @@ export default function Activities() {
   const { toast } = useToast();
 
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [pendingDeleteActivity, setPendingDeleteActivity] = useState<string | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
@@ -467,7 +469,7 @@ export default function Activities() {
                           <DropdownMenuItem onClick={() => setEditActivity(a)}>
                             <Edit2 className="mr-2 h-3.5 w-3.5" />Editar
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => deleteActivity(a.id)} className="text-destructive">
+                          <DropdownMenuItem onClick={() => setPendingDeleteActivity(a.id)} className="text-destructive">
                             <Trash2 className="mr-2 h-3.5 w-3.5" />Excluir
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -552,6 +554,13 @@ export default function Activities() {
         deals={deals}
         members={members}
         onSaved={fetchData}
+      />
+
+      <ConfirmDeleteDialog
+        open={pendingDeleteActivity !== null}
+        onOpenChange={(o) => { if (!o) setPendingDeleteActivity(null); }}
+        title="Excluir atividade?"
+        onConfirm={() => { if (pendingDeleteActivity) deleteActivity(pendingDeleteActivity); setPendingDeleteActivity(null); }}
       />
     </div>
   );

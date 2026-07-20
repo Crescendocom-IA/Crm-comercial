@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrg } from "@/hooks/useOrg";
@@ -450,9 +451,15 @@ export default function Team() {
                       {team.name}
                     </CardTitle>
                     {isAdmin && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => deleteTeam(team.id)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                      <ConfirmDeleteDialog
+                        title="Excluir time?"
+                        onConfirm={() => deleteTeam(team.id)}
+                        trigger={
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        }
+                      />
                     )}
                   </div>
                 </CardHeader>

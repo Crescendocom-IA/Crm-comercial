@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { useAuth } from "@/contexts/AuthContext";
@@ -29,6 +30,7 @@ export default function EmailTemplates() {
   const { toast } = useToast();
 
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [pendingDeleteTemplate, setPendingDeleteTemplate] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [editOpen, setEditOpen] = useState(false);
   const [editTemplate, setEditTemplate] = useState<Partial<Template> | null>(null);
@@ -129,7 +131,7 @@ export default function EmailTemplates() {
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => openEdit(t)}><Edit2 className="mr-2 h-3.5 w-3.5" />Editar</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => duplicate(t)}><Copy className="mr-2 h-3.5 w-3.5" />Duplicar</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => deleteTemplate(t.id)} className="text-destructive"><Trash2 className="mr-2 h-3.5 w-3.5" />Excluir</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setPendingDeleteTemplate(t.id)} className="text-destructive"><Trash2 className="mr-2 h-3.5 w-3.5" />Excluir</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -185,6 +187,13 @@ export default function EmailTemplates() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDeleteDialog
+        open={pendingDeleteTemplate !== null}
+        onOpenChange={(o) => { if (!o) setPendingDeleteTemplate(null); }}
+        title="Excluir template?"
+        onConfirm={() => { if (pendingDeleteTemplate) deleteTemplate(pendingDeleteTemplate); setPendingDeleteTemplate(null); }}
+      />
     </div>
   );
 }

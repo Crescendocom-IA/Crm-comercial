@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrg } from "@/hooks/useOrg";
@@ -359,9 +360,16 @@ function PipelinesTab({ orgId }: { orgId: string | null }) {
                 </SelectContent>
               </Select>
               {selectedPipeline && (
-                <Button variant="destructive" size="sm" className="h-8 text-[10px]" onClick={() => deletePipeline(selectedPipeline)}>
-                  <Trash2 className="h-3 w-3" />
-                </Button>
+                <ConfirmDeleteDialog
+                  title="Excluir pipeline?"
+                  description="Excluir este pipeline também removerá todos os estágios associados. Negócios neste pipeline ficarão sem estágio. Esta ação não pode ser desfeita."
+                  onConfirm={() => deletePipeline(selectedPipeline)}
+                  trigger={
+                    <Button variant="destructive" size="sm" className="h-8 text-[10px]">
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  }
+                />
               )}
             </div>
           )}
@@ -392,7 +400,12 @@ function PipelinesTab({ orgId }: { orgId: string | null }) {
                   <span className="text-xs font-medium flex-1">{s.name}</span>
                   <Badge variant="outline" className="text-[8px]">{s.win_probability || 0}%</Badge>
                   <span className="text-[9px] text-muted-foreground">#{s.order}</span>
-                  <button onClick={() => deleteStage(s.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
+                  <ConfirmDeleteDialog
+                    title="Excluir estágio?"
+                    description="Negócios neste estágio ficarão sem estágio. Esta ação não pode ser desfeita."
+                    onConfirm={() => deleteStage(s.id)}
+                    trigger={<button className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3 w-3" /></button>}
+                  />
                 </div>
               ))}
             </div>
@@ -414,7 +427,11 @@ function PipelinesTab({ orgId }: { orgId: string | null }) {
             {lossReasons.map((lr: any) => (
               <Badge key={lr.id} variant="secondary" className="text-[10px] gap-1">
                 {lr.label}
-                <button onClick={() => deleteLossReason(lr.id)} className="hover:text-destructive"><X className="h-2.5 w-2.5" /></button>
+                <ConfirmDeleteDialog
+                  title="Excluir motivo de perda?"
+                  onConfirm={() => deleteLossReason(lr.id)}
+                  trigger={<button className="hover:text-destructive"><X className="h-2.5 w-2.5" /></button>}
+                />
               </Badge>
             ))}
           </div>
@@ -521,7 +538,12 @@ function CustomFieldsTab({ orgId }: { orgId: string | null }) {
                     <TableCell>{f.show_in_table ? "✓" : "—"}</TableCell>
                     <TableCell>{f.show_in_card ? "✓" : "—"}</TableCell>
                     <TableCell>
-                      <button onClick={() => deleteField(f.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3 w-3" /></button>
+                      <ConfirmDeleteDialog
+                        title="Excluir campo personalizado?"
+                        description="Os valores já preenchidos neste campo serão perdidos. Esta ação não pode ser desfeita."
+                        onConfirm={() => deleteField(f.id)}
+                        trigger={<button className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3 w-3" /></button>}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -717,7 +739,11 @@ function MembersTab({ orgId, userId }: { orgId: string | null; userId?: string }
             <div key={t.id} className="rounded-md border border-border p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium flex items-center gap-1.5"><Users className="h-3 w-3" />{t.name}</span>
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => deleteTeam(t.id)}><Trash2 className="h-3 w-3" /></Button>
+                <ConfirmDeleteDialog
+                  title="Excluir time?"
+                  onConfirm={() => deleteTeam(t.id)}
+                  trigger={<Button variant="ghost" size="icon" className="h-6 w-6"><Trash2 className="h-3 w-3" /></Button>}
+                />
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {members.map((m) => {

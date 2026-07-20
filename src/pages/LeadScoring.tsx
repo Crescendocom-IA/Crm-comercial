@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { useAuth } from "@/contexts/AuthContext";
@@ -72,6 +73,33 @@ const EVENT_TYPES = [
   { value: "inactivity_30d", label: "Inatividade 30 dias" },
   { value: "custom", label: "Personalizado" },
 ];
+
+/**
+ * Input de pontos com escrita debounced. Mantém o valor local enquanto o usuário
+ * digita e só chama onCommit 500ms após parar — evita um UPDATE por tecla.
+ */
+function RulePointsInput({ initial, onCommit }: { initial: number; onCommit: (points: number) => void }) {
+  const [value, setValue] = useState(initial);
+  const debounced = useDebounce(value, 500);
+
+  // Sincroniza com o valor externo (ex: após refetch) sem sobrescrever digitação.
+  useEffect(() => { setValue(initial); }, [initial]);
+
+  useEffect(() => {
+    if (debounced !== initial) onCommit(debounced);
+    // onCommit/initial fora das deps de propósito: só persistir quando o debounce assenta.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debounced]);
+
+  return (
+    <Input
+      type="number"
+      value={value}
+      onChange={(e) => setValue(Number(e.target.value))}
+      className="w-16 h-6 text-[10px] text-center"
+    />
+  );
+}
 
 export default function LeadScoring() {
   const { orgId } = useOrg();
@@ -326,11 +354,9 @@ export default function LeadScoring() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Input
-                      type="number"
-                      value={r.points}
-                      onChange={(e) => updateRulePoints(r.id, Number(e.target.value))}
-                      className="w-16 h-6 text-[10px] text-center"
+                    <RulePointsInput
+                      initial={r.points}
+                      onCommit={(pts) => updateRulePoints(r.id, pts)}
                     />
                     <span className="text-[9px] text-muted-foreground">pts</span>
                     <button onClick={() => openEditRule(r)} className="p-0.5 rounded hover:bg-accent text-muted-foreground">

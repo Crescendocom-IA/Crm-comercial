@@ -264,7 +264,7 @@ export function ContactDrawer({ contact, onClose, onUpdate, companies, members }
                       <div className="flex items-center gap-2 mb-0.5">
                         <span className="text-[10px] font-medium text-muted-foreground uppercase">{activityLabels[a.type]}</span>
                         <span className="text-[10px] text-muted-foreground">
-                          {new Date(a.created_at!).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          {a.created_at ? new Date(a.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
                         </span>
                       </div>
                       <p className="text-sm font-medium">{a.title}</p>
@@ -315,7 +315,7 @@ export function ContactDrawer({ contact, onClose, onUpdate, companies, members }
               <div key={a.id} className="rounded-lg border border-border p-3">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-xs text-muted-foreground">
-                    {new Date(a.created_at!).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}
+                    {a.created_at ? new Date(a.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
                   </span>
                 </div>
                 <p className="text-sm font-medium">{a.title}</p>

@@ -266,7 +266,8 @@ function SalesReport({ deals, stages, members, companies, allDeals, periodRange 
   const avgCycle = useMemo(() => {
     if (wonDeals.length === 0) return 0;
     const total = wonDeals.reduce((s, d) => {
-      const c = new Date(d.created_at!); const u = d.updated_at ? new Date(d.updated_at) : new Date();
+      if (!d.created_at) return s;
+      const c = new Date(d.created_at); const u = d.updated_at ? new Date(d.updated_at) : new Date();
       return s + Math.floor((u.getTime() - c.getTime()) / 86400000);
     }, 0);
     return Math.round(total / wonDeals.length);
@@ -348,7 +349,8 @@ function SalesReport({ deals, stages, members, companies, allDeals, periodRange 
     const sd = deals.filter((d) => d.stage_id === s.id);
     if (sd.length === 0) return { name: s.name, days: 0 };
     const total = sd.reduce((sum, d) => {
-      const c = new Date(d.created_at!); const u = d.updated_at ? new Date(d.updated_at) : new Date();
+      if (!d.created_at) return sum;
+      const c = new Date(d.created_at); const u = d.updated_at ? new Date(d.updated_at) : new Date();
       return sum + Math.floor((u.getTime() - c.getTime()) / 86400000);
     }, 0);
     return { name: s.name, days: Math.round(total / sd.length) };

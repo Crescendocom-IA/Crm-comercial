@@ -31,6 +31,14 @@ import { useToast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
 
 type Activity = Database["public"]["Tables"]["activities"]["Row"];
+
+// Chave de data no fuso LOCAL (YYYY-MM-DD). toISOString() converte para UTC e,
+// em fusos negativos (Brasil UTC-3), rola o dia — jogando a atividade na célula
+// errada do calendário. getFullYear/Month/Date usam o horário local.
+function localDateKey(input: Date | string): string {
+  const d = typeof input === "string" ? new Date(input) : input;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 type ActivityType = Database["public"]["Enums"]["activity_type"];
 type Contact = Database["public"]["Tables"]["contacts"]["Row"];
 type Company = Database["public"]["Tables"]["companies"]["Row"];
@@ -241,9 +249,9 @@ export default function Activities() {
     const map = new Map<string, Activity[]>();
     filtered.forEach((a) => {
       const dateStr = a.due_date
-        ? new Date(a.due_date).toISOString().split("T")[0]
+        ? localDateKey(a.due_date)
         : a.created_at
-          ? new Date(a.created_at).toISOString().split("T")[0]
+          ? localDateKey(a.created_at)
           : null;
       if (dateStr) {
         if (!map.has(dateStr)) map.set(dateStr, []);
@@ -505,9 +513,9 @@ export default function Activities() {
               <div key={d} className="bg-muted px-2 py-1.5 text-center text-[10px] font-medium text-muted-foreground">{d}</div>
             ))}
             {calendarDays.map((day, i) => {
-              const dateStr = day.date.toISOString().split("T")[0];
+              const dateStr = localDateKey(day.date);
               const dayActivities = activitiesByDate.get(dateStr) || [];
-              const isToday = dateStr === new Date().toISOString().split("T")[0];
+              const isToday = dateStr === localDateKey(new Date());
               return (
                 <div key={i} className={`min-h-[80px] bg-background p-1 ${!day.inMonth ? "opacity-40" : ""}`}>
                   <div className={`text-xs font-medium mb-0.5 ${isToday ? "flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground" : "text-muted-foreground"}`}>

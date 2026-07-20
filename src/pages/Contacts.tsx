@@ -165,8 +165,11 @@ export default function Contacts() {
       if (filters.status && filters.status !== "all" && c.status !== filters.status) return false;
       if (filters.ownerId && c.owner_id !== filters.ownerId) return false;
       if (filters.companyId && (c as any).company_id !== filters.companyId) return false;
-      if (filters.createdFrom && c.created_at && c.created_at < filters.createdFrom) return false;
-      if (filters.createdTo && c.created_at && c.created_at > filters.createdTo) return false;
+      // Compara só a parte de data (YYYY-MM-DD): created_at é um timestamp ISO
+      // completo, e "2026-07-15T14:00:00Z" > "2026-07-15" excluía o dia inteiro
+      // de createdTo (off-by-one). Fatiar torna os dois limites inclusivos.
+      if (filters.createdFrom && c.created_at && c.created_at.slice(0, 10) < filters.createdFrom) return false;
+      if (filters.createdTo && c.created_at && c.created_at.slice(0, 10) > filters.createdTo) return false;
       return true;
     });
   }, [contacts, search, filters]);

@@ -119,8 +119,8 @@ export default function DealDetail() {
 
   // Health indicator based on last activity
   const lastActivity = activities[0];
-  const daysSinceActivity = lastActivity
-    ? Math.floor((Date.now() - new Date(lastActivity.created_at!).getTime()) / (1000 * 60 * 60 * 24))
+  const daysSinceActivity = lastActivity?.created_at
+    ? Math.floor((Date.now() - new Date(lastActivity.created_at).getTime()) / (1000 * 60 * 60 * 24))
     : 999;
   const healthColor = daysSinceActivity <= 3 ? "bg-success" : daysSinceActivity <= 7 ? "bg-warning" : "bg-destructive";
   const healthLabel = daysSinceActivity <= 3 ? "Saudável" : daysSinceActivity <= 7 ? "Atenção" : "Inativo";
@@ -325,7 +325,7 @@ export default function DealDetail() {
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="text-xs font-medium text-muted-foreground">{activityLabels[a.type]}</span>
                       <span className="text-xs text-muted-foreground">
-                        {new Date(a.created_at!).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        {a.created_at ? new Date(a.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
                       </span>
                     </div>
                     <p className="text-sm font-medium">{a.title}</p>

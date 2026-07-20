@@ -119,7 +119,7 @@ function AuditLogTab({ orgId }: { orgId: string | null }) {
               filtered.map((log) => (
                 <TableRow key={log.id}>
                   <TableCell className="text-xs whitespace-nowrap">
-                    {new Date(log.created_at).toLocaleString("pt-BR")}
+                    {log.created_at ? new Date(log.created_at).toLocaleString("pt-BR") : "—"}
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary" className={actionColors[log.action] || ""}>

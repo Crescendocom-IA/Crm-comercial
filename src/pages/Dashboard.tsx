@@ -198,7 +198,8 @@ export default function Dashboard() {
   const avgCycle = useMemo(() => {
     if (wonDeals.length === 0) return 0;
     const total = wonDeals.reduce((s, d) => {
-      const created = new Date(d.created_at!);
+      if (!d.created_at) return s;
+      const created = new Date(d.created_at);
       const updated = d.updated_at ? new Date(d.updated_at) : new Date();
       return s + Math.floor((updated.getTime() - created.getTime()) / 86400000);
     }, 0);

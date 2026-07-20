@@ -74,6 +74,21 @@ export default function Companies() {
     }
   }, [searchParams, setSearchParams]);
 
+  /*
+   * Deep-link /companies?id=<uuid>, usado pelo drawer de contato para abrir a
+   * empresa vinculada. Depende de `companies` porque o drawer precisa do
+   * registro carregado — em navegação direta o efeito roda antes do fetch e só
+   * encontra a empresa na segunda passada.
+   */
+  useEffect(() => {
+    const id = searchParams.get("id");
+    if (!id || companies.length === 0) return;
+    const found = companies.find((c) => c.id === id);
+    if (found) setDrawerCompany(found);
+    searchParams.delete("id");
+    setSearchParams(searchParams, { replace: true });
+  }, [searchParams, setSearchParams, companies]);
+
   const fetchData = useCallback(async () => {
     if (!orgId) return;
     const [cRes, mRes] = await Promise.all([

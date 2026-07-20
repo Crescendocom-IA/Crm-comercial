@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { useAuth } from "@/contexts/AuthContext";
@@ -60,6 +61,7 @@ export function ContactDrawer({ contact, onClose, onUpdate, companies, members }
   const { orgId } = useOrg();
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<Contact>>({});
@@ -221,7 +223,12 @@ export function ContactDrawer({ contact, onClose, onUpdate, companies, members }
                   return comp ? (
                     <div className="flex items-center gap-3 text-sm">
                       <Building2 className="h-4 w-4 text-muted-foreground" />
-                      <span>{comp.name}</span>
+                      <button
+                        onClick={() => { onClose(); navigate(`/companies?id=${comp.id}`); }}
+                        className="text-primary hover:underline truncate text-left"
+                      >
+                        {comp.name}
+                      </button>
                     </div>
                   ) : null;
                 })()}
@@ -282,7 +289,14 @@ export function ContactDrawer({ contact, onClose, onUpdate, companies, members }
             {deals.map((d) => {
               const stage = stages.find((s) => s.id === d.stage_id);
               return (
-                <Card key={d.id}>
+                <Card
+                  key={d.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => { onClose(); navigate(`/deals/${d.id}`); }}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClose(); navigate(`/deals/${d.id}`); } }}
+                  className="cursor-pointer transition-colors hover:border-primary/40"
+                >
                   <CardContent className="p-3">
                     <div className="flex items-center justify-between">
                       <div>

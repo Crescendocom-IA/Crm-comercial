@@ -169,7 +169,17 @@ export default function Dashboard() {
   }, [fetchAll]);
 
   // ── Filtered data ──────────────────
-  const periodStart = getPeriodStart(period);
+  /*
+   * getPeriodStart devolve um Date novo a cada chamada. Chamado direto no corpo
+   * do componente, periodStart mudava de identidade em todo render e invalidava
+   * todos os useMemo que dependem dele — as derivações mais caras da tela
+   * recalculavam a cada tecla digitada em qualquer campo.
+   *
+   * Memoizar por `period` também congela o "agora" enquanto o filtro não muda,
+   * o que é o comportamento desejado: o recorte não deve deslizar sozinho
+   * enquanto o usuário lê a tela.
+   */
+  const periodStart = useMemo(() => getPeriodStart(period), [period]);
 
   const filteredDeals = useMemo(() => {
     let list = deals;

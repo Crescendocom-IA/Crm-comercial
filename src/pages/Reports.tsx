@@ -153,7 +153,12 @@ export default function Reports() {
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   // ── Filtered data ──────────────────
-  const periodRange = getPeriodRange(period);
+  /*
+   * Mesmo caso do Dashboard: getPeriodRange devolve um objeto novo por chamada,
+   * então periodRange invalidava scopedDeals/filteredDeals/forecastDeals e as
+   * derivações de atividades a cada render.
+   */
+  const periodRange = useMemo(() => getPeriodRange(period), [period]);
 
   /** Deals após dono e pipeline, antes do recorte de período. */
   const scopedDeals = useMemo(() => {

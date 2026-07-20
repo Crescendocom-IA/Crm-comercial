@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -45,6 +45,7 @@ type TabValue = (typeof TAB_VALUES)[number];
 export default function Settings() {
   const { user, profile } = useAuth();
   const { orgId } = useOrg();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   /*
@@ -69,7 +70,12 @@ export default function Settings() {
           <TabsTrigger value="general">Geral</TabsTrigger>
           <TabsTrigger value="pipelines">Pipelines</TabsTrigger>
           <TabsTrigger value="custom-fields">Campos</TabsTrigger>
-          <TabsTrigger value="members" onClick={() => window.location.href = '/team'}>Membros</TabsTrigger>
+          {/*
+            "Membros" não é uma aba de verdade: mora em /team, página própria.
+            Era window.location.href, que recarregava o app inteiro — perdendo
+            sessão em memória, estado e o cache de todas as queries.
+          */}
+          <TabsTrigger value="members" onClick={() => navigate("/team")}>Membros</TabsTrigger>
           <TabsTrigger value="notifications">Notificações</TabsTrigger>
           <TabsTrigger value="appearance">Aparência</TabsTrigger>
           <TabsTrigger value="billing">Plano</TabsTrigger>

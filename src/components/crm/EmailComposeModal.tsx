@@ -56,6 +56,7 @@ export function EmailComposeModal({ open, onOpenChange, onSent, defaultTo, defau
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
   const [sending, setSending] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiTone, setAiTone] = useState("formal");
@@ -67,15 +68,17 @@ export function EmailComposeModal({ open, onOpenChange, onSent, defaultTo, defau
     setTo(defaultTo || ""); setSubject(""); setBody(""); setCc(""); setBcc("");
     setContactId(defaultContactId || "none"); setDealId(defaultDealId || "none");
     Promise.all([
-      supabase.from("contacts").select("id,first_name,last_name,email,org_id").eq("org_id", orgId),
+      supabase.from("contacts").select("id,first_name,last_name,email,org_id,company_id").eq("org_id", orgId),
       supabase.from("deals").select("id,title,org_id,contact_id").eq("org_id", orgId),
       supabase.from("email_templates").select("*").eq("org_id", orgId),
-    ]).then(([c, d, t]) => {
+      supabase.from("companies").select("id,name").eq("org_id", orgId),
+    ]).then(([c, d, t, co]) => {
       const contactsList = (c.data as Contact[]) || [];
       const dealsList = (d.data as Deal[]) || [];
       setContacts(contactsList);
       setDeals(dealsList);
       setTemplates((t.data as Template[]) || []);
+      setCompanies((co.data as { id: string; name: string }[]) || []);
       // Auto-fill "to" from defaultContactId
       if (!defaultTo && defaultContactId && defaultContactId !== "none") {
         const contact = contactsList.find((ct) => ct.id === defaultContactId);
@@ -102,6 +105,8 @@ export function EmailComposeModal({ open, onOpenChange, onSent, defaultTo, defau
       html = html.replace(/\{\{primeiro_nome\}\}/g, contact.first_name);
       html = html.replace(/\{\{sobrenome\}\}/g, contact.last_name || "");
       html = html.replace(/\{\{email\}\}/g, contact.email || "");
+      const companyName = companies.find((co) => co.id === (contact as { company_id?: string }).company_id)?.name || "";
+      html = html.replace(/\{\{empresa\}\}/g, companyName);
     }
     html = html.replace(/\{\{dono_nome\}\}/g, profile?.name || "");
     setBody(html);

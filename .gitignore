@@ -25,3 +25,9 @@ dist-ssr
 
 # Variáveis de ambiente locais (use .env.example como referência)
 .env
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

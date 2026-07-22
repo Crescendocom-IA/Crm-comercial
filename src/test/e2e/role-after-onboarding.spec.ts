@@ -29,14 +29,12 @@ test.describe("Papel após onboarding", () => {
     await expect(comecar).toBeVisible({ timeout: 25_000 });
 
     /*
-     * Espera antes de clicar por causa de uma CORRIDA REAL do app: o efeito de
-     * persistência do OnboardingModal é assíncrono e termina com
-     * setCurrentStep(getResumeStep(...)), que devolve 0 quando nada foi
-     * completado. Um clique que chegue antes dessa resolução é desfeito — o
-     * passo volta para boas-vindas. Humano lento raramente vê; automação vê
-     * sempre. A espera é contorno de teste, não correção do bug.
+     * Clica IMEDIATAMENTE, sem espera: este clique rápido é o que reproduzia a
+     * corrida do efeito de persistência (assíncrono) sobrescrevendo o passo com
+     * getResumeStep(...) = 0. Se o passo avançar daqui, a guarda em
+     * OnboardingModal está funcionando. Não reintroduzir waitForTimeout aqui —
+     * a espera esconde exatamente o defeito que este teste protege.
      */
-    await page.waitForTimeout(2500);
 
     // "Configurar depois" só aparece a partir do passo 1 — avança um.
     await comecar.click();
@@ -45,7 +43,16 @@ test.describe("Papel após onboarding", () => {
 
     // Sair por aqui dispara refreshProfile() -> recarrega profile E papel.
     await pular.click();
-    await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
+
+    /*
+     * Espera o modal sumir, não a URL: já estávamos em /dashboard, então
+     * toHaveURL(/dashboard/) passaria instantaneamente sem esperar nada — e o
+     * navigate("/dashboard") do skip dispararia depois, desfazendo a navegação
+     * seguinte. Como setIsOpen(false) e navigate() estão no mesmo bloco
+     * síncrono, o diálogo escondido garante que a navegação do skip já ocorreu.
+     */
+    await expect(page.getByRole("dialog", { name: /configuração inicial/i }))
+      .toBeHidden({ timeout: 15_000 });
 
     // Navegação SPA (clique na sidebar), sem reload.
     await page.getByRole("link", { name: "Automações" }).click();

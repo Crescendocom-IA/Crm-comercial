@@ -77,7 +77,15 @@ export function OnboardingModal() {
         setStepData((prev) => ({ ...prev, ...persisted.stepData }));
       }
 
-      setCurrentStep(resumeStep);
+      /*
+       * Só retoma o passo se o usuário ainda não avançou. Esta função é
+       * assíncrona (espera uma query), e antes ela sobrescrevia o passo atual
+       * ao resolver: um clique rápido em "Vamos começar" ia para o passo 1 e
+       * era jogado de volta para 0 — getResumeStep devolve 0 quando nada foi
+       * completado. O clique simplesmente sumia, no primeiro contato do
+       * usuário com o produto.
+       */
+      setCurrentStep((prev) => (prev === 0 ? resumeStep : prev));
 
       if ((p.onboarding_step ?? 1) < resumeStep + 1) {
         await supabase.from("profiles").update({ onboarding_step: resumeStep + 1 } as any).eq("id", user.id);

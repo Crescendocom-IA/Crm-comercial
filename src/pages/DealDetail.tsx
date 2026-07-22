@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { supabase } from "@/integrations/supabase/client";
 import { DealQualification } from "@/components/crm/DealQualification";
 import { useOrg } from "@/hooks/useOrg";
@@ -23,6 +24,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { fireWebhook, fireAutomations } from "@/lib/webhooks";
+import { logAudit } from "@/lib/audit";
 import type { Database } from "@/integrations/supabase/types";
 
 type Deal = Database["public"]["Tables"]["deals"]["Row"];
@@ -131,6 +133,8 @@ export default function DealDetail() {
   const saveTitle = async () => {
     if (!titleDraft.trim()) return;
     await supabase.from("deals").update({ title: titleDraft }).eq("id", deal.id);
+    void logAudit({ orgId: deal.org_id, action: "update", entityType: "deal", entityId: deal.id,
+      oldValues: { title: deal.title }, newValues: { title: titleDraft } });
     setDeal({ ...deal, title: titleDraft });
     setEditingTitle(false);
     toast({ title: "Título atualizado" });
@@ -139,6 +143,8 @@ export default function DealDetail() {
   const saveValue = async () => {
     const val = Number(valueDraft) || 0;
     await supabase.from("deals").update({ value: val, currency: currencyDraft }).eq("id", deal.id);
+    void logAudit({ orgId: deal.org_id, action: "update", entityType: "deal", entityId: deal.id,
+      oldValues: { value: deal.value }, newValues: { value: val } });
     setDeal({ ...deal, value: val, currency: currencyDraft });
     setEditingValue(false);
     toast({ title: "Valor atualizado" });
@@ -146,6 +152,13 @@ export default function DealDetail() {
 
   const changeStage = async (stageId: string) => {
     await supabase.from("deals").update({ stage_id: stageId }).eq("id", deal.id);
+    // Guarda os NOMES dos estágios, não os uuids: o histórico é para leitura
+    // humana, e "Proposta → Negociação" diz algo que dois uuids não dizem.
+    void logAudit({
+      orgId: deal.org_id, action: "update", entityType: "deal", entityId: deal.id,
+      oldValues: { stage: stages.find((s) => s.id === deal.stage_id)?.name ?? null },
+      newValues: { stage: stages.find((s) => s.id === stageId)?.name ?? null },
+    });
     setDeal({ ...deal, stage_id: stageId });
     fireAutomations(orgId, "deal.stage_changed", { deal_id: deal.id, stage_id: stageId });
     toast({ title: "Estágio atualizado" });
@@ -153,6 +166,10 @@ export default function DealDetail() {
 
   const markAsWon = async () => {
     await supabase.from("deals").update({ status: "won" }).eq("id", deal.id);
+    void logAudit({
+      orgId: deal.org_id, action: "update", entityType: "deal", entityId: deal.id,
+      oldValues: { status: deal.status }, newValues: { status: "won" },
+    });
     setDeal({ ...deal, status: "won" });
     fireWebhook(orgId, "deal.won", { deal_id: deal.id, title: deal.title, value: deal.value });
     fireAutomations(orgId, "deal.won", { deal_id: deal.id, value: deal.value });
@@ -162,6 +179,10 @@ export default function DealDetail() {
   const confirmLoss = async () => {
     const reason = lossNote ? `${lossReason}: ${lossNote}` : lossReason;
     await supabase.from("deals").update({ status: "lost", loss_reason: reason }).eq("id", deal.id);
+    void logAudit({
+      orgId: deal.org_id, action: "update", entityType: "deal", entityId: deal.id,
+      oldValues: { status: deal.status }, newValues: { status: "lost", loss_reason: reason },
+    });
     setDeal({ ...deal, status: "lost" });
     fireWebhook(orgId, "deal.lost", { deal_id: deal.id, title: deal.title, loss_reason: reason });
     fireAutomations(orgId, "deal.lost", { deal_id: deal.id, loss_reason: reason });
@@ -338,6 +359,20 @@ export default function DealDetail() {
               <div className="py-10 text-center text-muted-foreground text-sm">Nenhuma atividade registrada</div>
             )}
           </div>
+
+          {/*
+            Histórico de alterações do registro. Vai como Card, não como aba:
+            esta página não usa Tabs, e criar uma só para isto reestruturaria o
+            layout de 3 colunas inteiro.
+          */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">Histórico</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ActivityTimeline entityType="deal" entityId={deal.id} />
+            </CardContent>
+          </Card>
         </div>
 
         {/* Right sidebar */}

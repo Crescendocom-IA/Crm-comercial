@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { logAudit } from "@/lib/audit";
 import { useOrg } from "@/hooks/useOrg";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -55,6 +56,10 @@ export function ContactCreateModal({ open, onOpenChange, onCreated, companies }:
         company_id: form.company_id || null,
       }).select().single();
       if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
+      void logAudit({
+        orgId, action: "create", entityType: "contact", entityId: inserted?.id,
+        newValues: { first_name: form.first_name, last_name: form.last_name, email: form.email },
+      });
       fireWebhook(orgId, "contact.created", inserted ?? {});
       fireAutomations(orgId, "contact.created", { contact_id: inserted?.id, lead_score: inserted?.lead_score, status: inserted?.status });
       onOpenChange(false);

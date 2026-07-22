@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { logAudit } from "@/lib/audit";
+import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { useAuth } from "@/contexts/AuthContext";
@@ -92,12 +94,24 @@ export function ContactDrawer({ contact, onClose, onUpdate, companies, members }
 
   const handleSave = async () => {
     if (!contact) return;
-    const { error } = await supabase.from("contacts").update({
+    const next = {
       first_name: form.first_name, last_name: form.last_name, email: form.email,
       phone: form.phone, title: form.title, status: form.status as ContactStatus,
       linkedin_url: form.linkedin_url, company_id: (form as any).company_id || null,
-    }).eq("id", contact.id);
+    };
+    const { error } = await supabase.from("contacts").update(next).eq("id", contact.id);
     if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
+    // Só os campos editáveis vão para o log: o diff da timeline compara
+    // old/new e ignora o que não mudou.
+    void logAudit({
+      orgId: contact.org_id, action: "update", entityType: "contact", entityId: contact.id,
+      oldValues: {
+        first_name: contact.first_name, last_name: contact.last_name, email: contact.email,
+        phone: contact.phone, title: contact.title, status: contact.status,
+        linkedin_url: contact.linkedin_url, company_id: (contact as any).company_id ?? null,
+      },
+      newValues: next,
+    });
     setEditing(false);
     onUpdate();
     toast({ title: "Contato atualizado" });
@@ -148,6 +162,7 @@ export function ContactDrawer({ contact, onClose, onUpdate, companies, members }
             <TabsTrigger value="activities" className="flex-1">Atividades</TabsTrigger>
             <TabsTrigger value="deals" className="flex-1">Negócios</TabsTrigger>
             <TabsTrigger value="notes" className="flex-1">Notas</TabsTrigger>
+            <TabsTrigger value="history" className="flex-1">Histórico</TabsTrigger>
           </TabsList>
 
           {/* Overview */}
@@ -339,6 +354,10 @@ export function ContactDrawer({ contact, onClose, onUpdate, companies, members }
             {activities.filter((a) => a.type === "note").length === 0 && (
               <p className="text-center text-sm text-muted-foreground py-6">Nenhuma nota</p>
             )}
+          </TabsContent>
+
+          <TabsContent value="history" className="mt-4">
+            <ActivityTimeline entityType="contact" entityId={contact.id} />
           </TabsContent>
         </Tabs>
       </SheetContent>

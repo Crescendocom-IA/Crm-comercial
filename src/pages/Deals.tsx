@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
+import { logAudit } from "@/lib/audit";
 import { EmptyState } from "@/components/crm/EmptyState";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -328,6 +329,10 @@ export default function Deals() {
           contact_id: form.contact_id || null, company_id: form.company_id || null,
         }).select().single();
         if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
+        void logAudit({
+          orgId, action: "create", entityType: "deal", entityId: inserted?.id,
+          newValues: { title: form.title, value: Number(form.value) || 0 },
+        });
         fireWebhook(orgId, "deal.created", inserted ?? {});
         if (inserted?.contact_id) applyScoreEvent(orgId, inserted.contact_id, "deal_created");
       }

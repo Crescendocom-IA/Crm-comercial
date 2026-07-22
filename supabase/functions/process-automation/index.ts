@@ -181,18 +181,46 @@ async function executeAction(supabase: any, orgId: string, action: any, payload:
     case "create_task": {
       const dueDate = new Date();
       dueDate.setDate(dueDate.getDate() + (cfg.due_days || 1));
+
+      /*
+       * Resolve o responsável em cascata. Uma tarefa com user_id null some do
+       * /tasks, que abre no filtro "Minhas" e esconde não atribuídas — foi o
+       * que o teste E2E revelou. Nunca criamos tarefa sem dono:
+       *   config explícita > dono do deal > dono do contato > owner da org >
+       *   qualquer membro da org.
+       */
+      let assignee: string | null = cfg.assigned_to || cfg.user_id || null;
+      if (!assignee && payload?.deal_id) {
+        const { data } = await supabase.from("deals").select("owner_id").eq("id", payload.deal_id).maybeSingle();
+        assignee = data?.owner_id || null;
+      }
+      if (!assignee && payload?.contact_id) {
+        const { data } = await supabase.from("contacts").select("owner_id").eq("id", payload.contact_id).maybeSingle();
+        assignee = data?.owner_id || null;
+      }
+      if (!assignee) {
+        const { data } = await supabase.from("user_roles").select("user_id").eq("org_id", orgId).eq("role", "owner").limit(1).maybeSingle();
+        assignee = data?.user_id || null;
+      }
+      if (!assignee) {
+        // Fallback final: org sem owner (dado legado) — pega qualquer membro.
+        const { data } = await supabase.from("user_roles").select("user_id").eq("org_id", orgId).limit(1).maybeSingle();
+        assignee = data?.user_id || null;
+      }
+
       const { error } = await supabase.from("activities").insert({
         org_id: orgId,
         type: "task",
         title: cfg.title || "Tarefa automática",
         body: cfg.body || `Criada pela automação. Prioridade: ${cfg.priority || "medium"}`,
         due_date: dueDate.toISOString(),
+        user_id: assignee,
         deal_id: payload?.deal_id || null,
         contact_id: payload?.contact_id || null,
         company_id: payload?.company_id || null,
       });
       if (error) throw new Error(`create_task: ${error.message}`);
-      return { created: true };
+      return { created: true, assigned_to: assignee };
     }
 
     case "create_note": {

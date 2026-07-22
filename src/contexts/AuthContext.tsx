@@ -5,10 +5,18 @@ import type { Database } from "@/integrations/supabase/types";
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 
+export type Role = "owner" | "admin" | "member";
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
+  /**
+   * Papel do usuário na org do profile. Carregado UMA vez aqui, junto do
+   * profile, e distribuído por contexto — antes cada componente que chamava
+   * useRole() disparava a própria query em user_roles (14 delas por tela).
+   */
+  role: Role | null;
   loading: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -18,6 +26,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
   profile: null,
+  role: null,
   loading: true,
   signOut: async () => {},
   refreshProfile: async () => {},
@@ -29,6 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [role, setRole] = useState<Role | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadProfile = useCallback(async (userId: string) => {
@@ -82,6 +92,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setProfile(result);
+
+    /*
+     * Busca o papel na mesma passada do profile. Como todo caminho que atualiza
+     * o profile passa por aqui (login, onAuthStateChange, refreshProfile), o
+     * papel acompanha automaticamente — inclusive quando o usuário cria/troca de
+     * org, já que o CompanyStep chama refreshProfile() depois.
+     */
+    let resolvedRole: Role | null = null;
+    if (result?.org_id) {
+      const { data: roleRow, error: roleError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("org_id", result.org_id)
+        .maybeSingle();
+      if (roleError) {
+        console.warn("[AuthContext] role fetch error", roleError);
+      }
+      // Sem linha em user_roles, o menor privilégio é o padrão certo.
+      resolvedRole = (roleRow?.role as Role) ?? "member";
+    }
+    setRole(resolvedRole);
+
+    // loading só cai depois do papel resolvido: se caísse antes, haveria um
+    // instante com loading=false e role=null, e as ações privilegiadas
+    // sumiriam para reaparecer logo em seguida.
     setLoading(false);
   }, []);
 
@@ -99,6 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }, 0);
         } else {
           setProfile(null);
+          setRole(null);
           setLoading(false);
         }
       }
@@ -127,10 +164,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setSession(null);
     setProfile(null);
+    setRole(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, session, profile, role, loading, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

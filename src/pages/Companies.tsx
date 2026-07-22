@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRole } from "@/hooks/useRole";
 import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
+import { useIndustries } from "@/hooks/useIndustries";
 import { useDebounce } from "@/hooks/useDebounce";
 import { EmptyState } from "@/components/crm/EmptyState";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
@@ -49,6 +50,9 @@ export default function Companies() {
   const { orgId } = useOrg();
   const { user } = useAuth();
   const { toast } = useToast();
+  // Lista configurada da org, não derivada da página: derivar deixaria o filtro
+  // mostrando só as indústrias presentes nos 50 registros carregados.
+  const { industries } = useIndustries();
 
   const [companies, setCompanies] = useState<Company[]>([]);
   const [members, setMembers] = useState<Profile[]>([]);
@@ -59,6 +63,7 @@ export default function Companies() {
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
   const [filters, setFilters] = useState<CompanyFilters>({});
   const [showFilters, setShowFilters] = useState(false);
   const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
@@ -87,59 +92,67 @@ export default function Companies() {
    */
   useEffect(() => {
     const id = searchParams.get("id");
-    if (!id || companies.length === 0) return;
-    const found = companies.find((c) => c.id === id);
-    if (found) setDrawerCompany(found);
+    if (!id) return;
+    /*
+     * Busca a empresa DIRETO pelo id, em vez de procurá-la na lista carregada.
+     * Com paginação no servidor a lista é só a página atual, e a empresa
+     * vinda do link poderia estar em qualquer outra — o drawer nunca abriria.
+     */
+    void supabase
+      .from("companies")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle()
+      .then(({ data }) => { if (data) setDrawerCompany(data as Company); });
     searchParams.delete("id");
     setSearchParams(searchParams, { replace: true });
-  }, [searchParams, setSearchParams, companies]);
+  }, [searchParams, setSearchParams]);
+
+  /** Busca e filtros na query, não em memória. */
+  const applyFilters = useCallback((q: any) => {
+    if (debouncedSearch) {
+      // Vírgula e parênteses são sintaxe do .or() do PostgREST.
+      const term = debouncedSearch.replace(/[,()]/g, " ").trim();
+      if (term) q = q.or(`name.ilike.%${term}%,domain.ilike.%${term}%,industry.ilike.%${term}%`);
+    }
+    if (filters.industry) q = q.eq("industry", filters.industry);
+    if (filters.size) q = q.eq("size", filters.size);
+    if (filters.ownerId) q = q.eq("owner_id", filters.ownerId);
+    return q;
+  }, [debouncedSearch, filters]);
+
+  const applySort = useCallback(
+    (q: any) => q.order(sortKey, { ascending: sortDir === "asc" }),
+    [sortKey, sortDir],
+  );
 
   const fetchData = useCallback(async () => {
     if (!orgId) return;
+    let cQuery = supabase.from("companies").select("*", { count: "exact" }).eq("org_id", orgId);
+    cQuery = applySort(applyFilters(cQuery))
+      .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+
     const [cRes, mRes] = await Promise.all([
-      supabase.from("companies").select("*").eq("org_id", orgId).order("created_at", { ascending: false }),
+      cQuery,
       supabase.from("profiles").select("*").eq("org_id", orgId),
     ]);
     setCompanies(cRes.data || []);
+    setTotalCount(cRes.count ?? 0);
     setMembers(mRes.data || []);
     setLoading(false);
-  }, [orgId]);
+  }, [orgId, page, applyFilters, applySort]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Get unique industries for filter
-  const industries = useMemo(() => {
-    return [...new Set(companies.map((c) => c.industry).filter(Boolean))] as string[];
-  }, [companies]);
+  // Filtro/busca/ordenação novos invalidam a página atual.
+  useEffect(() => { setPage(0); }, [debouncedSearch, filters, sortKey, sortDir]);
 
-  const filtered = useMemo(() => {
-    return companies.filter((c) => {
-      const s = `${c.name} ${c.domain} ${c.industry}`.toLowerCase();
-      if (debouncedSearch && !s.includes(debouncedSearch.toLowerCase())) return false;
-      if (filters.industry && c.industry !== filters.industry) return false;
-      if (filters.size && c.size !== filters.size) return false;
-      if (filters.ownerId && c.owner_id !== filters.ownerId) return false;
-      return true;
-    });
-  }, [companies, debouncedSearch, filters]);
-
-  const sorted = useMemo(() => {
-    return [...filtered].sort((a, b) => {
-      let cmp = 0;
-      switch (sortKey) {
-        case "name": cmp = a.name.localeCompare(b.name); break;
-        case "domain": cmp = (a.domain || "").localeCompare(b.domain || ""); break;
-        case "industry": cmp = (a.industry || "").localeCompare(b.industry || ""); break;
-        case "size": cmp = (a.size || "").localeCompare(b.size || ""); break;
-        case "revenue": cmp = (Number(a.revenue) || 0) - (Number(b.revenue) || 0); break;
-        case "created_at": cmp = (a.created_at || "").localeCompare(b.created_at || ""); break;
-      }
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-  }, [filtered, sortKey, sortDir]);
-
-  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
-  const paginated = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  /*
+   * `companies` já vem filtrado, ordenado e paginado do servidor. `paginated`
+   * fica como alias para o JSX não mudar.
+   */
+  const paginated = companies;
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
@@ -165,8 +178,15 @@ export default function Companies() {
     toast({ title: `${ids.length} empresas excluídas` });
   };
 
-  const exportCSV = () => {
-    const rows = sorted.map((c) => ({
+  const exportCSV = async () => {
+    // Busca própria sem range: exportar é sobre todos os registros filtrados,
+    // não sobre a página aberta.
+    if (!orgId) return;
+    let q = supabase.from("companies").select("*").eq("org_id", orgId);
+    q = applySort(applyFilters(q));
+    const { data } = await q;
+
+    const rows = (data || []).map((c) => ({
       Nome: c.name, Domínio: c.domain || "", Indústria: c.industry || "",
       Tamanho: c.size || "", Receita: c.revenue || "", Website: c.website || "",
     }));
@@ -214,7 +234,7 @@ export default function Companies() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Empresas</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">{filtered.length} empresas</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">{totalCount} empresas</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex rounded-lg border border-border bg-muted/50 p-0.5">
@@ -392,7 +412,7 @@ export default function Companies() {
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Página {page + 1} de {totalPages} · {sorted.length} empresas</span>
+          <span className="text-sm text-muted-foreground">Página {page + 1} de {totalPages} · {totalCount} empresas</span>
           <div className="flex gap-1">
             <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}><ChevronLeft className="h-4 w-4" /></Button>
             <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}><ChevronRight className="h-4 w-4" /></Button>

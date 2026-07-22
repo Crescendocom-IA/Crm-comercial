@@ -12,8 +12,9 @@ test.describe("AI Copilot", () => {
     await login(page);
     await page.goto("/dashboard");
 
-    // Botão flutuante no canto inferior direito.
-    await page.locator("button.fixed.bottom-5.right-5").click();
+    // Abre pelo atalho Ctrl+J. O botão flutuante fica no mesmo canto que o
+    // viewport de toasts, que intercepta o clique — o atalho é robusto.
+    await page.keyboard.press("Control+j");
     const input = page.getByPlaceholder("Pergunte algo sobre seus dados...");
     await expect(input).toBeVisible();
     await input.fill("Liste em uma frase quantos negócios abertos eu tenho.");

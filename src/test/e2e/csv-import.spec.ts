@@ -17,12 +17,16 @@ test.describe("Import de CSV", () => {
     requireCreds();
     await login(page);
 
-    // CSV com vírgula dentro de aspas na coluna empresa.
+    /*
+     * A vírgula entre aspas vai no CARGO — contatos não têm campo "empresa" no
+     * mapeamento (empresa é entidade separada). "Diretor, Vendas" é o caso que
+     * um split ingênuo por vírgula quebraria em duas colunas.
+     */
     const marker = Date.now();
     const csv =
-      "first_name,last_name,company\n" +
-      `Ana${marker},Souza,"Souza, Lima e Cia"\n` +
-      `Bruno${marker},Costa,"Costa, Reis Ltda"\n`;
+      "first_name,last_name,title\n" +
+      `Ana${marker},Souza,"Diretor, Vendas"\n` +
+      `Bruno${marker},Costa,"Gerente, Contas"\n`;
     const dir = mkdtempSync(join(tmpdir(), "e2e-csv-"));
     const csvPath = join(dir, "contatos.csv");
     writeFileSync(csvPath, csv, "utf8");
@@ -35,15 +39,15 @@ test.describe("Import de CSV", () => {
     // Mapeia as três colunas (a UI de mapping aparece após o parse).
     await expect(page.getByText(/mapeie as colunas/i)).toBeVisible({ timeout: 10_000 });
     const selects = page.locator('[role="combobox"]');
-    const labels = ["Nome", "Sobrenome", "Empresa"];
+    const labels = ["Nome", "Sobrenome", "Cargo"];
     for (let i = 0; i < 3; i++) {
       await selects.nth(i).click();
       await page.getByRole("option", { name: labels[i], exact: true }).click();
     }
     await page.getByRole("button", { name: /^preview$/i }).click();
 
-    // No preview, a célula da empresa deve conter a vírgula inteira.
-    await expect(page.getByText("Souza, Lima e Cia")).toBeVisible({ timeout: 10_000 });
+    // No preview, o cargo deve conter a vírgula inteira, não quebrado em duas células.
+    await expect(page.getByText("Diretor, Vendas")).toBeVisible({ timeout: 10_000 });
 
     // Confirma a importação.
     await page.getByRole("button", { name: /importar/i }).click();

@@ -25,8 +25,8 @@ test.describe("Import de CSV", () => {
     const marker = Date.now();
     const csv =
       "first_name,last_name,title\n" +
-      `Ana${marker},Souza,"Diretor, Vendas"\n` +
-      `Bruno${marker},Costa,"Gerente, Contas"\n`;
+      `Ana${marker},Souza,"Diretor, Vendas ${marker}"\n` +
+      `Bruno${marker},Costa,"Gerente, Contas ${marker}"\n`;
     const dir = mkdtempSync(join(tmpdir(), "e2e-csv-"));
     const csvPath = join(dir, "contatos.csv");
     writeFileSync(csvPath, csv, "utf8");
@@ -47,7 +47,7 @@ test.describe("Import de CSV", () => {
     await page.getByRole("button", { name: /^preview$/i }).click();
 
     // No preview, o cargo deve conter a vírgula inteira, não quebrado em duas células.
-    await expect(page.getByText("Diretor, Vendas")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(`Diretor, Vendas ${marker}`)).toBeVisible({ timeout: 10_000 });
 
     // Confirma a importação.
     await page.getByRole("button", { name: /importar/i }).click();

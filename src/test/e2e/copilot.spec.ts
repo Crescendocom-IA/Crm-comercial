@@ -12,9 +12,10 @@ test.describe("AI Copilot", () => {
     await login(page);
     await page.goto("/dashboard");
 
-    // Abre pelo atalho Ctrl+J. O botão flutuante fica no mesmo canto que o
-    // viewport de toasts, que intercepta o clique — o atalho é robusto.
-    await page.keyboard.press("Control+j");
+    // Ctrl+J é atalho do Chrome (abre Downloads) — o browser o intercepta antes
+    // da página. Clico o botão flutuante com force para vencer o viewport de
+    // toasts que fica no mesmo canto e intercepta o clique normal.
+    await page.locator("button.fixed.bottom-5.right-5").click({ force: true });
     const input = page.getByPlaceholder("Pergunte algo sobre seus dados...");
     await expect(input).toBeVisible();
     await input.fill("Liste em uma frase quantos negócios abertos eu tenho.");

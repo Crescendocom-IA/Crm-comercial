@@ -47,6 +47,8 @@ export type DealWithRelations = Deal & {
 
 type ViewMode = "kanban" | "list" | "forecast";
 
+const PAGE_SIZE = 50;
+
 export default function Deals() {
   const { orgId } = useOrg();
   const { user } = useAuth();
@@ -76,6 +78,8 @@ export default function Deals() {
    */
   const debouncedSearch = useDebounce(filters.search ?? "", 300);
   const [presetStageId, setPresetStageId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Loss reason modal
   const [lossModalOpen, setLossModalOpen] = useState(false);
@@ -142,12 +146,44 @@ export default function Deals() {
     fetchData();
   };
 
+  /** Busca e filtros na query. */
+  const applyDealFilters = useCallback((q: any) => {
+    if (debouncedSearch) {
+      // Sem .or() aqui: a busca é só por título, então .ilike() direto — e a
+      // vírgula do usuário não corre risco de virar sintaxe.
+      q = q.ilike("title", `%${debouncedSearch}%`);
+    }
+    if (filters.ownerId) q = q.eq("owner_id", filters.ownerId);
+    if (filters.minValue) q = q.gte("value", filters.minValue);
+    if (filters.maxValue) q = q.lte("value", filters.maxValue);
+    if (filters.closeDateFrom) q = q.gte("close_date", filters.closeDateFrom);
+    if (filters.closeDateTo) q = q.lte("close_date", filters.closeDateTo);
+    return q;
+  }, [debouncedSearch, filters]);
+
   const fetchData = useCallback(async () => {
     if (!orgId) return;
+
+    /*
+     * Só a LISTA é paginada. Kanban e forecast agrupam e somam por estágio —
+     * "página 1 do kanban" não significa nada, e os totais por coluna sairiam
+     * errados se só 50 negócios chegassem. Essas duas visões carregam tudo que
+     * casa os filtros, o que é inerente ao que elas mostram.
+     */
+    let dQuery = supabase
+      .from("deals")
+      .select("*, contact:contacts!deals_contact_id_fkey(*), company:companies!deals_company_id_fkey(*)", { count: "exact" })
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: false });
+    dQuery = applyDealFilters(dQuery);
+    if (viewMode === "list") {
+      dQuery = dQuery.range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+    }
+
     const [pRes, sRes, dRes, cRes, coRes, mRes] = await Promise.all([
       supabase.from("pipelines").select("*").eq("org_id", orgId).order("is_default", { ascending: false }).order("created_at", { ascending: false }),
       supabase.from("pipeline_stages").select("*").eq("org_id", orgId).order("order"),
-      supabase.from("deals").select("*, contact:contacts!deals_contact_id_fkey(*), company:companies!deals_company_id_fkey(*)").eq("org_id", orgId),
+      dQuery,
       supabase.from("contacts").select("*").eq("org_id", orgId),
       supabase.from("companies").select("*").eq("org_id", orgId),
       supabase.from("profiles").select("*").eq("org_id", orgId),
@@ -163,6 +199,7 @@ export default function Deals() {
       owner: allMembers.find((m) => m.id === d.owner_id) || null,
     }));
     setDeals(enrichedDeals);
+    setTotalCount(dRes.count ?? enrichedDeals.length);
     setContacts(cRes.data || []);
     setCompanies(coRes.data || []);
     setMembers(allMembers);
@@ -177,9 +214,12 @@ export default function Deals() {
       setSelectedPipeline((prev) => prev || def.id);
     }
     setLoading(false);
-  }, [orgId]);
+  }, [orgId, page, viewMode, applyDealFilters]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Filtro, busca ou troca de visão invalidam a página atual.
+  useEffect(() => { setPage(0); }, [debouncedSearch, filters, viewMode]);
 
   /*
    * O payload do realtime traz só as colunas de `deals` — sem os joins de
@@ -248,20 +288,17 @@ export default function Deals() {
   const pipelineStages = stages.filter((s) => s.pipeline_id === selectedPipeline);
 
   // Apply filters
-  const filteredDeals = deals.filter((d) => {
-    if (debouncedSearch && !(d.title || "").toLowerCase().includes(debouncedSearch.toLowerCase())) return false;
-    if (filters.ownerId && d.owner_id !== filters.ownerId) return false;
-    if (filters.minValue && (Number(d.value) || 0) < filters.minValue) return false;
-    if (filters.maxValue && (Number(d.value) || 0) > filters.maxValue) return false;
-    if (filters.closeDateFrom && d.close_date && d.close_date < filters.closeDateFrom) return false;
-    if (filters.closeDateTo && d.close_date && d.close_date > filters.closeDateTo) return false;
-    // For kanban, filter to current pipeline stages
-    if (viewMode === "kanban") {
-      const stageIds = pipelineStages.map((s) => s.id);
-      if (d.stage_id && !stageIds.includes(d.stage_id) && d.status === "open") return false;
-    }
-    return true;
-  });
+  /*
+   * `deals` já vem filtrado do servidor. Resta só o recorte de pipeline do
+   * kanban, que não é filtro de dados e sim da visão: o kanban mostra as
+   * colunas do pipeline selecionado.
+   */
+  const filteredDeals = viewMode === "kanban"
+    ? deals.filter((d) => {
+        const stageIds = pipelineStages.map((s) => s.id);
+        return !(d.stage_id && !stageIds.includes(d.stage_id) && d.status === "open");
+      })
+    : deals;
 
   const handleDragEnd = async (dealId: string, newStageId: string) => {
     // Guarda o estágio anterior ANTES do update otimista, para poder reverter.
@@ -431,7 +468,7 @@ export default function Deals() {
 
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">
-            {filteredDeals.length} {filteredDeals.length === 1 ? "negócio" : "negócios"}
+            {totalCount} {totalCount === 1 ? "negócio" : "negócios"}
           </span>
 
           {pipelines.length > 0 && (
@@ -503,14 +540,37 @@ export default function Deals() {
       )}
 
       {!loading && deals.length > 0 && viewMode === "list" && (
-        <DealsList
-          deals={filteredDeals}
-          stages={stages}
-          selectedDeals={selectedDeals}
-          onSelectionChange={setSelectedDeals}
-          onDealClick={(d) => navigate(`/deals/${d.id}`)}
-          onBatchAction={handleBatchAction}
-        />
+        <>
+          <DealsList
+            deals={filteredDeals}
+            stages={stages}
+            selectedDeals={selectedDeals}
+            onSelectionChange={setSelectedDeals}
+            onDealClick={(d) => navigate(`/deals/${d.id}`)}
+            onBatchAction={handleBatchAction}
+          />
+          {/* Paginação só existe na lista — ver o comentário em fetchData. */}
+          {totalCount > PAGE_SIZE && (
+            <div className="flex items-center justify-between pt-2">
+              <span className="text-sm text-muted-foreground">
+                Página {page + 1} de {Math.ceil(totalCount / PAGE_SIZE)} · {totalCount} negócios
+              </span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
+                  Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= Math.ceil(totalCount / PAGE_SIZE) - 1}
+                  onClick={() => setPage(page + 1)}
+                >
+                  Próxima
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {!loading && deals.length > 0 && viewMode === "forecast" && (

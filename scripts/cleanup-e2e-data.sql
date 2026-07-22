@@ -22,9 +22,10 @@ DELETE FROM public.deals
 WHERE title LIKE 'Deal ganhar %' OR title LIKE 'E2E Deal %';
 
 -- 3. Contatos importados pelo teste de CSV. Assinatura pelo cargo (title), que é
---    inequívoco: "Diretor, Vendas <ts>" e "Gerente, Contas <ts>".
+--    inequívoco. Sem espaço antes do %: uma iteração antiga gravou o title sem
+--    marcador ("Diretor, Vendas"), então o padrão precisa casar os dois casos.
 DELETE FROM public.contacts
-WHERE title LIKE 'Diretor, Vendas %' OR title LIKE 'Gerente, Contas %';
+WHERE title LIKE 'Diretor, Vendas%' OR title LIKE 'Gerente, Contas%';
 
 -- 4. Automações de teste ("Auto E2E <timestamp>").
 --    Remove logs antes (FK automation_logs -> automations).

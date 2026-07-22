@@ -276,13 +276,17 @@ export default function Automations() {
       created_by: user?.id,
     };
     if (editId) {
+      // Editar não mexe no is_active: preserva ligada/desligada como estava.
       await supabase.from("automations").update(payload as any).eq("id", editId);
     } else {
-      await supabase.from("automations").insert(payload as any);
+      // Nova automação nasce ATIVA. O default da coluna é false, o que fazia
+      // toda automação recém-criada não disparar até alguém ligar o switch —
+      // quem monta a regra espera que ela funcione.
+      await supabase.from("automations").insert({ ...payload, is_active: true } as any);
     }
     setBuilderOpen(false);
     fetchAll();
-    toast({ title: editId ? "Automação atualizada" : "Automação criada" });
+    toast({ title: editId ? "Automação atualizada" : "Automação criada e ativada" });
   };
 
   const toggleActive = async (id: string, active: boolean) => {

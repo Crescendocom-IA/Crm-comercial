@@ -16,10 +16,13 @@ import {
   Target,
   Plug,
   Shield,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTheme } from "@/contexts/ThemeContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Sidebar,
@@ -70,6 +73,12 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const location = useLocation();
   const { profile, signOut } = useAuth();
+  const { theme, setTheme } = useTheme();
+
+  // Mesmo toggle direto claro↔escuro do header, no rodapé do usuário.
+  const isDark =
+    theme === "dark" ||
+    (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   
   const [atRiskOpen, setAtRiskOpen] = useState(false);
   
@@ -157,7 +166,17 @@ export function AppSidebar() {
               </div>
             )}
             {!collapsed && (
-              <button onClick={signOut} className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
+              <button
+                onClick={() => setTheme(isDark ? "light" : "dark")}
+                aria-label={isDark ? "Mudar para tema claro" : "Mudar para tema escuro"}
+                title={isDark ? "Tema claro" : "Tema escuro"}
+                className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+              >
+                {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </button>
+            )}
+            {!collapsed && (
+              <button onClick={signOut} aria-label="Sair" className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors">
                 <LogOut className="h-4 w-4" />
               </button>
             )}

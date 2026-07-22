@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Search, Plus, Users, Building2, Handshake, ClipboardList } from "lucide-react";
+import { Search, Plus, Users, Building2, Handshake, ClipboardList, Sun, Moon } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { useTheme } from "@/contexts/ThemeContext";
 import { NotificationBell } from "@/components/crm/NotificationBell";
 import { AIInsightsPanel } from "@/components/crm/AIInsightsPanel";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,17 @@ interface AppHeaderProps {
 export function AppHeader({ onOpenSearch, actions }: AppHeaderProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { theme, setTheme } = useTheme();
+
+  /*
+   * Toggle direto claro↔escuro (sem opção "sistema", como pedido). Quando o tema
+   * é "system", derivo o estado efetivo pela media query para o ícone bater com
+   * o que está na tela; o primeiro clique já fixa um valor explícito.
+   */
+  const isDark =
+    theme === "dark" ||
+    (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const toggleTheme = () => setTheme(isDark ? "light" : "dark");
 
   const quickActions = [
     { label: "Novo Contato", icon: Users, path: "/contacts?action=new" },
@@ -101,6 +113,16 @@ export function AppHeader({ onOpenSearch, actions }: AppHeaderProps) {
           </DropdownMenuContent>
         </DropdownMenu>
         <AIInsightsPanel />
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8"
+          onClick={toggleTheme}
+          aria-label={isDark ? "Mudar para tema claro" : "Mudar para tema escuro"}
+          title={isDark ? "Tema claro" : "Tema escuro"}
+        >
+          {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </Button>
         <NotificationBell />
         <button
           onClick={onOpenSearch}

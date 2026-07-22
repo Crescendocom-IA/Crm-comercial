@@ -88,6 +88,7 @@ export default function Contacts() {
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
   const [filters, setFilters] = useState<ContactFilters>({});
   const [showFilters, setShowFilters] = useState(false);
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
@@ -114,30 +115,93 @@ export default function Contacts() {
   // Risk: last activity per contact
   const [lastActivityMap, setLastActivityMap] = useState<Map<string, Date>>(new Map());
 
+  /**
+   * Aplica busca e filtros na própria query. Antes tudo era baixado e filtrado
+   * em memória; com uma base grande isso trazia a org inteira para o navegador.
+   */
+  const applyFilters = useCallback((q: any) => {
+    if (debouncedSearch) {
+      /*
+       * Vírgula e parênteses são sintaxe do .or() do PostgREST — uma busca por
+       * "Silva, João" quebraria a expressão. Trocados por espaço.
+       */
+      const term = debouncedSearch.replace(/[,()]/g, " ").trim();
+      if (term) {
+        q = q.or(
+          `first_name.ilike.%${term}%,last_name.ilike.%${term}%,email.ilike.%${term}%`,
+        );
+      }
+    }
+    if (filters.status && filters.status !== "all") q = q.eq("status", filters.status);
+    if (filters.ownerId) q = q.eq("owner_id", filters.ownerId);
+    if (filters.companyId) q = q.eq("company_id", filters.companyId);
+    if (filters.createdFrom) q = q.gte("created_at", filters.createdFrom);
+    // Fim do dia: created_at é timestamp, e lte na data crua cortaria em 00:00,
+    // excluindo o próprio dia de createdTo (o off-by-one que já existia aqui).
+    if (filters.createdTo) q = q.lte("created_at", `${filters.createdTo}T23:59:59.999`);
+    return q;
+  }, [debouncedSearch, filters]);
+
+  /** Ordenação no servidor — ordenar só a página traria resultado errado. */
+  const applySort = useCallback((q: any) => {
+    const asc = sortDir === "asc";
+    if (sortKey === "name") {
+      // Não dá para ordenar por concatenação via PostgREST; nome e sobrenome
+      // em sequência dão a mesma ordem na prática.
+      return q.order("first_name", { ascending: asc }).order("last_name", { ascending: asc });
+    }
+    return q.order(sortKey, { ascending: asc });
+  }, [sortKey, sortDir]);
+
   const fetchData = useCallback(async () => {
     if (!orgId) return;
-    const [cRes, coRes, mRes, actRes] = await Promise.all([
-      supabase.from("contacts").select("*").eq("org_id", orgId).order("created_at", { ascending: false }),
+
+    /*
+     * A visão por responsável é um kanban que agrupa TODOS os contatos por dono
+     * — paginar traria 50 espalhados entre as colunas e daria um retrato falso.
+     * Nessa visão a busca não é paginada; nas outras, sim.
+     */
+    const paginate = viewMode !== "owner";
+    let cQuery = supabase.from("contacts").select("*", { count: "exact" }).eq("org_id", orgId);
+    cQuery = applySort(applyFilters(cQuery));
+    if (paginate) cQuery = cQuery.range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+
+    const [cRes, coRes, mRes] = await Promise.all([
+      cQuery,
       supabase.from("companies").select("*").eq("org_id", orgId),
       supabase.from("profiles").select("*").eq("org_id", orgId),
-      supabase.from("activities").select("contact_id,created_at").eq("org_id", orgId).order("created_at", { ascending: false }),
     ]);
-    setContacts(cRes.data || []);
+
+    const rows = cRes.data || [];
+    setContacts(rows);
+    setTotalCount(cRes.count ?? rows.length);
     setCompanies(coRes.data || []);
     setMembers(mRes.data || []);
 
-    // Build last activity map
+    /*
+     * Atividades só dos contatos visíveis. Antes buscava TODAS as atividades da
+     * org para calcular inatividade — o mesmo problema de escala que a
+     * paginação resolve, um nível abaixo.
+     */
     const map = new Map<string, Date>();
-    (actRes.data || []).forEach((a: any) => {
-      if (a.contact_id && a.created_at) {
-        const d = new Date(a.created_at);
-        const existing = map.get(a.contact_id);
-        if (!existing || d > existing) map.set(a.contact_id, d);
-      }
-    });
+    const ids = rows.map((c) => c.id);
+    if (ids.length) {
+      const { data: acts } = await supabase
+        .from("activities")
+        .select("contact_id,created_at")
+        .in("contact_id", ids)
+        .order("created_at", { ascending: false });
+      (acts || []).forEach((a: any) => {
+        if (a.contact_id && a.created_at) {
+          const d = new Date(a.created_at);
+          const existing = map.get(a.contact_id);
+          if (!existing || d > existing) map.set(a.contact_id, d);
+        }
+      });
+    }
     setLastActivityMap(map);
     setLoading(false);
-  }, [orgId]);
+  }, [orgId, page, viewMode, applyFilters, applySort]);
 
   const getInactivityDays = (contactId: string, createdAt: string | null) => {
     const lastAct = lastActivityMap.get(contactId);
@@ -172,40 +236,18 @@ export default function Contacts() {
   };
 
   // Filtering
-  const filtered = useMemo(() => {
-    return contacts.filter((c) => {
-      const searchStr = `${c.first_name} ${c.last_name} ${c.email}`.toLowerCase();
-      if (debouncedSearch && !searchStr.includes(debouncedSearch.toLowerCase())) return false;
-      if (filters.status && filters.status !== "all" && c.status !== filters.status) return false;
-      if (filters.ownerId && c.owner_id !== filters.ownerId) return false;
-      if (filters.companyId && (c as any).company_id !== filters.companyId) return false;
-      // Compara só a parte de data (YYYY-MM-DD): created_at é um timestamp ISO
-      // completo, e "2026-07-15T14:00:00Z" > "2026-07-15" excluía o dia inteiro
-      // de createdTo (off-by-one). Fatiar torna os dois limites inclusivos.
-      if (filters.createdFrom && c.created_at && c.created_at.slice(0, 10) < filters.createdFrom) return false;
-      if (filters.createdTo && c.created_at && c.created_at.slice(0, 10) > filters.createdTo) return false;
-      return true;
-    });
-  }, [contacts, debouncedSearch, filters]);
+  /*
+   * `contacts` já vem filtrado, ordenado e paginado pelo servidor — não há mais
+   * derivação em memória. `paginated` fica como alias para não reescrever o JSX.
+   */
+  const paginated = contacts;
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
-  // Sorting
-  const sorted = useMemo(() => {
-    return [...filtered].sort((a, b) => {
-      let cmp = 0;
-      switch (sortKey) {
-        case "name": cmp = `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`); break;
-        case "email": cmp = (a.email || "").localeCompare(b.email || ""); break;
-        case "status": cmp = (a.status || "").localeCompare(b.status || ""); break;
-        case "title": cmp = (a.title || "").localeCompare(b.title || ""); break;
-        case "created_at": cmp = (a.created_at || "").localeCompare(b.created_at || ""); break;
-      }
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-  }, [filtered, sortKey, sortDir]);
-
-  // Pagination
-  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
-  const paginated = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  // Filtro, busca ou ordenação novos invalidam a página atual: a linha que
+  // estava na página 3 pode nem existir no novo recorte.
+  useEffect(() => {
+    setPage(0);
+  }, [debouncedSearch, filters, sortKey, sortDir]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
@@ -240,8 +282,19 @@ export default function Contacts() {
     toast({ title: `Status atualizado para ${ids.length} contatos` });
   };
 
-  const exportCSV = () => {
-    const rows = sorted.map((c) => {
+  const exportCSV = async () => {
+    /*
+     * Busca própria, sem range: exportar é sobre TODOS os registros que casam os
+     * filtros, não sobre a página aberta. Com paginação no servidor, usar a
+     * lista em memória exportaria só as 50 linhas visíveis — silenciosamente.
+     */
+    if (!orgId) return;
+    let q = supabase.from("contacts").select("*").eq("org_id", orgId);
+    q = applySort(applyFilters(q));
+    const { data } = await q;
+    const source = data || [];
+
+    const rows = source.map((c) => {
       const comp = companies.find((co) => co.id === (c as any).company_id);
       return {
         Nome: c.first_name, Sobrenome: c.last_name || "", Email: c.email || "",
@@ -293,7 +346,7 @@ export default function Contacts() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Contatos</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">{filtered.length} contatos</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">{totalCount} contatos</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex rounded-lg border border-border bg-muted/50 p-0.5">
@@ -525,7 +578,7 @@ export default function Contacts() {
       {/* Owner Kanban View */}
       {!loading && viewMode === "owner" && (
         <ContactsKanbanByOwner
-          contacts={sorted}
+          contacts={contacts}
           members={members}
           companies={companies}
           onContactClick={(c) => setDrawerContact(c)}
@@ -537,7 +590,7 @@ export default function Contacts() {
       {viewMode !== "owner" && totalPages > 1 && (
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">
-            Página {page + 1} de {totalPages} · {sorted.length} contatos
+            Página {page + 1} de {totalPages} · {totalCount} contatos
           </span>
           <div className="flex gap-1">
             <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>

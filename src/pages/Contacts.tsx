@@ -269,7 +269,23 @@ export default function Contacts() {
   // Batch actions
   const batchDelete = async () => {
     const ids = Array.from(selectedContacts);
+    /*
+     * Captura os dados ANTES de apagar: depois do delete não há de onde ler o
+     * nome, e um histórico que diz apenas "excluiu este contato" sem dizer qual
+     * era não ajuda ninguém a entender o que sumiu.
+     */
+    const antes = ids.map((id) => contacts.find((c) => c.id === id));
     await Promise.all(ids.map((id) => supabase.from("contacts").delete().eq("id", id)));
+
+    // Uma entrada por entidade: cada linha do log é uma ação atômica.
+    ids.forEach((id, i) => {
+      const c = antes[i];
+      void logAudit({
+        orgId: orgId!, action: "delete", entityType: "contact", entityId: id,
+        oldValues: c ? { first_name: c.first_name, last_name: c.last_name, email: c.email } : undefined,
+      });
+    });
+
     setSelectedContacts(new Set());
     fetchData();
     toast({ title: `${ids.length} contatos excluídos` });
@@ -277,7 +293,16 @@ export default function Contacts() {
 
   const batchChangeStatus = async (status: ContactStatus) => {
     const ids = Array.from(selectedContacts);
+    const antes = ids.map((id) => contacts.find((c) => c.id === id));
     await Promise.all(ids.map((id) => supabase.from("contacts").update({ status }).eq("id", id)));
+
+    ids.forEach((id, i) => {
+      void logAudit({
+        orgId: orgId!, action: "update", entityType: "contact", entityId: id,
+        oldValues: { status: antes[i]?.status ?? null }, newValues: { status },
+      });
+    });
+
     setSelectedContacts(new Set());
     fetchData();
     toast({ title: `Status atualizado para ${ids.length} contatos` });

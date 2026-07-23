@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRole } from "@/hooks/useRole";
+import { logAudit } from "@/lib/audit";
 import { ErpBadge } from "@/components/crm/ErpBadge";
 import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
 import { useIndustries } from "@/hooks/useIndustries";
@@ -173,7 +174,18 @@ export default function Companies() {
 
   const batchDelete = async () => {
     const ids = Array.from(selectedCompanies);
+    // Dados capturados antes do delete — depois não há de onde ler o nome.
+    const antes = ids.map((id) => companies.find((c) => c.id === id));
     await Promise.all(ids.map((id) => supabase.from("companies").delete().eq("id", id)));
+
+    // Uma entrada por entidade, não uma agregada.
+    ids.forEach((id, i) => {
+      void logAudit({
+        orgId: orgId!, action: "delete", entityType: "company", entityId: id,
+        oldValues: antes[i] ? { name: antes[i]!.name, domain: antes[i]!.domain } : undefined,
+      });
+    });
+
     setSelectedCompanies(new Set());
     fetchData();
     toast({ title: `${ids.length} empresas excluídas` });

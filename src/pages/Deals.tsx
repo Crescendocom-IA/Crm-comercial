@@ -357,6 +357,23 @@ export default function Deals() {
           company_id: form.company_id || null, owner_id: form.owner_id || null,
         }).eq("id", editing.id);
         if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
+        /*
+         * Estágio vai pelo NOME, não pelo uuid — o histórico é para leitura
+         * humana, mesma convenção usada no DealDetail.
+         */
+        const nomeEstagio = (id?: string | null) => stages.find((s) => s.id === id)?.name ?? null;
+        void logAudit({
+          orgId, action: "update", entityType: "deal", entityId: editing.id,
+          oldValues: {
+            title: editing.title, value: editing.value, probability: editing.probability,
+            close_date: editing.close_date, stage: nomeEstagio(editing.stage_id),
+          },
+          newValues: {
+            title: form.title, value: Number(form.value) || 0,
+            probability: Number(form.probability) || 0,
+            close_date: form.close_date, stage: nomeEstagio(form.stage_id),
+          },
+        });
       } else {
         const { data: inserted, error } = await supabase.from("deals").insert({
           org_id: orgId, title: form.title!, value: Number(form.value) || 0,
@@ -409,15 +426,36 @@ export default function Deals() {
 
   const handleBatchAction = async (action: "won" | "lost" | "delete") => {
     const ids = Array.from(selectedDeals);
+    // Estado anterior capturado antes da mutação, para o log dizer o que mudou
+    // (e, no delete, o que existia — depois não há de onde ler).
+    const antes = ids.map((id) => deals.find((d) => d.id === id));
+
+    /** Uma entrada por entidade: cada linha do log é uma ação atômica. */
+    const registrar = (op: "delete" | "update", novos?: Record<string, unknown>) => {
+      ids.forEach((id, i) => {
+        const d = antes[i];
+        void logAudit({
+          orgId, action: op, entityType: "deal", entityId: id,
+          oldValues: op === "delete"
+            ? (d ? { title: d.title, value: d.value, status: d.status } : undefined)
+            : { status: d?.status ?? null },
+          newValues: novos,
+        });
+      });
+    };
+
     if (action === "delete") {
       await Promise.all(ids.map((id) => supabase.from("deals").delete().eq("id", id)));
+      registrar("delete");
       toast({ title: `${ids.length} negócios excluídos` });
     } else if (action === "won") {
       await Promise.all(ids.map((id) => supabase.from("deals").update({ status: "won" }).eq("id", id)));
+      registrar("update", { status: "won" });
       ids.forEach((id) => { fireWebhook(orgId, "deal.won", { deal_id: id }); fireAutomations(orgId, "deal.won", { deal_id: id }); });
       toast({ title: `${ids.length} negócios marcados como ganhos` });
     } else {
       await Promise.all(ids.map((id) => supabase.from("deals").update({ status: "lost" }).eq("id", id)));
+      registrar("update", { status: "lost" });
       ids.forEach((id) => { fireWebhook(orgId, "deal.lost", { deal_id: id }); fireAutomations(orgId, "deal.lost", { deal_id: id }); });
       toast({ title: `${ids.length} negócios marcados como perdidos` });
     }

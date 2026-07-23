@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { toOpenAIStream } from "../_shared/streaming.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,58 +11,6 @@ const corsHeaders = {
  * Reemite o SSE nativo da Anthropic no formato OpenAI-compatible que o
  * frontend (AICopilot.tsx, DashboardAIChat.tsx) já parseia.
  */
-function toOpenAIStream(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
-  const encoder = new TextEncoder();
-  const decoder = new TextDecoder();
-
-  return new ReadableStream({
-    async start(controller) {
-      const reader = body.getReader();
-      let buffer = "";
-
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-
-          let newlineIndex: number;
-          while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
-            let line = buffer.slice(0, newlineIndex);
-            buffer = buffer.slice(newlineIndex + 1);
-            if (line.endsWith("\r")) line = line.slice(0, -1);
-            if (!line.startsWith("data:")) continue;
-
-            const payload = line.slice(5).trim();
-            if (!payload) continue;
-
-            try {
-              const event = JSON.parse(payload);
-              if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
-                controller.enqueue(
-                  encoder.encode(
-                    `data: ${JSON.stringify({ choices: [{ delta: { content: event.delta.text } }] })}\n\n`,
-                  ),
-                );
-              } else if (event.type === "error") {
-                console.error("Anthropic stream error:", event.error);
-              }
-            } catch {
-              // Evento parcial ou não-JSON: ignora e segue.
-            }
-          }
-        }
-      } catch (e) {
-        console.error("ai-sales-manager stream error:", e);
-      } finally {
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-        controller.close();
-        reader.releaseLock();
-      }
-    },
-  });
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -163,7 +112,7 @@ ${crmContext ? `\nDADOS ATUAIS DO CRM:\n${crmContext}` : ""}`;
       });
     }
 
-    return new Response(toOpenAIStream(response.body!), {
+    return new Response(toOpenAIStream(response.body!, "ai-sales-manager"), {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
   } catch (e) {

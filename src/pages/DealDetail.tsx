@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
+import { DealSummaryPanel } from "@/components/crm/DealSummaryPanel";
 import { supabase } from "@/integrations/supabase/client";
 import { DealQualification } from "@/components/crm/DealQualification";
 import { useOrg } from "@/hooks/useOrg";
@@ -20,7 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   ArrowLeft, Trophy, XCircle, Building2, User, Calendar, Percent,
-  Phone, Mail, FileText, CheckSquare, CalendarDays, Edit2, Check, X,
+  Phone, Mail, FileText, CheckSquare, CalendarDays, Edit2, Check, X, Sparkles,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { fireWebhook, fireAutomations } from "@/lib/webhooks";
@@ -75,6 +76,9 @@ export default function DealDetail() {
 
   // Add activity
   const [activityForm, setActivityForm] = useState({ type: "note" as ActivityType, title: "", body: "" });
+
+  // Painel de resumo com IA
+  const [summaryOpen, setSummaryOpen] = useState(false);
 
   const fetchDeal = useCallback(async () => {
     if (!id) return;
@@ -278,17 +282,31 @@ export default function DealDetail() {
         </div>
 
         {/* Quick actions */}
-        {deal.status === "open" && (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={markAsWon} className="text-success border-success/30 hover:bg-success/10">
-              <Trophy className="mr-2 h-4 w-4" />Ganho
-            </Button>
-            <Button variant="outline" onClick={() => setLossModalOpen(true)} className="text-destructive border-destructive/30 hover:bg-destructive/10">
-              <XCircle className="mr-2 h-4 w-4" />Perdido
-            </Button>
-          </div>
-        )}
+        <div className="flex gap-2">
+          {/* Fora do bloco de status: resumir um negócio já ganho ou perdido
+              continua útil, para entender o que levou até ali. */}
+          <Button variant="outline" onClick={() => setSummaryOpen(true)}>
+            <Sparkles className="mr-2 h-4 w-4 text-primary" />Resumir com IA
+          </Button>
+          {deal.status === "open" && (
+            <>
+              <Button variant="outline" onClick={markAsWon} className="text-success border-success/30 hover:bg-success/10">
+                <Trophy className="mr-2 h-4 w-4" />Ganho
+              </Button>
+              <Button variant="outline" onClick={() => setLossModalOpen(true)} className="text-destructive border-destructive/30 hover:bg-destructive/10">
+                <XCircle className="mr-2 h-4 w-4" />Perdido
+              </Button>
+            </>
+          )}
+        </div>
       </div>
+
+      <DealSummaryPanel
+        dealId={deal.id}
+        dealTitle={deal.title}
+        open={summaryOpen}
+        onOpenChange={setSummaryOpen}
+      />
 
       {/* Pipeline progress bar */}
       <div className="flex gap-1">

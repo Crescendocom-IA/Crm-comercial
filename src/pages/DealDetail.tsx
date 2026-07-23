@@ -1,11 +1,15 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { DealSummaryPanel } from "@/components/crm/DealSummaryPanel";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  useDealQuery, useDealActivitiesQuery, useDealMutation, useDealActivityMutation,
+  dealKeys,
+} from "@/hooks/queries/useDeals";
+import { useStagesQuery, useMembersQuery } from "@/hooks/queries/useOrgOptions";
 import { DealQualification } from "@/components/crm/DealQualification";
 import { useOrg } from "@/hooks/useOrg";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,16 +28,8 @@ import {
   Phone, Mail, FileText, CheckSquare, CalendarDays, Edit2, Check, X, Sparkles,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { fireWebhook, fireAutomations } from "@/lib/webhooks";
-import { logAudit } from "@/lib/audit";
 import type { Database } from "@/integrations/supabase/types";
 
-type Deal = Database["public"]["Tables"]["deals"]["Row"];
-type Stage = Database["public"]["Tables"]["pipeline_stages"]["Row"];
-type Contact = Database["public"]["Tables"]["contacts"]["Row"];
-type Company = Database["public"]["Tables"]["companies"]["Row"];
-type Profile = Database["public"]["Tables"]["profiles"]["Row"];
-type Activity = Database["public"]["Tables"]["activities"]["Row"];
 type ActivityType = Database["public"]["Enums"]["activity_type"];
 
 function formatCurrency(value: number, currency: string = "BRL") {
@@ -51,16 +47,26 @@ export default function DealDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { orgId } = useOrg();
-  const { user } = useAuth();
   const { toast } = useToast();
+  const qc = useQueryClient();
 
-  const [deal, setDeal] = useState<Deal | null>(null);
-  const [stages, setStages] = useState<Stage[]>([]);
-  const [contact, setContact] = useState<Contact | null>(null);
-  const [company, setCompany] = useState<Company | null>(null);
-  const [owner, setOwner] = useState<Profile | null>(null);
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [members, setMembers] = useState<Profile[]>([]);
+  /*
+   * Contato e empresa vêm no join da própria query do negócio, no lugar das
+   * três buscas por id que o fetch fazia em sequência depois de carregar o
+   * deal. É a mesma chave que a lista usa: chegar aqui por um clique no
+   * kanban abre a página já preenchida, sem carregamento visível.
+   */
+  const { data: deal, isLoading } = useDealQuery(id);
+  const stages = useStagesQuery(deal?.org_id);
+  const members = useMembersQuery();
+  const { activities } = useDealActivitiesQuery(id);
+
+  const contact = deal?.contact ?? null;
+  const company = deal?.company ?? null;
+  const owner = members.find((m) => m.id === deal?.owner_id) ?? null;
+
+  const { update, changeStage, setStatus } = useDealMutation(stages);
+  const adicionarAtividade = useDealActivityMutation(id);
 
   // Inline edit
   const [editingTitle, setEditingTitle] = useState(false);
@@ -80,40 +86,23 @@ export default function DealDetail() {
   // Painel de resumo com IA
   const [summaryOpen, setSummaryOpen] = useState(false);
 
-  const fetchDeal = useCallback(async () => {
-    if (!id) return;
-    const { data } = await supabase.from("deals").select("*").eq("id", id).single();
-    if (!data) { navigate("/deals"); return; }
-    setDeal(data);
-    setTitleDraft(data.title);
-    setValueDraft(String(data.value || 0));
-    setCurrencyDraft(data.currency || "BRL");
+  /*
+   * Os rascunhos de edição inline seguem o negócio pelo id, não pelo objeto:
+   * reagir ao `deal` inteiro apagaria o que está sendo digitado a cada
+   * refetch do detalhe.
+   */
+  useEffect(() => {
+    if (!deal) return;
+    setTitleDraft(deal.title);
+    setValueDraft(String(deal.value || 0));
+    setCurrencyDraft(deal.currency || "BRL");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deal?.id]);
 
-    // Fetch related data
-    const [stagesRes, activitiesRes, membersRes] = await Promise.all([
-      supabase.from("pipeline_stages").select("*").eq("org_id", data.org_id).order("order"),
-      supabase.from("activities").select("*").eq("deal_id", id).order("created_at", { ascending: false }),
-      supabase.from("profiles").select("*").eq("org_id", data.org_id),
-    ]);
-    setStages(stagesRes.data || []);
-    setActivities(activitiesRes.data || []);
-    setMembers(membersRes.data || []);
-
-    if (data.contact_id) {
-      const { data: c } = await supabase.from("contacts").select("*").eq("id", data.contact_id).single();
-      setContact(c);
-    }
-    if (data.company_id) {
-      const { data: co } = await supabase.from("companies").select("*").eq("id", data.company_id).single();
-      setCompany(co);
-    }
-    if (data.owner_id) {
-      const { data: o } = await supabase.from("profiles").select("*").eq("id", data.owner_id).single();
-      setOwner(o);
-    }
-  }, [id, navigate]);
-
-  useEffect(() => { fetchDeal(); }, [fetchDeal]);
+  // Id que não existe (ou de outra org, que a RLS esconde) volta para a lista.
+  useEffect(() => {
+    if (!isLoading && !deal) navigate("/deals");
+  }, [isLoading, deal, navigate]);
 
   if (!deal) {
     return (
@@ -134,77 +123,62 @@ export default function DealDetail() {
   const currentStage = stages.find((s) => s.id === deal.stage_id);
   const currentStageIndex = stages.findIndex((s) => s.id === deal.stage_id);
 
-  const saveTitle = async () => {
+  const aoFalhar = (e: any) =>
+    toast({ title: "Erro", description: e.message, variant: "destructive" });
+
+  const saveTitle = () => {
     if (!titleDraft.trim()) return;
-    await supabase.from("deals").update({ title: titleDraft }).eq("id", deal.id);
-    void logAudit({ orgId: deal.org_id, action: "update", entityType: "deal", entityId: deal.id,
-      oldValues: { title: deal.title }, newValues: { title: titleDraft } });
-    setDeal({ ...deal, title: titleDraft });
-    setEditingTitle(false);
-    toast({ title: "Título atualizado" });
-  };
-
-  const saveValue = async () => {
-    const val = Number(valueDraft) || 0;
-    await supabase.from("deals").update({ value: val, currency: currencyDraft }).eq("id", deal.id);
-    void logAudit({ orgId: deal.org_id, action: "update", entityType: "deal", entityId: deal.id,
-      oldValues: { value: deal.value }, newValues: { value: val } });
-    setDeal({ ...deal, value: val, currency: currencyDraft });
-    setEditingValue(false);
-    toast({ title: "Valor atualizado" });
-  };
-
-  const changeStage = async (stageId: string) => {
-    await supabase.from("deals").update({ stage_id: stageId }).eq("id", deal.id);
-    // Guarda os NOMES dos estágios, não os uuids: o histórico é para leitura
-    // humana, e "Proposta → Negociação" diz algo que dois uuids não dizem.
-    void logAudit({
-      orgId: deal.org_id, action: "update", entityType: "deal", entityId: deal.id,
-      oldValues: { stage: stages.find((s) => s.id === deal.stage_id)?.name ?? null },
-      newValues: { stage: stages.find((s) => s.id === stageId)?.name ?? null },
+    update.mutate({ deal, patch: { title: titleDraft } }, {
+      onSuccess: () => { setEditingTitle(false); toast({ title: "Título atualizado" }); },
+      onError: aoFalhar,
     });
-    setDeal({ ...deal, stage_id: stageId });
-    fireAutomations(orgId, "deal.stage_changed", { deal_id: deal.id, stage_id: stageId });
-    toast({ title: "Estágio atualizado" });
   };
 
-  const markAsWon = async () => {
-    await supabase.from("deals").update({ status: "won" }).eq("id", deal.id);
-    void logAudit({
-      orgId: deal.org_id, action: "update", entityType: "deal", entityId: deal.id,
-      oldValues: { status: deal.status }, newValues: { status: "won" },
+  const saveValue = () => {
+    update.mutate({ deal, patch: { value: Number(valueDraft) || 0, currency: currencyDraft } }, {
+      onSuccess: () => { setEditingValue(false); toast({ title: "Valor atualizado" }); },
+      onError: aoFalhar,
     });
-    setDeal({ ...deal, status: "won" });
-    fireWebhook(orgId, "deal.won", { deal_id: deal.id, title: deal.title, value: deal.value });
-    fireAutomations(orgId, "deal.won", { deal_id: deal.id, value: deal.value });
-    toast({ title: "Negócio marcado como ganho! 🎉" });
   };
 
-  const confirmLoss = async () => {
+  const changeStageDoDeal = (stageId: string) => {
+    changeStage.mutate({ deal, stageId }, {
+      onSuccess: () => toast({ title: "Estágio atualizado" }),
+      onError: () => toast({
+        title: "Não foi possível mudar o estágio. Tente novamente.",
+        variant: "destructive",
+      }),
+    });
+  };
+
+  const markAsWon = () => {
+    setStatus.mutate({ deal, status: "won" }, {
+      onSuccess: () => toast({ title: "Negócio marcado como ganho! 🎉" }),
+      onError: aoFalhar,
+    });
+  };
+
+  const confirmLoss = () => {
     const reason = lossNote ? `${lossReason}: ${lossNote}` : lossReason;
-    await supabase.from("deals").update({ status: "lost", loss_reason: reason }).eq("id", deal.id);
-    void logAudit({
-      orgId: deal.org_id, action: "update", entityType: "deal", entityId: deal.id,
-      oldValues: { status: deal.status }, newValues: { status: "lost", loss_reason: reason },
+    setStatus.mutate({ deal, status: "lost", lossReason: reason }, {
+      onSuccess: () => {
+        setLossModalOpen(false);
+        toast({ title: "Negócio marcado como perdido" });
+      },
+      onError: aoFalhar,
     });
-    setDeal({ ...deal, status: "lost" });
-    fireWebhook(orgId, "deal.lost", { deal_id: deal.id, title: deal.title, loss_reason: reason });
-    fireAutomations(orgId, "deal.lost", { deal_id: deal.id, loss_reason: reason });
-    setLossModalOpen(false);
-    toast({ title: "Negócio marcado como perdido" });
   };
 
-  const addActivity = async () => {
-    if (!orgId || !activityForm.title) return;
-    await supabase.from("activities").insert({
-      org_id: orgId, deal_id: deal.id, type: activityForm.type,
-      title: activityForm.title, body: activityForm.body, user_id: user?.id,
+  const addActivity = () => {
+    if (!activityForm.title) return;
+    adicionarAtividade.mutate(activityForm, {
+      onSuccess: () => {
+        setActivityForm({ type: "note", title: "", body: "" });
+        toast({ title: "Atividade adicionada" });
+      },
+      onError: aoFalhar,
     });
-    setActivityForm({ type: "note", title: "", body: "" });
-    fetchDeal();
-    toast({ title: "Atividade adicionada" });
   };
-
   return (
     <div className="space-y-6">
       {/* Back button */}
@@ -254,7 +228,7 @@ export default function DealDetail() {
             )}
 
             {/* Stage dropdown */}
-            <Select value={deal.stage_id || ""} onValueChange={changeStage}>
+            <Select value={deal.stage_id || ""} onValueChange={changeStageDoDeal}>
               <SelectTrigger className="w-44 h-8">
                 <div className="flex items-center gap-1.5">
                   {currentStage?.color && <div className="h-2 w-2 rounded-full" style={{ backgroundColor: currentStage.color }} />}
@@ -318,7 +292,7 @@ export default function DealDetail() {
                 ? deal.status === "won" ? "bg-success" : deal.status === "lost" ? "bg-destructive" : "bg-primary"
                 : "bg-muted"
             }`}
-            onClick={() => deal.status === "open" && changeStage(s.id)}
+            onClick={() => deal.status === "open" && changeStageDoDeal(s.id)}
             title={s.name}
           />
         ))}
@@ -400,7 +374,7 @@ export default function DealDetail() {
             dealId={deal.id}
             qualification={(deal as any).qualification}
             qualificationScore={(deal as any).qualification_score || 0}
-            onUpdate={fetchDeal}
+            onUpdate={() => qc.invalidateQueries({ queryKey: dealKeys.detail(orgId, deal.id) })}
           />
           {/* Contact */}
           <Card>

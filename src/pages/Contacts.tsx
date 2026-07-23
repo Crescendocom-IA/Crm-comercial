@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import {
-  useContactsQuery, useContactsLastActivityQuery, useContactCompaniesQuery,
-  useContactMembersQuery, useContactMutation, useContactBulkMutation,
-  applyContactFilters, applyContactSort, CONTACTS_PAGE_SIZE,
+  useContactsQuery, useContactsLastActivityQuery, useContactMutation,
+  useContactBulkMutation, applyContactFilters, applyContactSort, CONTACTS_PAGE_SIZE,
   type ContactFilters, type ContactSortKey, type ContactSortDir,
 } from "@/hooks/queries/useContacts";
+import { useCompanyOptionsQuery, useMembersQuery } from "@/hooks/queries/useOrgOptions";
 import { useRole } from "@/hooks/useRole";
 import { ErpBadge } from "@/components/crm/ErpBadge";
 import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
@@ -117,8 +117,8 @@ export default function Contacts() {
   };
 
   const { data: contacts, count: totalCount, isLoading: loading } = useContactsQuery(queryParams);
-  const companies = useContactCompaniesQuery();
-  const members = useContactMembersQuery();
+  const companies = useCompanyOptionsQuery();
+  const members = useMembersQuery();
   const lastActivityMap = useContactsLastActivityQuery(contacts.map((c) => c.id));
 
   const { updateOwner, invalidar } = useContactMutation();

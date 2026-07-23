@@ -1,35 +1,11 @@
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { useOrg } from "@/hooks/useOrg";
+export { useIndustriesQuery as useIndustries, DEFAULT_INDUSTRIES } from "@/hooks/queries/useOrgOptions";
 
-const DEFAULT_INDUSTRIES = [
-  "Tecnologia", "SaaS", "Serviços", "E-commerce", "Indústria",
-  "Consultoria", "Educação", "Saúde", "Financeiro", "Varejo",
-  "Logística", "Agronegócio", "Imobiliário", "Jurídico", "Marketing",
-];
-
-export function useIndustries() {
-  const { orgId } = useOrg();
-  const [industries, setIndustries] = useState<string[]>(DEFAULT_INDUSTRIES);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!orgId) return;
-    supabase
-      .from("organizations")
-      .select("settings")
-      .eq("id", orgId)
-      .single()
-      .then(({ data }) => {
-        const settings = data?.settings as Record<string, unknown> | null;
-        if (settings?.industries && Array.isArray(settings.industries) && settings.industries.length > 0) {
-          setIndustries(settings.industries as string[]);
-        }
-        setLoading(false);
-      });
-  }, [orgId]);
-
-  return { industries, loading };
-}
-
-export { DEFAULT_INDUSTRIES };
+/*
+ * Mantido como reexport: o hook era um useEffect+fetch próprio e disparava uma
+ * requisição por componente montado — em Empresas, três ao mesmo tempo (página,
+ * drawer e modal) para ler o mesmo campo `settings` da organização. A
+ * implementação em React Query dedupe isso numa chave só.
+ *
+ * O nome antigo continua valendo para os 5 pontos que já o importam; a
+ * assinatura { industries, loading } não mudou.
+ */

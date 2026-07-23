@@ -234,40 +234,10 @@ export function useContactRelatedQuery(contact: Contact | null) {
 }
 
 /*
- * Empresas e membros alimentam os selects de filtro e os formulários de
- * contato. Ficam aqui porque hoje só Contatos os consome; quando Empresas
- * migrar, a chave ['companies', orgId] passa a ser compartilhada e a
- * invalidação de lá já chega aqui de graça.
+ * As listas de empresas e membros que alimentam os selects saíram daqui para
+ * hooks/queries/useOrgOptions.ts quando Empresas virou o segundo consumidor:
+ * duas cópias dariam duas chaves de cache para o mesmo dado.
  */
-export function useContactCompaniesQuery() {
-  const { orgId } = useOrg();
-  const query = useQuery({
-    queryKey: ["companies", orgId, "options"] as const,
-    enabled: !!orgId,
-    staleTime: STALE_TIME.list,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("companies").select("*").eq("org_id", orgId!);
-      if (error) throw error;
-      return (data || []) as Company[];
-    },
-  });
-  return query.data ?? [];
-}
-
-export function useContactMembersQuery() {
-  const { orgId } = useOrg();
-  const query = useQuery({
-    queryKey: ["profiles", orgId, "options"] as const,
-    enabled: !!orgId,
-    staleTime: STALE_TIME.list,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("*").eq("org_id", orgId!);
-      if (error) throw error;
-      return (data || []) as Profile[];
-    },
-  });
-  return query.data ?? [];
-}
 
 /** Campos que o drawer edita — o par old/new do log de auditoria sai daqui. */
 const CAMPOS_EDITAVEIS = [

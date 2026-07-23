@@ -1,8 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
-import { useAuth } from "@/contexts/AuthContext";
-import { useIndustries } from "@/hooks/useIndustries";
+import { useCompanyMutation } from "@/hooks/queries/useCompanies";
+import { useIndustriesQuery, useContactOptionsQuery } from "@/hooks/queries/useOrgOptions";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -20,42 +19,30 @@ import {
 } from "@/components/ui/popover";
 import { Building2, X, Search, Users, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { fireWebhook } from "@/lib/webhooks";
 
 interface CompanyCreateModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: () => void;
 }
 
-type Contact = { id: string; first_name: string; last_name: string | null; email: string | null; company_id: string | null };
-
-export function CompanyCreateModal({ open, onOpenChange, onCreated }: CompanyCreateModalProps) {
+export function CompanyCreateModal({ open, onOpenChange }: CompanyCreateModalProps) {
   const { orgId } = useOrg();
-  const { user } = useAuth();
   const { toast } = useToast();
-  const { industries } = useIndustries();
+  const { industries } = useIndustriesQuery();
+  const { create } = useCompanyMutation();
   const [form, setForm] = useState({
     name: "", domain: "", industry: "", size: "", revenue: "",
     website: "", linkedin_url: "",
   });
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Contacts multi-select
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  // Contacts multi-select. A lista é a mesma chave que a tela de Contatos
+  // invalida ao criar ou excluir — o select nunca fica com nome fantasma.
+  const contacts = useContactOptionsQuery(open);
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
   const [contactSearch, setContactSearch] = useState("");
   const [contactsOpen, setContactsOpen] = useState(false);
-
-  useEffect(() => {
-    if (!open || !orgId) return;
-    supabase.from("contacts").select("id,first_name,last_name,email,company_id")
-      .eq("org_id", orgId).order("first_name").then(({ data }) => {
-        if (data) setContacts(data);
-      });
-  }, [open, orgId]);
 
   useEffect(() => {
     if (form.domain && form.domain.includes(".")) {
@@ -91,37 +78,29 @@ export function CompanyCreateModal({ open, onOpenChange, onCreated }: CompanyCre
     return Object.keys(errs).length === 0;
   };
 
-  const handleCreate = async () => {
-    if (!orgId || !validate() || isSubmitting) return;
-    setIsSubmitting(true);
-    try {
-      const { data, error } = await supabase.from("companies").insert({
-        org_id: orgId, name: form.name, domain: form.domain || null,
-        industry: form.industry || null, size: form.size || null,
-        revenue: form.revenue ? Number(form.revenue) : null,
-        website: form.website || null, linkedin_url: form.linkedin_url || null,
-        owner_id: user?.id,
-      }).select("id").single();
-      if (error || !data) { toast({ title: "Erro", description: error?.message, variant: "destructive" }); return; }
-      fireWebhook(orgId, "company.created", { id: data.id, name: form.name });
-
-      // Link selected contacts to the new company
-      if (selectedContactIds.length > 0) {
-        const updates = selectedContactIds.map((cid) =>
-          supabase.from("contacts").update({ company_id: data.id }).eq("id", cid)
-        );
-        await Promise.all(updates);
-      }
-
-      onOpenChange(false);
-      setForm({ name: "", domain: "", industry: "", size: "", revenue: "", website: "", linkedin_url: "" });
-      setSelectedContactIds([]);
-      setContactSearch("");
-      onCreated();
-      toast({ title: "Empresa criada", description: selectedContactIds.length > 0 ? `${selectedContactIds.length} contato(s) vinculado(s)` : undefined });
-    } finally {
-      setIsSubmitting(false);
-    }
+  /*
+   * O insert, o log de auditoria, o webhook e o vínculo dos contatos ficam na
+   * mutation — que também sabe invalidar a lista de contatos, já que vincular
+   * muda a coluna Empresa deles.
+   */
+  const handleCreate = () => {
+    if (!orgId || !validate() || create.isPending) return;
+    create.mutate(
+      { form, contatosParaVincular: selectedContactIds },
+      {
+        onSuccess: ({ vinculados }) => {
+          onOpenChange(false);
+          setForm({ name: "", domain: "", industry: "", size: "", revenue: "", website: "", linkedin_url: "" });
+          setSelectedContactIds([]);
+          setContactSearch("");
+          toast({
+            title: "Empresa criada",
+            description: vinculados > 0 ? `${vinculados} contato(s) vinculado(s)` : undefined,
+          });
+        },
+        onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+      },
+    );
   };
 
   return (
@@ -253,8 +232,8 @@ export function CompanyCreateModal({ open, onOpenChange, onCreated }: CompanyCre
               </Popover>
             </div>
 
-            <Button onClick={handleCreate} disabled={isSubmitting} className="w-full">
-              {isSubmitting ? "Criando..." : "Criar Empresa"}
+            <Button onClick={handleCreate} disabled={create.isPending} className="w-full">
+              {create.isPending ? "Criando..." : "Criar Empresa"}
             </Button>
           </div>
         </ScrollArea>

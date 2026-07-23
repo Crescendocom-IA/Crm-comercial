@@ -406,8 +406,8 @@ export default function Companies() {
         </div>
       )}
 
-      <CompanyDrawer company={drawerCompany} onClose={() => setDrawerCompany(null)} onUpdate={invalidar} members={members} />
-      <CompanyCreateModal open={createOpen} onOpenChange={setCreateOpen} onCreated={invalidar} />
+      <CompanyDrawer company={drawerCompany} onClose={() => setDrawerCompany(null)} members={members} />
+      <CompanyCreateModal open={createOpen} onOpenChange={setCreateOpen} />
       {/*
         O importador é genérico (contatos e empresas) e faz o insert por conta
         própria; quem sabe qual lista ficou velha é esta página, então a

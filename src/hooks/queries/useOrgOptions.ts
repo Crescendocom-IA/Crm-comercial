@@ -23,6 +23,7 @@ type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 
 export const optionKeys = {
   companies: (orgId: string | null | undefined) => ["companies", orgId, "options"] as const,
+  contacts: (orgId: string | null | undefined) => ["contacts", orgId, "options"] as const,
   members: (orgId: string | null | undefined) => ["profiles", orgId, "options"] as const,
   industries: (orgId: string | null | undefined) => ["organizations", orgId, "industries"] as const,
 };
@@ -37,6 +38,29 @@ export function useCompanyOptionsQuery() {
       const { data, error } = await supabase.from("companies").select("*").eq("org_id", orgId!);
       if (error) throw error;
       return (data || []) as Company[];
+    },
+  });
+  return query.data ?? [];
+}
+
+/** Contatos em formato enxuto, para o multi-select de vínculo com empresa. */
+export type ContactOption = {
+  id: string; first_name: string; last_name: string | null;
+  email: string | null; company_id: string | null;
+};
+
+export function useContactOptionsQuery(enabled = true) {
+  const { orgId } = useOrg();
+  const query = useQuery({
+    queryKey: optionKeys.contacts(orgId),
+    enabled: !!orgId && enabled,
+    staleTime: STALE_TIME.list,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contacts").select("id,first_name,last_name,email,company_id")
+        .eq("org_id", orgId!).order("first_name");
+      if (error) throw error;
+      return (data || []) as ContactOption[];
     },
   });
   return query.data ?? [];

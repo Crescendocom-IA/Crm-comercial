@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState } from "react";
 import { ErpBadge } from "@/components/crm/ErpBadge";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
-import { useOrg } from "@/hooks/useOrg";
-import { useIndustries } from "@/hooks/useIndustries";
+import {
+  useCompanyQuery, useCompanyRelatedQuery, useCompanyMutation,
+} from "@/hooks/queries/useCompanies";
+import { useIndustriesQuery } from "@/hooks/queries/useOrgOptions";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -20,10 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { Database } from "@/integrations/supabase/types";
 
 type Company = Database["public"]["Tables"]["companies"]["Row"];
-type Contact = Database["public"]["Tables"]["contacts"]["Row"];
-type Deal = Database["public"]["Tables"]["deals"]["Row"];
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
-type Stage = Database["public"]["Tables"]["pipeline_stages"]["Row"];
 
 function formatCurrency(value: number, currency: string = "BRL") {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value);
@@ -32,47 +30,50 @@ function formatCurrency(value: number, currency: string = "BRL") {
 interface CompanyDrawerProps {
   company: Company | null;
   onClose: () => void;
-  onUpdate: () => void;
   members: Profile[];
 }
 
-export function CompanyDrawer({ company, onClose, onUpdate, members }: CompanyDrawerProps) {
-  const { orgId } = useOrg();
+export function CompanyDrawer({ company: linhaDaLista, onClose, members }: CompanyDrawerProps) {
   const { toast } = useToast();
-  const { industries } = useIndustries();
+  const { industries } = useIndustriesQuery();
+
+  /*
+   * A linha que a lista tem em mãos abre o drawer preenchido, mas quem manda
+   * é a query: depois de salvar, a invalidação recarrega este detalhe. Antes
+   * o drawer seguia mostrando o snapshot antigo até ser fechado e reaberto.
+   */
+  const { data: empresaFresca } = useCompanyQuery(linhaDaLista?.id, linhaDaLista);
+  const company = empresaFresca ?? linhaDaLista;
 
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<Company>>({});
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [deals, setDeals] = useState<Deal[]>([]);
-  const [stages, setStages] = useState<Stage[]>([]);
 
-  const fetchRelated = useCallback(async () => {
-    if (!company) return;
-    const [cRes, dRes, sRes] = await Promise.all([
-      supabase.from("contacts").select("*").eq("company_id", company.id),
-      supabase.from("deals").select("*").eq("company_id", company.id),
-      supabase.from("pipeline_stages").select("*").eq("org_id", company.org_id).order("order"),
-    ]);
-    setContacts(cRes.data || []);
-    setDeals(dRes.data || []);
-    setStages(sRes.data || []);
-  }, [company]);
+  const { contacts, deals, stages } = useCompanyRelatedQuery(company);
+  const { update } = useCompanyMutation();
 
+  /*
+   * Trocar de empresa reinicia o formulário. A dependência é o id, não o
+   * objeto: reagir à `company` inteira descartaria o que o usuário está
+   * digitando a cada refetch do detalhe.
+   */
   useEffect(() => {
-    if (company) { setForm(company); setEditing(false); fetchRelated(); }
-  }, [company, fetchRelated]);
+    if (!linhaDaLista) return;
+    setForm(linhaDaLista);
+    setEditing(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linhaDaLista?.id]);
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!company) return;
-    const { error } = await supabase.from("companies").update({
+    const patch = {
       name: form.name, domain: form.domain, industry: form.industry,
       size: form.size, revenue: form.revenue ? Number(form.revenue) : null,
       website: form.website, linkedin_url: form.linkedin_url,
-    }).eq("id", company.id);
-    if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
-    setEditing(false); onUpdate();
-    toast({ title: "Empresa atualizada" });
+    };
+    update.mutate({ company, patch }, {
+      onSuccess: () => { setEditing(false); toast({ title: "Empresa atualizada" }); },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
   if (!company) return null;
@@ -167,7 +168,9 @@ export function CompanyDrawer({ company, onClose, onUpdate, members }: CompanyDr
                   <Input value={form.website || ""} onChange={(e) => setForm({ ...form, website: e.target.value })} /></div>
                 <div className="space-y-1"><Label className="text-xs">LinkedIn</Label>
                   <Input value={form.linkedin_url || ""} onChange={(e) => setForm({ ...form, linkedin_url: e.target.value })} /></div>
-                <Button onClick={handleSave} className="w-full"><Save className="mr-2 h-4 w-4" />Salvar</Button>
+                <Button onClick={handleSave} disabled={update.isPending} className="w-full">
+                  <Save className="mr-2 h-4 w-4" />{update.isPending ? "Salvando..." : "Salvar"}
+                </Button>
               </div>
             ) : (
               <div className="space-y-3">

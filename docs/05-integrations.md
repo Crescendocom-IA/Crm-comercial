@@ -105,11 +105,11 @@ Snippet JS injetado em sites externos posta eventos em `tracking_events`. Alimen
 
 GET retorna `{ status, db_latency_ms, timestamp }`. Útil para uptime monitors.
 
-## Google Calendar / Gmail (opcional)
+## Google Calendar / Gmail — não implementado
 
-- `google_oauth_tokens` armazena tokens.
-- Edge `gmail-initial-sync` puxa últimos N emails.
-- Atualmente parcial — verificar se a instância precisa.
+Não existe integração com Google. A tabela `google_oauth_tokens` está no schema
+mas nenhum código a usa, e a Edge `gmail-initial-sync` foi removida por ser
+código morto. Implementar exige o fluxo de OAuth, que é projeto à parte.
 
 ## WhatsApp (legado/desativado)
 
@@ -123,7 +123,6 @@ Tabelas `whatsapp_*` permanecem no schema mas a integração foi removida (Evolu
 | Supabase | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (auto) |
 | Resend | armazenada em `integration_configs.config.api_key` |
 | Slack | `SLACK_BOT_TOKEN` (Bot User OAuth Token, `xoxb-...`) |
-| Google | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 
 Adicionar/atualizar em **Supabase Dashboard → Edge Functions → Secrets**. Nunca expor
 service role no frontend.

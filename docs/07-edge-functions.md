@@ -17,7 +17,6 @@ para subir só ela).
 | `slack-connect` | GET/POST | JWT user | Valida o token e lista canais | `SLACK_BOT_TOKEN` |
 | `slack-send-test` | POST | JWT user | Envia mensagem teste | `SLACK_BOT_TOKEN` |
 | `invite-member` | POST | JWT user (admin/owner) | Cria invitation + envia magic link | service role |
-| `gmail-initial-sync` | POST | JWT user | Importa últimos N emails Gmail | `GOOGLE_*` |
 | `process-automation` | POST | service | Executa automation enfileirada (pg_cron) | service role |
 | `public-api` | GET/POST/PUT/DELETE | Bearer `fc_xxx` | CRUD REST público | service role |
 | `inbound-webhook` | POST | querystring `org_id` | Recebe dados externos | service role |

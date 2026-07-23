@@ -43,7 +43,7 @@ Catálogo de módulos com rota, componentes principais e tabelas envolvidas.
 
 ### Caixa de Entrada — `/inbox`
 - Tabelas: `emails`, `email_connections`.
-- Sync inicial: Edge `gmail-initial-sync`.
+- Sem sincronização de caixa de entrada: os emails chegam por `inbound-webhook` ou são criados no app.
 
 ### Templates — `/email-templates`
 - `email_templates` com variáveis interpoladas.

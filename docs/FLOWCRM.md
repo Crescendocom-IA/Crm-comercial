@@ -477,7 +477,7 @@ Catálogo de módulos com rota, componentes principais e tabelas envolvidas.
 
 #### Caixa de Entrada — `/inbox`
 - Tabelas: `emails`, `email_connections`.
-- Sync inicial: Edge `gmail-initial-sync`.
+- Sem sincronização de caixa de entrada: os emails chegam por `inbound-webhook` ou são criados no app.
 
 #### Templates — `/email-templates`
 - `email_templates` com variáveis interpoladas.
@@ -652,11 +652,11 @@ Snippet JS injetado em sites externos posta eventos em `tracking_events`. Alimen
 
 GET retorna `{ status, db_latency_ms, timestamp }`. Útil para uptime monitors.
 
-### Google Calendar / Gmail (opcional)
+### Google Calendar / Gmail — não implementado
 
 - `google_oauth_tokens` armazena tokens.
-- Edge `gmail-initial-sync` puxa últimos N emails.
-- Atualmente parcial — verificar se a instância precisa.
+- Edge removida (código morto). Integração com Google exige fluxo OAuth — projeto à parte.
+- `google_oauth_tokens` está no schema mas nenhum código a usa.
 
 ### WhatsApp (legado/desativado)
 
@@ -670,7 +670,6 @@ Tabelas `whatsapp_*` permanecem no schema mas a integração foi removida (Evolu
 | Supabase | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (auto) |
 | Resend | armazenada em `integration_configs.config.api_key` |
 | Slack | `SLACK_BOT_TOKEN` (Bot User OAuth Token, `xoxb-...`) |
-| Google | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 
 Adicionar/atualizar em **Supabase Dashboard → Edge Functions → Secrets**. Nunca expor
 service role no frontend.
@@ -806,7 +805,6 @@ para subir só ela).
 | `slack-connect` | GET/POST | JWT user | Valida o token e lista canais | `SLACK_BOT_TOKEN` |
 | `slack-send-test` | POST | JWT user | Envia mensagem teste | `SLACK_BOT_TOKEN` |
 | `invite-member` | POST | JWT user (admin/owner) | Cria invitation + envia magic link | service role |
-| `gmail-initial-sync` | POST | JWT user | Importa últimos N emails Gmail | `GOOGLE_*` |
 | `process-automation` | POST | service | Executa automation enfileirada (pg_cron) | service role |
 | `public-api` | GET/POST/PUT/DELETE | Bearer `fc_xxx` | CRUD REST público | service role |
 | `inbound-webhook` | POST | querystring `org_id` | Recebe dados externos | service role |
@@ -1011,7 +1009,6 @@ Configurar em **Supabase Dashboard → Edge Functions → Secrets**:
 |--------|--------------|
 | `ANTHROPIC_API_KEY` | ✅ (qualquer função de IA) |
 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | ✅ (injetadas automaticamente) |
-| `GOOGLE_CLIENT_ID/SECRET` | se usar Google OAuth / Gmail sync |
 | `SLACK_BOT_TOKEN` | se usar Slack (ver [05](./05-integrations.md)) |
 
 ### 8. Linter Supabase

@@ -120,7 +120,6 @@ Configurar em **Supabase Dashboard → Edge Functions → Secrets**:
 |--------|--------------|
 | `ANTHROPIC_API_KEY` | ✅ (qualquer função de IA) |
 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` | ✅ (injetadas automaticamente) |
-| `GOOGLE_CLIENT_ID/SECRET` | se usar Google OAuth / Gmail sync |
 | `SLACK_BOT_TOKEN` | se usar Slack (ver [05](./05-integrations.md)) |
 
 ## 8. Linter Supabase

@@ -46,7 +46,6 @@ que é só para o frontend):
 |--------|-----|-------------|
 | `ANTHROPIC_API_KEY` | AI Copilot, Sales Manager, Insights e Email | ✅ |
 | `SLACK_BOT_TOKEN` | Notificações Slack (Bot User OAuth Token, `xoxb-...`) | Se usar Slack |
-| `GOOGLE_CLIENT_ID/SECRET` | Google Calendar / Gmail sync | Se usar Google |
 | `EVOLUTION_API_URL/KEY` | WhatsApp | Se usar WhatsApp |
 | `SENTRY_DSN` | Monitoramento de erros | Opcional |
 
@@ -59,7 +58,7 @@ automaticamente pelo Supabase — não precisa configurá-las.
 - **Contatos & Empresas** — CRUD completo, filtros, tags, lead scoring
 - **Pipeline Kanban** — Drag-and-drop, 3 visualizações, qualificação BANT
 - **Atividades** — Calls, emails, reuniões, notas, tarefas
-- **Email** — Sync Gmail/Outlook, templates, sequências, tracking
+- **Email** — Templates, sequências, tracking (sem sync de caixa de entrada)
 - **Automações** — Builder visual trigger→conditions→actions
 - **AI Copilot** — Chat contextual, insights, geração de email
 - **Integrações** — Slack, Google Calendar, WhatsApp, Zapier/Make, API REST

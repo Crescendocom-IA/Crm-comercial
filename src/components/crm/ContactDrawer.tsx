@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { ErpBadge } from "@/components/crm/ErpBadge";
 import { logAudit } from "@/lib/audit";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { supabase } from "@/integrations/supabase/client";
@@ -148,6 +149,7 @@ export function ContactDrawer({ contact, onClose, onUpdate, companies, members }
                 <Badge variant="secondary" className={statusColors[contact.status || "lead"]}>
                   {statusLabels[contact.status || "lead"]}
                 </Badge>
+                <ErpBadge syncSource={(contact as any).sync_source} />
               </div>
             </div>
             <Button variant="outline" size="sm" onClick={() => setEditing(!editing)}>

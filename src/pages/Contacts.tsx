@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useRole } from "@/hooks/useRole";
+import { ErpBadge } from "@/components/crm/ErpBadge";
 import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
 import { useDebounce } from "@/hooks/useDebounce";
 import { EmptyState } from "@/components/crm/EmptyState";
@@ -497,6 +498,7 @@ export default function Contacts() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
                           <span className="font-medium truncate">{c.first_name} {c.last_name}</span>
+                          <ErpBadge syncSource={(c as any).sync_source} />
                           {(() => {
                             const days = getInactivityDays(c.id, c.created_at);
                             if (days === null || days < 14) return null;

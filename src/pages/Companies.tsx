@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRole } from "@/hooks/useRole";
+import { ErpBadge } from "@/components/crm/ErpBadge";
 import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
 import { useIndustries } from "@/hooks/useIndustries";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -366,6 +367,7 @@ export default function Companies() {
                         </Avatar>
                       )}
                       <span className="font-medium">{c.name}</span>
+                      <ErpBadge syncSource={(c as any).sync_source} />
                     </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground hidden sm:table-cell">{c.domain}</TableCell>

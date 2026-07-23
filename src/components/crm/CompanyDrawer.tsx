@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { ErpBadge } from "@/components/crm/ErpBadge";
 import { useOrg } from "@/hooks/useOrg";
 import { useIndustries } from "@/hooks/useIndustries";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -92,7 +93,10 @@ export function CompanyDrawer({ company, onClose, onUpdate, members }: CompanyDr
               <Avatar className="h-14 w-14"><AvatarFallback className="bg-primary/10 text-primary text-lg"><Building2 className="h-6 w-6" /></AvatarFallback></Avatar>
             )}
             <div className="flex-1">
-              <h2 className="text-lg font-bold">{company.name}</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold">{company.name}</h2>
+                <ErpBadge syncSource={(company as any).sync_source} />
+              </div>
               {company.industry && <p className="text-sm text-muted-foreground">{company.industry}</p>}
               {company.domain && <p className="text-xs text-muted-foreground">{company.domain}</p>}
             </div>

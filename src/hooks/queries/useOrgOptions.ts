@@ -6,6 +6,8 @@ import type { Database } from "@/integrations/supabase/types";
 
 type Company = Database["public"]["Tables"]["companies"]["Row"];
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
+type Pipeline = Database["public"]["Tables"]["pipelines"]["Row"];
+type Stage = Database["public"]["Tables"]["pipeline_stages"]["Row"];
 
 /*
  * Listas que alimentam selects e filtros em várias telas: membros da org,
@@ -76,6 +78,46 @@ export function useMembersQuery() {
       const { data, error } = await supabase.from("profiles").select("*").eq("org_id", orgId!);
       if (error) throw error;
       return (data || []) as Profile[];
+    },
+  });
+  return query.data ?? [];
+}
+
+/*
+ * Pipelines e estágios são configuração da org, não registros de trabalho:
+ * mudam quando alguém abre o editor de pipeline, e não a cada negócio criado.
+ * Ficam sob chave própria para que invalidar negócios não os arraste junto.
+ */
+export function usePipelinesQuery() {
+  const { orgId } = useOrg();
+  const query = useQuery({
+    queryKey: ["pipelines", orgId] as const,
+    enabled: !!orgId,
+    staleTime: STALE_TIME.detail,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pipelines").select("*").eq("org_id", orgId!)
+        .order("is_default", { ascending: false }).order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []) as Pipeline[];
+    },
+  });
+  return query.data ?? [];
+}
+
+export function useStagesQuery(orgIdOverride?: string | null) {
+  const { orgId: orgDoContexto } = useOrg();
+  // O DealDetail chega pelo id do negócio e conhece a org só depois de carregá-lo.
+  const orgId = orgIdOverride ?? orgDoContexto;
+  const query = useQuery({
+    queryKey: ["pipeline_stages", orgId] as const,
+    enabled: !!orgId,
+    staleTime: STALE_TIME.detail,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pipeline_stages").select("*").eq("org_id", orgId!).order("order");
+      if (error) throw error;
+      return (data || []) as Stage[];
     },
   });
   return query.data ?? [];

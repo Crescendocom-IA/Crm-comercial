@@ -259,11 +259,20 @@ export default function Contacts() {
   if (!orgId) return <div className="py-20 text-center text-muted-foreground">Crie uma organização em Configurações primeiro.</div>;
 
   /*
-   * "Nenhum contato encontrado" cobria dois casos bem diferentes: a conta que
-   * ainda não tem contato nenhum e a busca que não casou com nada. Só o
-   * primeiro merece um CTA de criar — no segundo o caminho é ajustar o filtro.
+   * Dois casos bem diferentes: a conta que ainda não tem contato nenhum e a
+   * busca que não casou com nada. Só o primeiro merece um CTA de criar — no
+   * segundo o caminho é ajustar o filtro.
+   *
+   * O discriminador é a busca/filtro ativo, não `contacts.length`: desde que a
+   * paginação foi para o servidor, `contacts` É a lista filtrada, então testar
+   * o tamanho dela dava sempre o primeiro caso e a variante "Nenhum contato
+   * encontrado" nunca aparecia. Quem buscava por um nome inexistente via
+   * "Nenhum contato ainda" com um botão de criar — como se a base estivesse
+   * vazia.
    */
-  const emptyState = contacts.length === 0 ? (
+  const buscaOuFiltroAtivo = !!debouncedSearch || Object.values(filters).some(Boolean);
+
+  const emptyState = !buscaOuFiltroAtivo ? (
     <EmptyState
       icon={<Users className="h-7 w-7 text-muted-foreground" />}
       title="Nenhum contato ainda"
@@ -533,10 +542,11 @@ export default function Contacts() {
             Página {page + 1} de {totalPages} · {totalCount} contatos
           </span>
           <div className="flex gap-1">
-            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
+            {/* Só ícone: sem aria-label o botão é anunciado como "botão" e nada mais. */}
+            <Button variant="outline" size="sm" aria-label="Página anterior" disabled={page === 0} onClick={() => setPage(page - 1)}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
+            <Button variant="outline" size="sm" aria-label="Próxima página" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>

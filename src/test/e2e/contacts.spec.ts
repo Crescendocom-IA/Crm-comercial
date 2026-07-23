@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { requireCreds, login } from "./helpers";
+import { requireCreds, login, apiComoUsuario } from "./helpers";
 
 /*
  * Contatos depois da migração para React Query. Cobre os três caminhos que a
@@ -13,13 +13,17 @@ const nomeUnico = (prefixo: string) => `${prefixo}${process.env.E2E_RUN_ID || "e
 const CONTADOR = /^\d+ contatos$/;
 
 /*
- * O cabeçalho renderiza "0 contatos" antes de a query responder. Ler o contador
- * nesse instante devolve zero e o teste passa a comparar contra o número errado
- * — foi exatamente o que aconteceu na primeira execução. Espera o skeleton sair
- * antes de ler.
+ * O cabeçalho renderiza "0 contatos" antes de a query responder, e ler o
+ * contador nesse instante faz o teste comparar contra o número errado.
+ *
+ * A espera é pela tabela, não pelo sumiço do skeleton: `waitFor({ hidden })`
+ * também é satisfeito por um elemento que ainda NÃO montou, então logo após o
+ * goto ele retorna na hora e o teste lê zero — foi a causa de duas execuções
+ * vermelhas. A tabela, ao contrário, só é renderizada com `loading` falso, e
+ * existe mesmo com zero contatos (com o empty state dentro).
  */
 async function totalDeContatos(page: Page): Promise<number> {
-  await page.getByRole("status", { name: "Carregando dados" }).waitFor({ state: "hidden" });
+  await expect(page.getByRole("table")).toBeVisible();
   const contador = page.getByText(CONTADOR);
   await expect(contador).toBeVisible();
   return Number((await contador.textContent())!.match(/\d+/)![0]);
@@ -73,26 +77,54 @@ test.describe("Contatos", () => {
 
   test("paginação avança sem piscar o skeleton", async ({ page }) => {
     requireCreds();
-    await login(page);
-    await page.goto("/contacts");
 
-    // Decidir antes da lista carregar daria sempre "não há paginador" e o teste
-    // se pularia sozinho, reportando verde sem ter testado nada.
-    const total = await totalDeContatos(page);
-    test.skip(total <= 50, `org tem ${total} contatos, menos de uma página`);
+    /*
+     * Semeia a massa que este teste precisa em vez de depender do que já houver
+     * na org: create-test-user.ts a deixa vazia de propósito, e um teste que se
+     * pula quando não encontra dados reporta verde sem ter testado nada.
+     *
+     * Marcador no email para o cleanup alcançar só o que este teste criou.
+     */
+    const marcador = `pag-${Date.now()}`;
+    const { client, orgId, userId } = await apiComoUsuario();
+    const semeados = Array.from({ length: 60 }, (_, i) => ({
+      org_id: orgId, owner_id: userId,
+      first_name: "Paginado", last_name: String(i).padStart(2, "0"),
+      email: `${marcador}-${i}@exemplo.test`, status: "lead" as const,
+    }));
+    const { error } = await client.from("contacts").insert(semeados);
+    expect(error, "falha ao semear contatos").toBeNull();
 
-    const paginador = page.getByText(/^Página \d+ de \d+/);
-    const skeleton = page.getByRole("status", { name: "Carregando dados" });
-    await expect(paginador).toContainText("Página 1 de");
+    try {
+      await login(page);
+      await page.goto("/contacts");
 
-    await page.getByRole("button", { name: "Próxima página" }).click();
-    await expect(paginador).toContainText("Página 2 de");
-    // keepPreviousData: as linhas anteriores seguem na tela até as novas
-    // chegarem. Sem isso a migração teria trocado a troca de página suave por
-    // um flash de skeleton a cada clique.
-    await expect(skeleton).toBeHidden();
+      // Decidir antes da lista carregar daria sempre "não há paginador".
+      const total = await totalDeContatos(page);
+      expect(total).toBeGreaterThan(50);
 
-    await page.getByRole("button", { name: "Página anterior" }).click();
-    await expect(paginador).toContainText("Página 1 de");
+      await verificarPaginacao(page);
+    } finally {
+      // Roda mesmo se o teste falhar: massa órfã desloca a contagem dos outros
+      // testes de contatos na execução seguinte.
+      await client.from("contacts").delete().like("email", `${marcador}-%`);
+    }
   });
 });
+
+/** O miolo do teste de paginação, separado para o cleanup ficar visível. */
+async function verificarPaginacao(page: Page) {
+  const paginador = page.getByText(/^Página \d+ de \d+/);
+  const skeleton = page.getByRole("status", { name: "Carregando dados" });
+  await expect(paginador).toContainText("Página 1 de");
+
+  await page.getByRole("button", { name: "Próxima página" }).click();
+  await expect(paginador).toContainText("Página 2 de");
+  // keepPreviousData: as linhas anteriores seguem na tela até as novas
+  // chegarem. Sem isso a migração teria trocado a troca de página suave por um
+  // flash de skeleton a cada clique.
+  await expect(skeleton).toBeHidden();
+
+  await page.getByRole("button", { name: "Página anterior" }).click();
+  await expect(paginador).toContainText("Página 1 de");
+}

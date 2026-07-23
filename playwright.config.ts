@@ -1,4 +1,13 @@
 import { defineConfig, devices } from "@playwright/test";
+import { loadEnv } from "vite";
+
+/*
+ * Os testes que semeiam dados falam com o Supabase direto, e precisam da URL e
+ * da publishable key — que só existem no .env como VITE_*. O Vite as injeta no
+ * navegador, não no processo do Playwright; loadEnv faz a ponte sem adicionar
+ * dotenv só para isso.
+ */
+Object.assign(process.env, loadEnv("development", process.cwd(), "VITE_"));
 
 /*
  * E2E contra o app rodando localmente. O webServer sobe o Vite dev na 8080 e

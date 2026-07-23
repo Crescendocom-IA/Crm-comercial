@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { resetarOnboarding } from "./helpers";
 
 /*
  * Valida a consolidação do papel no AuthContext no caminho que mais preocupa:
@@ -16,6 +17,10 @@ const PASSWORD = process.env.E2E_ONB_PASSWORD || "E2eTest2026!";
 
 test.describe("Papel após onboarding", () => {
   test("ações de owner aparecem sem reload", async ({ page }) => {
+    // O próprio teste completa o onboarding ao pular; sem devolver a conta ao
+    // estado pendente ele só passaria na primeira execução.
+    await resetarOnboarding();
+
     await page.goto("/login");
     await page.getByRole("tab", { name: "Entrar" }).click();
     await page.getByPlaceholder("seu@email.com").first().fill(EMAIL);

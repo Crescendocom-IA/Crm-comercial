@@ -27,6 +27,19 @@ test.describe("Papel após onboarding", () => {
     await page.getByPlaceholder("••••••••").fill(PASSWORD);
     await page.getByRole("button", { name: /entrar/i }).click();
 
+    /*
+     * Confirma que o login passou ANTES de esperar o modal.
+     *
+     * Sem isto, um login que não completa (a suíte inteira faz um sign-in por
+     * teste, e o GoTrue limita por IP) falhava lá embaixo com "botão não
+     * visível" — mensagem que manda procurar no lugar errado. Aqui a falha diz
+     * que foi o login, e o texto de erro da própria tela vai junto.
+     */
+    await expect(
+      page,
+      "login não completou: ver a mensagem de erro na tela de login",
+    ).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+
     // Onboarding abre porque onboarding_completed = false. No passo de
     // boas-vindas o botão de avançar é "Vamos começar"; "Continuar" só nos
     // passos seguintes.

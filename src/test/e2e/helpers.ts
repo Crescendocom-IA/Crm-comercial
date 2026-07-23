@@ -62,10 +62,25 @@ export async function resetarOnboarding() {
   });
   if (error) throw new Error(`login da conta de onboarding falhou: ${error.message}`);
 
-  const { error: upErr } = await client.from("profiles")
+  /*
+   * `returning=representation` para conferir o que ficou gravado, em vez de
+   * confiar num update que não devolveu erro. Sem a confirmação, o teste
+   * seguia para o login sem saber se a linha realmente mudou — e falhava
+   * esperando um modal de onboarding que não ia aparecer, com uma mensagem
+   * que não dizia nada sobre a causa.
+   */
+  const { data: perfil, error: upErr } = await client.from("profiles")
     .update({ onboarding_completed: false, onboarding_step: 0 })
-    .eq("id", data.user!.id);
+    .eq("id", data.user!.id)
+    .select("onboarding_completed")
+    .maybeSingle();
   if (upErr) throw new Error(`reset do onboarding: ${upErr.message}`);
+  if (perfil?.onboarding_completed !== false) {
+    throw new Error(
+      `reset do onboarding não teve efeito (onboarding_completed=${perfil?.onboarding_completed}); ` +
+      "a RLS de profiles permite este UPDATE?",
+    );
+  }
 }
 
 /** Login pela aba "Entrar" e espera o redirect para /dashboard. */

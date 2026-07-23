@@ -28,3 +28,9 @@ verify_jwt = true
 # gateway, mas protegida internamente pelo segredo CRON_SECRET.
 [functions.process-sequences]
 verify_jwt = false
+
+# erp-sync é chamada por sistema (n8n), não por usuário logado — não há JWT para
+# validar. Pública no gateway, protegida internamente pelo X-ERP-Token, que é
+# comparado por hash contra integration_configs.
+[functions.erp-sync]
+verify_jwt = false

@@ -102,7 +102,13 @@ export function CompanyDrawer({ company: linhaDaLista, onClose, members }: Compa
               {company.industry && <p className="text-sm text-muted-foreground">{company.industry}</p>}
               {company.domain && <p className="text-xs text-muted-foreground">{company.domain}</p>}
             </div>
-            <Button variant="outline" size="sm" onClick={() => setEditing(!editing)}>
+            {/* Só ícone: sem aria-label é anunciado como "botão" e nada mais. */}
+            <Button
+              variant="outline"
+              size="sm"
+              aria-label={editing ? "Cancelar edição" : "Editar empresa"}
+              onClick={() => setEditing(!editing)}
+            >
               {editing ? <X className="h-4 w-4" /> : <Edit2 className="h-4 w-4" />}
             </Button>
           </div>

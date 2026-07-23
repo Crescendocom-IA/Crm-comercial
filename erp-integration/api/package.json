@@ -1,0 +1,28 @@
+{
+  "name": "flowcrm-erp-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API intermediária: lê o Firebird 2.5 do ERP e sincroniza com o FlowCRM",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test-firebird": "node scripts/test-firebird-connection.js",
+    "install-service": "node scripts/install-service.js",
+    "uninstall-service": "node scripts/uninstall-service.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "node-cron": "^3.0.3",
+    "node-firebird": "^1.1.8",
+    "winston": "^3.13.0",
+    "winston-daily-rotate-file": "^5.0.0"
+  },
+  "devDependencies": {
+    "node-windows": "^1.0.0-beta.8"
+  }
+}

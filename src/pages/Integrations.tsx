@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRole } from "@/hooks/useRole";
+import { ErpIntegrationTab } from "@/components/crm/ErpIntegrationTab";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -70,6 +71,7 @@ export default function Integrations() {
           <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
           <TabsTrigger value="api">API Keys</TabsTrigger>
           <TabsTrigger value="tracking">Rastreamento</TabsTrigger>
+          <TabsTrigger value="erp">ERP</TabsTrigger>
           <TabsTrigger value="import-export">Import/Export</TabsTrigger>
         </TabsList>
 
@@ -84,6 +86,9 @@ export default function Integrations() {
         </TabsContent>
         <TabsContent value="tracking" className="mt-4">
           <TrackingTab orgId={orgId} />
+        </TabsContent>
+        <TabsContent value="erp" className="mt-4">
+          <ErpIntegrationTab />
         </TabsContent>
         <TabsContent value="import-export" className="mt-4">
           <ImportExportTab orgId={orgId} userId={user?.id} />

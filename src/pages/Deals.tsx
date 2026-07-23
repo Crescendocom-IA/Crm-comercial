@@ -1,12 +1,19 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useDealsQuery, useDealsListQuery, useDealsRealtime, useDealMutation,
+  useDealBulkMutation, DEALS_PAGE_SIZE, type DealWithRelations,
+} from "@/hooks/queries/useDeals";
+import {
+  usePipelinesQuery, useStagesQuery, useMembersQuery,
+  useCompanyOptionsQuery, useContactOptionsQuery,
+} from "@/hooks/queries/useOrgOptions";
 import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
-import { logAudit } from "@/lib/audit";
 import { EmptyState } from "@/components/crm/EmptyState";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,43 +34,24 @@ import { DealsKanban } from "@/components/crm/DealsKanban";
 import { DealsList } from "@/components/crm/DealsList";
 import { DealsForecast } from "@/components/crm/DealsForecast";
 import { DealsFilters, type DealFilters } from "@/components/crm/DealsFilters";
-import { fireWebhook, fireAutomations } from "@/lib/webhooks";
-import { applyScoreEvent } from "@/lib/scoring";
 import type { Database } from "@/integrations/supabase/types";
 
 type Deal = Database["public"]["Tables"]["deals"]["Row"];
-type Stage = Database["public"]["Tables"]["pipeline_stages"]["Row"];
-type Pipeline = Database["public"]["Tables"]["pipelines"]["Row"];
-type Contact = Database["public"]["Tables"]["contacts"]["Row"];
-type Company = Database["public"]["Tables"]["companies"]["Row"];
-type Profile = Database["public"]["Tables"]["profiles"]["Row"];
-type DealStatus = Database["public"]["Enums"]["deal_status"];
 
-export type DealWithRelations = Deal & {
-  contact?: Contact | null;
-  company?: Company | null;
-  owner?: Profile | null;
-};
+// Reexportado: DealsKanban, DealsList e DealsForecast importam o tipo daqui
+// desde antes de ele virar parte do módulo de queries.
+export type { DealWithRelations };
 
 type ViewMode = "kanban" | "list" | "forecast";
 
-const PAGE_SIZE = 50;
-
 export default function Deals() {
   const { orgId } = useOrg();
-  const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const qc = useQueryClient();
 
-  const [deals, setDeals] = useState<DealWithRelations[]>([]);
-  const [stages, setStages] = useState<Stage[]>([]);
-  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [members, setMembers] = useState<Profile[]>([]);
   const [selectedPipeline, setSelectedPipeline] = useState<string>("");
   const [viewMode, setViewMode] = useState<ViewMode>("kanban");
-  const [loading, setLoading] = useState(true);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing] = useState<Deal | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -79,7 +67,6 @@ export default function Deals() {
   const debouncedSearch = useDebounce(filters.search ?? "", 300);
   const [presetStageId, setPresetStageId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
-  const [totalCount, setTotalCount] = useState(0);
 
   // Loss reason modal
   const [lossModalOpen, setLossModalOpen] = useState(false);
@@ -94,7 +81,56 @@ export default function Deals() {
   const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
   const [editingStages, setEditingStages] = useState<{ id?: string; name: string; color: string; win_probability: number; order: number }[]>([]);
   const [savingPipeline, setSavingPipeline] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  /*
+   * Listas de configuração e de opções: chaves próprias, compartilhadas com
+   * as outras telas. Invalidar negócios não as arrasta junto.
+   */
+  const pipelines = usePipelinesQuery();
+  const stages = useStagesQuery();
+  const members = useMembersQuery();
+  const contacts = useContactOptionsQuery();
+  const companies = useCompanyOptionsQuery();
+
+  /*
+   * Só a busca é debouncada, não o objeto `filters` inteiro: atrasar o objeto
+   * faria escolher um responsável ou uma data esperar 300ms sem motivo.
+   */
+  const queryFilters = { ...filters, search: debouncedSearch };
+
+  /*
+   * Duas queries, uma por formato de recorte, e só a da visão atual habilitada.
+   * Trocar de visão não descarta o que a outra já tinha: são chaves distintas
+   * no mesmo cache.
+   */
+  const kanbanQuery = useDealsQuery(queryFilters, viewMode !== "list");
+  const listQuery = useDealsListQuery({ page, filters: queryFilters }, viewMode === "list");
+  const ativa = viewMode === "list" ? listQuery : kanbanQuery;
+  const loading = ativa.isLoading;
+  const totalCount = ativa.count;
+
+  /*
+   * O responsável é resolvido aqui, não no join da query: `owner` sai de
+   * `profiles`, que já está em cache para os selects. Deixar de fora da query
+   * também simplifica o realtime — o patch de cache não precisa remontar
+   * relação nenhuma para mudanças de estágio ou status.
+   */
+  const deals = useMemo(
+    () => ativa.data.map((d) => ({ ...d, owner: members.find((m) => m.id === d.owner_id) ?? null })),
+    [ativa.data, members],
+  );
+
+  useDealsRealtime();
+
+  const { create, update, changeStage, setStatus } = useDealMutation(stages);
+  const { bulkDelete, bulkSetStatus } = useDealBulkMutation(stages);
+
+  // Pipeline padrão na primeira carga; a escolha do usuário prevalece depois.
+  useEffect(() => {
+    if (!pipelines.length) return;
+    const padrao = pipelines.find((pl) => pl.is_default) || pipelines[0];
+    setSelectedPipeline((prev) => prev || padrao.id);
+  }, [pipelines]);
 
   const openPipelineEditor = () => {
     const current = stages
@@ -143,147 +179,12 @@ export default function Deals() {
     setSavingPipeline(false);
     setPipelineDialogOpen(false);
     toast({ title: "Pipeline atualizado!" });
-    fetchData();
+    // Só os estágios mudaram; os negócios seguem válidos em cache.
+    qc.invalidateQueries({ queryKey: ["pipeline_stages", orgId] });
   };
-
-  /** Busca e filtros na query. */
-  const applyDealFilters = useCallback((q: any) => {
-    if (debouncedSearch) {
-      // Sem .or() aqui: a busca é só por título, então .ilike() direto — e a
-      // vírgula do usuário não corre risco de virar sintaxe.
-      q = q.ilike("title", `%${debouncedSearch}%`);
-    }
-    if (filters.ownerId) q = q.eq("owner_id", filters.ownerId);
-    if (filters.minValue) q = q.gte("value", filters.minValue);
-    if (filters.maxValue) q = q.lte("value", filters.maxValue);
-    if (filters.closeDateFrom) q = q.gte("close_date", filters.closeDateFrom);
-    if (filters.closeDateTo) q = q.lte("close_date", filters.closeDateTo);
-    return q;
-  }, [debouncedSearch, filters]);
-
-  const fetchData = useCallback(async () => {
-    if (!orgId) return;
-
-    /*
-     * Só a LISTA é paginada. Kanban e forecast agrupam e somam por estágio —
-     * "página 1 do kanban" não significa nada, e os totais por coluna sairiam
-     * errados se só 50 negócios chegassem. Essas duas visões carregam tudo que
-     * casa os filtros, o que é inerente ao que elas mostram.
-     */
-    let dQuery = supabase
-      .from("deals")
-      .select("*, contact:contacts!deals_contact_id_fkey(*), company:companies!deals_company_id_fkey(*)", { count: "exact" })
-      .eq("org_id", orgId)
-      .order("created_at", { ascending: false });
-    dQuery = applyDealFilters(dQuery);
-    if (viewMode === "list") {
-      dQuery = dQuery.range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
-    }
-
-    const [pRes, sRes, dRes, cRes, coRes, mRes] = await Promise.all([
-      supabase.from("pipelines").select("*").eq("org_id", orgId).order("is_default", { ascending: false }).order("created_at", { ascending: false }),
-      supabase.from("pipeline_stages").select("*").eq("org_id", orgId).order("order"),
-      dQuery,
-      supabase.from("contacts").select("*").eq("org_id", orgId),
-      supabase.from("companies").select("*").eq("org_id", orgId),
-      supabase.from("profiles").select("*").eq("org_id", orgId),
-    ]);
-    setPipelines(pRes.data || []);
-    setStages(sRes.data || []);
-    // Enrich deals with owner profile
-    const allMembers = mRes.data || [];
-    const enrichedDeals: DealWithRelations[] = (dRes.data || []).map((d: any) => ({
-      ...d,
-      contact: d.contact || null,
-      company: d.company || null,
-      owner: allMembers.find((m) => m.id === d.owner_id) || null,
-    }));
-    setDeals(enrichedDeals);
-    setTotalCount(dRes.count ?? enrichedDeals.length);
-    setContacts(cRes.data || []);
-    setCompanies(coRes.data || []);
-    setMembers(allMembers);
-    // Escolher o pipeline padrão era a única leitura de selectedPipeline aqui,
-    // e era ela que o punha nas deps: cada troca de pipeline (e cada evento de
-    // realtime, que dependia de fetchData) refazia as 6 queries. As queries
-    // nunca filtraram por pipeline — isso já acontece em estado local, em
-    // pipelineStages. Com o setState funcional, fetchData passa a depender só
-    // de orgId e fica estável.
-    if (pRes.data?.length) {
-      const def = pRes.data.find((p) => p.is_default) || pRes.data[0];
-      setSelectedPipeline((prev) => prev || def.id);
-    }
-    setLoading(false);
-  }, [orgId, page, viewMode, applyDealFilters]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
 
   // Filtro, busca ou troca de visão invalidam a página atual.
   useEffect(() => { setPage(0); }, [debouncedSearch, filters, viewMode]);
-
-  /*
-   * O payload do realtime traz só as colunas de `deals` — sem os joins de
-   * contact/company nem o owner enriquecido. Guardamos as listas já carregadas
-   * numa ref para reconstruir as relações sem pôr contacts/companies/members
-   * nas deps do canal (o que faria o socket reassinar a cada fetch).
-   */
-  const lookupsRef = useRef({ contacts, companies, members });
-  useEffect(() => {
-    lookupsRef.current = { contacts, companies, members };
-  }, [contacts, companies, members]);
-
-  // Realtime subscription for deals
-  useEffect(() => {
-    if (!orgId) return;
-    const channel = supabase
-      .channel('deals-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'deals', filter: `org_id=eq.${orgId}` },
-        (payload) => {
-          /*
-           * Antes, qualquer evento refazia as 6 queries do fetchData. Como cada
-           * arrastar de card no kanban emite um UPDATE, um drag custava um
-           * refetch completo do pipeline inteiro.
-           *
-           * UPDATE é o caminho quente e dá para aplicar direto no state. INSERT
-           * ainda refaz o fetch: uma linha criada por outra pessoa pode
-           * referenciar um contato ou empresa que não temos em memória.
-           */
-          if (payload.eventType === "UPDATE") {
-            const row = payload.new as Deal;
-            setDeals((prev) => {
-              const idx = prev.findIndex((d) => d.id === row.id);
-              if (idx === -1) return prev;
-              const old = prev[idx];
-              const { contacts: cs, companies: cos, members: ms } = lookupsRef.current;
-              const next = [...prev];
-              next[idx] = {
-                ...old,
-                ...row,
-                // Só re-resolve a relação se o FK mudou; senão o objeto que já
-                // veio do join continua valendo.
-                contact: row.contact_id === old.contact_id ? old.contact : cs.find((c) => c.id === row.contact_id) ?? null,
-                company: row.company_id === old.company_id ? old.company : cos.find((c) => c.id === row.company_id) ?? null,
-                owner: row.owner_id === old.owner_id ? old.owner : ms.find((m) => m.id === row.owner_id) ?? null,
-              };
-              return next;
-            });
-            return;
-          }
-
-          if (payload.eventType === "DELETE") {
-            const removed = payload.old as { id?: string };
-            if (removed?.id) setDeals((prev) => prev.filter((d) => d.id !== removed.id));
-            return;
-          }
-
-          fetchData();
-        }
-      )
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [orgId, fetchData]);
 
   const pipelineStages = stages.filter((s) => s.pipeline_id === selectedPipeline);
 
@@ -300,23 +201,20 @@ export default function Deals() {
       })
     : deals;
 
-  const handleDragEnd = async (dealId: string, newStageId: string) => {
-    // Guarda o estágio anterior ANTES do update otimista, para poder reverter.
-    const previousStageId = deals.find((d) => d.id === dealId)?.stage_id ?? null;
-
-    // Update otimista — mantém o arraste fluido.
-    setDeals((prev) => prev.map((d) => d.id === dealId ? { ...d, stage_id: newStageId } : d));
-
-    const { error } = await supabase.from("deals").update({ stage_id: newStageId }).eq("id", dealId);
-    if (error) {
-      // Sem isto o card ficava na coluna nova mesmo com a escrita falhando, e o
-      // usuário seguia o dia inteiro achando que a mudança tinha sido salva.
-      setDeals((prev) => prev.map((d) => d.id === dealId ? { ...d, stage_id: previousStageId } : d));
-      toast({ title: "Não foi possível mover o negócio. Tente novamente.", variant: "destructive" });
-      return;
-    }
-
-    fireAutomations(orgId, "deal.stage_changed", { deal_id: dealId, stage_id: newStageId });
+  const handleDragEnd = (dealId: string, newStageId: string) => {
+    const deal = deals.find((d) => d.id === dealId);
+    if (!deal) return;
+    /*
+     * O update otimista e a reversão vivem na mutation. O toast de erro fica
+     * aqui porque é da tela: sem ele o card ficava na coluna nova mesmo com a
+     * escrita falhando, e o usuário seguia o dia achando que tinha salvo.
+     */
+    changeStage.mutate({ deal, stageId: newStageId }, {
+      onError: () => toast({
+        title: "Não foi possível mover o negócio. Tente novamente.",
+        variant: "destructive",
+      }),
+    });
   };
 
   const openNew = (stageId?: string) => {
@@ -345,65 +243,36 @@ export default function Deals() {
     setSheetOpen(true);
   };
 
-  const handleSave = async () => {
-    if (!orgId || !form.title || isSubmitting) return;
-    setIsSubmitting(true);
-    try {
-      if (editing) {
-        const { error } = await supabase.from("deals").update({
+  const handleSave = () => {
+    if (!orgId || !form.title) return;
+    const depois = () => {
+      setSheetOpen(false);
+      toast({ title: editing ? "Negócio atualizado" : "Negócio criado" });
+    };
+    const aoFalhar = (e: any) =>
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+
+    if (editing) {
+      update.mutate({
+        deal: editing,
+        patch: {
           title: form.title, value: Number(form.value) || 0, currency: form.currency,
           stage_id: form.stage_id, probability: Number(form.probability) || 0,
           close_date: form.close_date, contact_id: form.contact_id || null,
           company_id: form.company_id || null, owner_id: form.owner_id || null,
-        }).eq("id", editing.id);
-        if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
-        /*
-         * Estágio vai pelo NOME, não pelo uuid — o histórico é para leitura
-         * humana, mesma convenção usada no DealDetail.
-         */
-        const nomeEstagio = (id?: string | null) => stages.find((s) => s.id === id)?.name ?? null;
-        void logAudit({
-          orgId, action: "update", entityType: "deal", entityId: editing.id,
-          oldValues: {
-            title: editing.title, value: editing.value, probability: editing.probability,
-            close_date: editing.close_date, stage: nomeEstagio(editing.stage_id),
-          },
-          newValues: {
-            title: form.title, value: Number(form.value) || 0,
-            probability: Number(form.probability) || 0,
-            close_date: form.close_date, stage: nomeEstagio(form.stage_id),
-          },
-        });
-      } else {
-        const { data: inserted, error } = await supabase.from("deals").insert({
-          org_id: orgId, title: form.title!, value: Number(form.value) || 0,
-          currency: form.currency || "BRL", stage_id: form.stage_id,
-          probability: Number(form.probability) || 0, close_date: form.close_date,
-          status: "open", owner_id: form.owner_id || user?.id,
-          contact_id: form.contact_id || null, company_id: form.company_id || null,
-        }).select().single();
-        if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
-        void logAudit({
-          orgId, action: "create", entityType: "deal", entityId: inserted?.id,
-          newValues: { title: form.title, value: Number(form.value) || 0 },
-        });
-        fireWebhook(orgId, "deal.created", inserted ?? {});
-        if (inserted?.contact_id) applyScoreEvent(orgId, inserted.contact_id, "deal_created");
-      }
-      setSheetOpen(false);
-      fetchData();
-      toast({ title: editing ? "Negócio atualizado" : "Negócio criado" });
-    } finally {
-      setIsSubmitting(false);
+        },
+      }, { onSuccess: depois, onError: aoFalhar });
+    } else {
+      create.mutate(form, { onSuccess: depois, onError: aoFalhar });
     }
   };
-
-  const markAsWon = async (dealId: string) => {
-    await supabase.from("deals").update({ status: "won" }).eq("id", dealId);
-    fireWebhook(orgId, "deal.won", { deal_id: dealId });
-    fireAutomations(orgId, "deal.won", { deal_id: dealId });
-    fetchData();
-    toast({ title: "Negócio marcado como ganho! 🎉" });
+  const markAsWon = (dealId: string) => {
+    const deal = deals.find((d) => d.id === dealId);
+    if (!deal) return;
+    setStatus.mutate({ deal, status: "won" }, {
+      onSuccess: () => toast({ title: "Negócio marcado como ganho! 🎉" }),
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
   const openLossModal = (dealId: string) => {
@@ -413,59 +282,52 @@ export default function Deals() {
     setLossModalOpen(true);
   };
 
-  const confirmLoss = async () => {
-    if (!lossDealId) return;
+  const confirmLoss = () => {
+    const deal = deals.find((d) => d.id === lossDealId);
+    if (!deal) return;
     const reason = lossNote ? `${lossReason}: ${lossNote}` : lossReason;
-    await supabase.from("deals").update({ status: "lost", loss_reason: reason }).eq("id", lossDealId);
-    fireWebhook(orgId, "deal.lost", { deal_id: lossDealId, loss_reason: reason });
-    fireAutomations(orgId, "deal.lost", { deal_id: lossDealId, loss_reason: reason });
-    setLossModalOpen(false);
-    fetchData();
-    toast({ title: "Negócio marcado como perdido" });
+    setStatus.mutate({ deal, status: "lost", lossReason: reason }, {
+      onSuccess: () => {
+        setLossModalOpen(false);
+        toast({ title: "Negócio marcado como perdido" });
+      },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
-  const handleBatchAction = async (action: "won" | "lost" | "delete") => {
-    const ids = Array.from(selectedDeals);
-    // Estado anterior capturado antes da mutação, para o log dizer o que mudou
-    // (e, no delete, o que existia — depois não há de onde ler).
-    const antes = ids.map((id) => deals.find((d) => d.id === id));
-
-    /** Uma entrada por entidade: cada linha do log é uma ação atômica. */
-    const registrar = (op: "delete" | "update", novos?: Record<string, unknown>) => {
-      ids.forEach((id, i) => {
-        const d = antes[i];
-        void logAudit({
-          orgId, action: op, entityType: "deal", entityId: id,
-          oldValues: op === "delete"
-            ? (d ? { title: d.title, value: d.value, status: d.status } : undefined)
-            : { status: d?.status ?? null },
-          newValues: novos,
-        });
-      });
+  /*
+   * Passa os negócios inteiros, não os ids: as mutations precisam do estado
+   * anterior para o log dizer o que mudou — e, no delete, o que existia,
+   * porque depois não há de onde ler.
+   */
+  const handleBatchAction = (action: "won" | "lost" | "delete") => {
+    const alvos = deals.filter((d) => selectedDeals.has(d.id));
+    const limpar = (titulo: string) => () => {
+      setSelectedDeals(new Set());
+      toast({ title: titulo });
     };
+    const aoFalhar = (e: any) =>
+      toast({ title: "Erro na ação em lote", description: e.message, variant: "destructive" });
 
     if (action === "delete") {
-      await Promise.all(ids.map((id) => supabase.from("deals").delete().eq("id", id)));
-      registrar("delete");
-      toast({ title: `${ids.length} negócios excluídos` });
-    } else if (action === "won") {
-      await Promise.all(ids.map((id) => supabase.from("deals").update({ status: "won" }).eq("id", id)));
-      registrar("update", { status: "won" });
-      ids.forEach((id) => { fireWebhook(orgId, "deal.won", { deal_id: id }); fireAutomations(orgId, "deal.won", { deal_id: id }); });
-      toast({ title: `${ids.length} negócios marcados como ganhos` });
+      bulkDelete.mutate(alvos, {
+        onSuccess: limpar(`${alvos.length} negócios excluídos`), onError: aoFalhar,
+      });
     } else {
-      await Promise.all(ids.map((id) => supabase.from("deals").update({ status: "lost" }).eq("id", id)));
-      registrar("update", { status: "lost" });
-      ids.forEach((id) => { fireWebhook(orgId, "deal.lost", { deal_id: id }); fireAutomations(orgId, "deal.lost", { deal_id: id }); });
-      toast({ title: `${ids.length} negócios marcados como perdidos` });
+      bulkSetStatus.mutate({ negocios: alvos, status: action }, {
+        onSuccess: limpar(
+          `${alvos.length} negócios marcados como ${action === "won" ? "ganhos" : "perdidos"}`,
+        ),
+        onError: aoFalhar,
+      });
     }
-    setSelectedDeals(new Set());
-    fetchData();
   };
-
   if (!orgId) {
     return <div className="py-20 text-center text-muted-foreground">Crie uma organização em Configurações primeiro.</div>;
   }
+
+  const filtroAtivo = !!debouncedSearch
+    || Object.entries(filters).some(([campo, valor]) => campo !== "search" && !!valor);
 
   const openDeals = filteredDeals.filter((d) => d.status === "open");
   const wonDeals = filteredDeals.filter((d) => d.status === "won");
@@ -550,16 +412,28 @@ export default function Deals() {
       {/*
         Conta sem nenhum negócio troca as três visualizações por um convite a
         criar o primeiro — um kanban de colunas vazias não explica o que fazer.
-        Quando há negócios mas o filtro não casou, cada visualização mostra o
-        próprio vazio, que fala de filtro em vez de oferecer criar.
+
+        O discriminador é o filtro ativo, não `deals.length`: desde que a busca
+        foi para o servidor, `deals` É a lista já filtrada, então testar o
+        tamanho dela dava sempre o primeiro caso — quem buscava um título
+        inexistente via "Nenhum negócio ainda" com botão de criar, como se o
+        pipeline estivesse vazio. Mesmo defeito de Contatos e Empresas.
       */}
-      {!loading && deals.length === 0 && (
+      {!loading && deals.length === 0 && !filtroAtivo && (
         <EmptyState
           icon={<Handshake className="h-7 w-7 text-muted-foreground" />}
           title="Nenhum negócio ainda"
           description="Negócios são as oportunidades que você acompanha pelo pipeline até fechar."
           actionLabel="Criar negócio"
           onAction={() => openNew()}
+        />
+      )}
+
+      {!loading && deals.length === 0 && filtroAtivo && (
+        <EmptyState
+          icon={<Search className="h-7 w-7 text-muted-foreground" />}
+          title="Nenhum negócio encontrado"
+          description="Nenhum negócio corresponde à busca ou aos filtros aplicados."
         />
       )}
 
@@ -588,10 +462,10 @@ export default function Deals() {
             onBatchAction={handleBatchAction}
           />
           {/* Paginação só existe na lista — ver o comentário em fetchData. */}
-          {totalCount > PAGE_SIZE && (
+          {totalCount > DEALS_PAGE_SIZE && (
             <div className="flex items-center justify-between pt-2">
               <span className="text-sm text-muted-foreground">
-                Página {page + 1} de {Math.ceil(totalCount / PAGE_SIZE)} · {totalCount} negócios
+                Página {page + 1} de {Math.ceil(totalCount / DEALS_PAGE_SIZE)} · {totalCount} negócios
               </span>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>
@@ -600,7 +474,7 @@ export default function Deals() {
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={page >= Math.ceil(totalCount / PAGE_SIZE) - 1}
+                  disabled={page >= Math.ceil(totalCount / DEALS_PAGE_SIZE) - 1}
                   onClick={() => setPage(page + 1)}
                 >
                   Próxima
@@ -693,8 +567,8 @@ export default function Deals() {
                 <Input type="date" value={form.close_date || ""} onChange={(e) => setForm({ ...form, close_date: e.target.value })} />
               </div>
             </div>
-            <Button onClick={handleSave} disabled={isSubmitting} className="w-full">
-              {isSubmitting ? "Salvando..." : editing ? "Salvar" : "Criar Negócio"}
+            <Button onClick={handleSave} disabled={create.isPending || update.isPending} className="w-full">
+              {create.isPending || update.isPending ? "Salvando..." : editing ? "Salvar" : "Criar Negócio"}
             </Button>
           </div>
         </SheetContent>

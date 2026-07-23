@@ -1,11 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ErpBadge } from "@/components/crm/ErpBadge";
-import { logAudit } from "@/lib/audit";
+import {
+  useContactQuery, useContactRelatedQuery, useContactMutation, useContactActivityMutation,
+} from "@/hooks/queries/useContacts";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
-import { supabase } from "@/integrations/supabase/client";
-import { useOrg } from "@/hooks/useOrg";
-import { useAuth } from "@/contexts/AuthContext";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -28,11 +27,8 @@ import type { Database } from "@/integrations/supabase/types";
 type Contact = Database["public"]["Tables"]["contacts"]["Row"];
 type Company = Database["public"]["Tables"]["companies"]["Row"];
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
-type Deal = Database["public"]["Tables"]["deals"]["Row"];
-type Activity = Database["public"]["Tables"]["activities"]["Row"];
 type ContactStatus = Database["public"]["Enums"]["contact_status"];
 type ActivityType = Database["public"]["Enums"]["activity_type"];
-type Stage = Database["public"]["Tables"]["pipeline_stages"]["Row"];
 
 const statusColors: Record<ContactStatus, string> = {
   lead: "bg-primary/10 text-primary", prospect: "bg-warning/10 text-warning",
@@ -55,78 +51,64 @@ function formatCurrency(value: number, currency: string = "BRL") {
 interface ContactDrawerProps {
   contact: Contact | null;
   onClose: () => void;
-  onUpdate: () => void;
   companies: Company[];
   members: Profile[];
 }
 
-export function ContactDrawer({ contact, onClose, onUpdate, companies, members }: ContactDrawerProps) {
-  const { orgId } = useOrg();
-  const { user } = useAuth();
+export function ContactDrawer({ contact: linhaDaLista, onClose, companies, members }: ContactDrawerProps) {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  /*
+   * A linha que a lista tem em mãos abre o drawer preenchido, mas quem manda
+   * é a query: depois de salvar, a invalidação recarrega este detalhe. Antes
+   * o drawer seguia mostrando o snapshot antigo até ser fechado e reaberto.
+   */
+  const { data: contatoFresco } = useContactQuery(linhaDaLista?.id, linhaDaLista);
+  const contact = contatoFresco ?? linhaDaLista;
+
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<Contact>>({});
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [deals, setDeals] = useState<Deal[]>([]);
-  const [stages, setStages] = useState<Stage[]>([]);
   const [activityForm, setActivityForm] = useState({ type: "note" as ActivityType, title: "", body: "" });
 
-  const fetchRelated = useCallback(async () => {
-    if (!contact) return;
-    const [aRes, dRes, sRes] = await Promise.all([
-      supabase.from("activities").select("*").eq("contact_id", contact.id).order("created_at", { ascending: false }),
-      supabase.from("deals").select("*").eq("contact_id", contact.id),
-      supabase.from("pipeline_stages").select("*").eq("org_id", contact.org_id).order("order"),
-    ]);
-    setActivities(aRes.data || []);
-    setDeals(dRes.data || []);
-    setStages(sRes.data || []);
-  }, [contact]);
+  const { activities, deals, stages } = useContactRelatedQuery(contact);
+  const { update } = useContactMutation();
+  const addActivityMutation = useContactActivityMutation(contact);
 
+  /*
+   * Trocar de contato reinicia o formulário. A dependência é o id, não o
+   * objeto: reagir ao `contact` inteiro descartaria o que o usuário está
+   * digitando a cada refetch do detalhe.
+   */
   useEffect(() => {
-    if (contact) {
-      setForm(contact);
-      setEditing(false);
-      fetchRelated();
-    }
-  }, [contact, fetchRelated]);
+    if (!linhaDaLista) return;
+    setForm(linhaDaLista);
+    setEditing(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linhaDaLista?.id]);
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!contact) return;
-    const next = {
+    const patch = {
       first_name: form.first_name, last_name: form.last_name, email: form.email,
       phone: form.phone, title: form.title, status: form.status as ContactStatus,
       linkedin_url: form.linkedin_url, company_id: (form as any).company_id || null,
     };
-    const { error } = await supabase.from("contacts").update(next).eq("id", contact.id);
-    if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
-    // Só os campos editáveis vão para o log: o diff da timeline compara
-    // old/new e ignora o que não mudou.
-    void logAudit({
-      orgId: contact.org_id, action: "update", entityType: "contact", entityId: contact.id,
-      oldValues: {
-        first_name: contact.first_name, last_name: contact.last_name, email: contact.email,
-        phone: contact.phone, title: contact.title, status: contact.status,
-        linkedin_url: contact.linkedin_url, company_id: (contact as any).company_id ?? null,
-      },
-      newValues: next,
+    update.mutate({ contact, patch }, {
+      onSuccess: () => { setEditing(false); toast({ title: "Contato atualizado" }); },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
     });
-    setEditing(false);
-    onUpdate();
-    toast({ title: "Contato atualizado" });
   };
 
-  const addActivity = async () => {
-    if (!orgId || !contact || !activityForm.title) return;
-    await supabase.from("activities").insert({
-      org_id: orgId, contact_id: contact.id, type: activityForm.type,
-      title: activityForm.title, body: activityForm.body, user_id: user?.id,
+  const addActivity = () => {
+    if (!contact || !activityForm.title) return;
+    addActivityMutation.mutate(activityForm, {
+      onSuccess: () => {
+        setActivityForm({ type: "note", title: "", body: "" });
+        toast({ title: "Atividade adicionada" });
+      },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
     });
-    setActivityForm({ type: "note", title: "", body: "" });
-    fetchRelated();
-    toast({ title: "Atividade adicionada" });
   };
 
   if (!contact) return null;
@@ -207,7 +189,9 @@ export function ContactDrawer({ contact, onClose, onUpdate, companies, members }
                     </SelectContent>
                   </Select>
                 </div>
-                <Button onClick={handleSave} className="w-full"><Save className="mr-2 h-4 w-4" />Salvar</Button>
+                <Button onClick={handleSave} disabled={update.isPending} className="w-full">
+                  <Save className="mr-2 h-4 w-4" />{update.isPending ? "Salvando..." : "Salvar"}
+                </Button>
               </div>
             ) : (
               <div className="space-y-3">
@@ -274,7 +258,7 @@ export function ContactDrawer({ contact, onClose, onUpdate, companies, members }
                 <Input className="h-8 text-sm" placeholder="Título" value={activityForm.title} onChange={(e) => setActivityForm({ ...activityForm, title: e.target.value })} />
               </div>
               <Textarea placeholder="Descrição..." value={activityForm.body} onChange={(e) => setActivityForm({ ...activityForm, body: e.target.value })} rows={2} className="text-sm" />
-              <Button size="sm" onClick={addActivity} disabled={!activityForm.title}>Adicionar</Button>
+              <Button size="sm" onClick={addActivity} disabled={!activityForm.title || addActivityMutation.isPending}>Adicionar</Button>
             </div>
             <div className="space-y-2">
               {activities.map((a) => {

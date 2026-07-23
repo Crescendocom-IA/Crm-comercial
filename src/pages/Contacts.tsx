@@ -547,7 +547,6 @@ export default function Contacts() {
       <ContactDrawer
         contact={drawerContact}
         onClose={() => setDrawerContact(null)}
-        onUpdate={invalidar}
         companies={companies}
         members={members}
       />
@@ -556,7 +555,6 @@ export default function Contacts() {
       <ContactCreateModal
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onCreated={invalidar}
         companies={companies}
       />
 

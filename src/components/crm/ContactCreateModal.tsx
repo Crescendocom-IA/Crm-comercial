@@ -1,8 +1,6 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { logAudit } from "@/lib/audit";
+import { useContactMutation } from "@/hooks/queries/useContacts";
 import { useOrg } from "@/hooks/useOrg";
-import { useAuth } from "@/contexts/AuthContext";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -13,7 +11,6 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { fireWebhook, fireAutomations } from "@/lib/webhooks";
 import type { Database } from "@/integrations/supabase/types";
 
 type Company = Database["public"]["Tables"]["companies"]["Row"];
@@ -22,20 +19,18 @@ type ContactStatus = Database["public"]["Enums"]["contact_status"];
 interface ContactCreateModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: () => void;
   companies: Company[];
 }
 
-export function ContactCreateModal({ open, onOpenChange, onCreated, companies }: ContactCreateModalProps) {
+export function ContactCreateModal({ open, onOpenChange, companies }: ContactCreateModalProps) {
   const { orgId } = useOrg();
-  const { user } = useAuth();
   const { toast } = useToast();
+  const { create } = useContactMutation();
   const [form, setForm] = useState({
     first_name: "", last_name: "", email: "", phone: "", title: "",
     status: "lead" as ContactStatus, linkedin_url: "", company_id: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const validate = () => {
     const errs: Record<string, string> = {};
@@ -45,30 +40,21 @@ export function ContactCreateModal({ open, onOpenChange, onCreated, companies }:
     return Object.keys(errs).length === 0;
   };
 
-  const handleCreate = async () => {
-    if (!orgId || !validate() || isSubmitting) return;
-    setIsSubmitting(true);
-    try {
-      const { data: inserted, error } = await supabase.from("contacts").insert({
-        org_id: orgId, first_name: form.first_name, last_name: form.last_name || null,
-        email: form.email || null, phone: form.phone || null, title: form.title || null,
-        status: form.status, linkedin_url: form.linkedin_url || null, owner_id: user?.id,
-        company_id: form.company_id || null,
-      }).select().single();
-      if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
-      void logAudit({
-        orgId, action: "create", entityType: "contact", entityId: inserted?.id,
-        newValues: { first_name: form.first_name, last_name: form.last_name, email: form.email },
-      });
-      fireWebhook(orgId, "contact.created", inserted ?? {});
-      fireAutomations(orgId, "contact.created", { contact_id: inserted?.id, lead_score: inserted?.lead_score, status: inserted?.status });
-      onOpenChange(false);
-      setForm({ first_name: "", last_name: "", email: "", phone: "", title: "", status: "lead", linkedin_url: "", company_id: "" });
-      onCreated();
-      toast({ title: "Contato criado" });
-    } finally {
-      setIsSubmitting(false);
-    }
+  /*
+   * O insert, o log de auditoria, o webhook e as automações de contact.created
+   * vivem na mutation: eram quatro efeitos que qualquer novo ponto de criação
+   * teria que lembrar de repetir. Aqui fica só o que é do formulário.
+   */
+  const handleCreate = () => {
+    if (!orgId || !validate() || create.isPending) return;
+    create.mutate(form, {
+      onSuccess: () => {
+        onOpenChange(false);
+        setForm({ first_name: "", last_name: "", email: "", phone: "", title: "", status: "lead", linkedin_url: "", company_id: "" });
+        toast({ title: "Contato criado" });
+      },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
   return (
@@ -129,8 +115,8 @@ export function ContactCreateModal({ open, onOpenChange, onCreated, companies }:
               </SelectContent>
             </Select>
           </div>
-          <Button onClick={handleCreate} disabled={isSubmitting} className="w-full">
-            {isSubmitting ? "Criando..." : "Criar Contato"}
+          <Button onClick={handleCreate} disabled={create.isPending} className="w-full">
+            {create.isPending ? "Criando..." : "Criar Contato"}
           </Button>
         </div>
       </DialogContent>

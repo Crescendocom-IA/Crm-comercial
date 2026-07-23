@@ -24,7 +24,7 @@ type AuditLog = {
 type Person = { id: string; name: string | null; email: string | null; avatar_url: string | null };
 
 interface Props {
-  entityType: "contact" | "deal";
+  entityType: "contact" | "deal" | "company";
   entityId: string;
 }
 
@@ -43,6 +43,7 @@ const ACTIONS: Record<string, { icon: typeof Plus; verb: string; tone: string }>
 const ENTITY_LABEL: Record<Props["entityType"], string> = {
   contact: "este contato",
   deal: "este negócio",
+  company: "esta empresa",
 };
 
 /** Campos técnicos que não dizem nada ao usuário no diff. */

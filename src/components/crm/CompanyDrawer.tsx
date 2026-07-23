@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ErpBadge } from "@/components/crm/ErpBadge";
+import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { useOrg } from "@/hooks/useOrg";
 import { useIndustries } from "@/hooks/useIndustries";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -127,6 +128,7 @@ export function CompanyDrawer({ company, onClose, onUpdate, members }: CompanyDr
             <TabsTrigger value="overview" className="flex-1">Visão Geral</TabsTrigger>
             <TabsTrigger value="contacts" className="flex-1">Contatos</TabsTrigger>
             <TabsTrigger value="deals" className="flex-1">Negócios</TabsTrigger>
+            <TabsTrigger value="history" className="flex-1">Histórico</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="mt-4 space-y-4">
@@ -239,6 +241,10 @@ export function CompanyDrawer({ company, onClose, onUpdate, members }: CompanyDr
               );
             })}
             {deals.length === 0 && <p className="text-center text-sm text-muted-foreground py-6">Nenhum negócio</p>}
+          </TabsContent>
+
+          <TabsContent value="history" className="mt-4">
+            <ActivityTimeline entityType="company" entityId={company.id} />
           </TabsContent>
         </Tabs>
       </SheetContent>

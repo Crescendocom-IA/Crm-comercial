@@ -1,4 +1,10 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState } from "react";
+import {
+  useContactsQuery, useContactsLastActivityQuery, useContactCompaniesQuery,
+  useContactMembersQuery, useContactMutation, useContactBulkMutation,
+  applyContactFilters, applyContactSort, CONTACTS_PAGE_SIZE,
+  type ContactFilters, type ContactSortKey, type ContactSortDir,
+} from "@/hooks/queries/useContacts";
 import { useRole } from "@/hooks/useRole";
 import { ErpBadge } from "@/components/crm/ErpBadge";
 import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
@@ -8,7 +14,6 @@ import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,8 +48,6 @@ import { CSVImportModal } from "@/components/crm/CSVImportModal";
 import type { Database } from "@/integrations/supabase/types";
 
 type Contact = Database["public"]["Tables"]["contacts"]["Row"];
-type Company = Database["public"]["Tables"]["companies"]["Row"];
-type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 type ContactStatus = Database["public"]["Enums"]["contact_status"];
 
 const statusColors: Record<ContactStatus, string> = {
@@ -59,28 +62,14 @@ const statusLabels: Record<ContactStatus, string> = {
 
 const cleanPhone = (p: string | null) => p || "";
 
-type SortKey = "name" | "email" | "status" | "created_at" | "title";
-type SortDir = "asc" | "desc";
+type SortKey = ContactSortKey;
+type SortDir = ContactSortDir;
 type ViewMode = "table" | "cards" | "owner";
-
-const PAGE_SIZE = 50;
-
-interface ContactFilters {
-  status?: string;
-  ownerId?: string;
-  companyId?: string;
-  createdFrom?: string;
-  createdTo?: string;
-}
 
 export default function Contacts() {
   const { orgId } = useOrg();
-  const { user } = useAuth();
   const { toast } = useToast();
 
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [members, setMembers] = useState<Profile[]>([]);
   const [search, setSearch] = useState("");
   // O input segue controlado por `search` (digitação instantânea); só a
   // filtragem, que percorre a lista inteira, espera a pausa.
@@ -89,13 +78,11 @@ export default function Contacts() {
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(0);
-  const [totalCount, setTotalCount] = useState(0);
   const [filters, setFilters] = useState<ContactFilters>({});
   const [showFilters, setShowFilters] = useState(false);
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const { canDelete } = useRole();
-  const [loading, setLoading] = useState(true);
 
   // Drawers & modals
   const [drawerContact, setDrawerContact] = useState<Contact | null>(null);
@@ -113,96 +100,29 @@ export default function Contacts() {
     }
   }, [searchParams, setSearchParams]);
 
-  // Risk: last activity per contact
-  const [lastActivityMap, setLastActivityMap] = useState<Map<string, Date>>(new Map());
-
-  /**
-   * Aplica busca e filtros na própria query. Antes tudo era baixado e filtrado
-   * em memória; com uma base grande isso trazia a org inteira para o navegador.
+  /*
+   * Leitura inteira via React Query. Os parâmetros compõem a chave: mudou
+   * página, busca, filtro, ordenação ou visão, é outra entrada de cache — e a
+   * anterior fica servindo a tela enquanto a nova carrega.
    */
-  const applyFilters = useCallback((q: any) => {
-    if (debouncedSearch) {
-      /*
-       * Vírgula e parênteses são sintaxe do .or() do PostgREST — uma busca por
-       * "Silva, João" quebraria a expressão. Trocados por espaço.
-       */
-      const term = debouncedSearch.replace(/[,()]/g, " ").trim();
-      if (term) {
-        q = q.or(
-          `first_name.ilike.%${term}%,last_name.ilike.%${term}%,email.ilike.%${term}%`,
-        );
-      }
-    }
-    if (filters.status && filters.status !== "all") q = q.eq("status", filters.status);
-    if (filters.ownerId) q = q.eq("owner_id", filters.ownerId);
-    if (filters.companyId) q = q.eq("company_id", filters.companyId);
-    if (filters.createdFrom) q = q.gte("created_at", filters.createdFrom);
-    // Fim do dia: created_at é timestamp, e lte na data crua cortaria em 00:00,
-    // excluindo o próprio dia de createdTo (o off-by-one que já existia aqui).
-    if (filters.createdTo) q = q.lte("created_at", `${filters.createdTo}T23:59:59.999`);
-    return q;
-  }, [debouncedSearch, filters]);
+  const queryParams = {
+    page,
+    search: debouncedSearch,
+    filters,
+    sortKey,
+    sortDir,
+    // A visão por responsável agrupa TODOS os contatos por dono; paginar traria
+    // 50 espalhados entre as colunas e daria um retrato falso.
+    paginate: viewMode !== "owner",
+  };
 
-  /** Ordenação no servidor — ordenar só a página traria resultado errado. */
-  const applySort = useCallback((q: any) => {
-    const asc = sortDir === "asc";
-    if (sortKey === "name") {
-      // Não dá para ordenar por concatenação via PostgREST; nome e sobrenome
-      // em sequência dão a mesma ordem na prática.
-      return q.order("first_name", { ascending: asc }).order("last_name", { ascending: asc });
-    }
-    return q.order(sortKey, { ascending: asc });
-  }, [sortKey, sortDir]);
+  const { data: contacts, count: totalCount, isLoading: loading } = useContactsQuery(queryParams);
+  const companies = useContactCompaniesQuery();
+  const members = useContactMembersQuery();
+  const lastActivityMap = useContactsLastActivityQuery(contacts.map((c) => c.id));
 
-  const fetchData = useCallback(async () => {
-    if (!orgId) return;
-
-    /*
-     * A visão por responsável é um kanban que agrupa TODOS os contatos por dono
-     * — paginar traria 50 espalhados entre as colunas e daria um retrato falso.
-     * Nessa visão a busca não é paginada; nas outras, sim.
-     */
-    const paginate = viewMode !== "owner";
-    let cQuery = supabase.from("contacts").select("*", { count: "exact" }).eq("org_id", orgId);
-    cQuery = applySort(applyFilters(cQuery));
-    if (paginate) cQuery = cQuery.range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
-
-    const [cRes, coRes, mRes] = await Promise.all([
-      cQuery,
-      supabase.from("companies").select("*").eq("org_id", orgId),
-      supabase.from("profiles").select("*").eq("org_id", orgId),
-    ]);
-
-    const rows = cRes.data || [];
-    setContacts(rows);
-    setTotalCount(cRes.count ?? rows.length);
-    setCompanies(coRes.data || []);
-    setMembers(mRes.data || []);
-
-    /*
-     * Atividades só dos contatos visíveis. Antes buscava TODAS as atividades da
-     * org para calcular inatividade — o mesmo problema de escala que a
-     * paginação resolve, um nível abaixo.
-     */
-    const map = new Map<string, Date>();
-    const ids = rows.map((c) => c.id);
-    if (ids.length) {
-      const { data: acts } = await supabase
-        .from("activities")
-        .select("contact_id,created_at")
-        .in("contact_id", ids)
-        .order("created_at", { ascending: false });
-      (acts || []).forEach((a: any) => {
-        if (a.contact_id && a.created_at) {
-          const d = new Date(a.created_at);
-          const existing = map.get(a.contact_id);
-          if (!existing || d > existing) map.set(a.contact_id, d);
-        }
-      });
-    }
-    setLastActivityMap(map);
-    setLoading(false);
-  }, [orgId, page, viewMode, applyFilters, applySort]);
+  const { updateOwner, invalidar } = useContactMutation();
+  const { bulkDelete, bulkUpdateStatus } = useContactBulkMutation();
 
   const getInactivityDays = (contactId: string, createdAt: string | null) => {
     const lastAct = lastActivityMap.get(contactId);
@@ -211,29 +131,35 @@ export default function Contacts() {
     return Math.floor((Date.now() - ref.getTime()) / 86400000);
   };
 
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-  // Realtime subscription for contacts
+  /*
+   * Realtime: outra pessoa mexeu em contatos desta org. Invalidar em vez de
+   * refazer a busca deixa o React Query decidir o que recarregar — a query
+   * inativa só volta ao servidor quando alguém a observar de novo.
+   */
   useEffect(() => {
     if (!orgId) return;
     const channel = supabase
-      .channel('contacts-realtime')
+      .channel("contacts-realtime")
       .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'contacts', filter: `org_id=eq.${orgId}` },
-        () => { fetchData(); }
+        "postgres_changes",
+        { event: "*", schema: "public", table: "contacts", filter: `org_id=eq.${orgId}` },
+        () => { invalidar(); },
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [orgId, fetchData]);
+    // invalidar() é recriada a cada render; incluí-la nas deps remontaria o
+    // canal a cada render, e cada remonte é um round-trip de subscribe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId]);
 
-  // Owner change handler for drag-and-drop
-  const handleOwnerChange = async (contactId: string, newOwnerId: string | null) => {
-    setContacts((prev) =>
-      prev.map((c) => (c.id === contactId ? { ...c, owner_id: newOwnerId } : c))
+  const handleOwnerChange = (contactId: string, newOwnerId: string | null) => {
+    updateOwner.mutate(
+      { contactId, ownerId: newOwnerId },
+      {
+        onSuccess: () => toast({ title: newOwnerId ? "Responsável atribuído" : "Responsável removido" }),
+        onError: (e: any) => toast({ title: "Erro ao mudar responsável", description: e.message, variant: "destructive" }),
+      },
     );
-    await supabase.from("contacts").update({ owner_id: newOwnerId }).eq("id", contactId);
-    toast({ title: newOwnerId ? "Responsável atribuído" : "Responsável removido" });
   };
 
   // Filtering
@@ -242,7 +168,7 @@ export default function Contacts() {
    * derivação em memória. `paginated` fica como alias para não reescrever o JSX.
    */
   const paginated = contacts;
-  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+  const totalPages = Math.ceil(totalCount / CONTACTS_PAGE_SIZE);
 
   // Filtro, busca ou ordenação novos invalidam a página atual: a linha que
   // estava na página 3 pode nem existir no novo recorte.
@@ -266,46 +192,33 @@ export default function Contacts() {
     setSelectedContacts(next);
   };
 
-  // Batch actions
-  const batchDelete = async () => {
-    const ids = Array.from(selectedContacts);
-    /*
-     * Captura os dados ANTES de apagar: depois do delete não há de onde ler o
-     * nome, e um histórico que diz apenas "excluiu este contato" sem dizer qual
-     * era não ajuda ninguém a entender o que sumiu.
-     */
-    const antes = ids.map((id) => contacts.find((c) => c.id === id));
-    await Promise.all(ids.map((id) => supabase.from("contacts").delete().eq("id", id)));
+  /*
+   * Ações em lote. Passam os contatos inteiros, não os ids: a mutation precisa
+   * dos valores ANTES da escrita para o log de auditoria — depois do delete não
+   * há de onde ler o nome, e um histórico que diz apenas "excluiu este contato"
+   * sem dizer qual era não ajuda ninguém a entender o que sumiu.
+   */
+  const selecionados = () => contacts.filter((c) => selectedContacts.has(c.id));
 
-    // Uma entrada por entidade: cada linha do log é uma ação atômica.
-    ids.forEach((id, i) => {
-      const c = antes[i];
-      void logAudit({
-        orgId: orgId!, action: "delete", entityType: "contact", entityId: id,
-        oldValues: c ? { first_name: c.first_name, last_name: c.last_name, email: c.email } : undefined,
-      });
+  const batchDelete = () => {
+    const alvos = selecionados();
+    bulkDelete.mutate(alvos, {
+      onSuccess: (n) => {
+        setSelectedContacts(new Set());
+        toast({ title: `${n} contatos excluídos` });
+      },
+      onError: (e: any) => toast({ title: "Erro ao excluir", description: e.message, variant: "destructive" }),
     });
-
-    setSelectedContacts(new Set());
-    fetchData();
-    toast({ title: `${ids.length} contatos excluídos` });
   };
 
-  const batchChangeStatus = async (status: ContactStatus) => {
-    const ids = Array.from(selectedContacts);
-    const antes = ids.map((id) => contacts.find((c) => c.id === id));
-    await Promise.all(ids.map((id) => supabase.from("contacts").update({ status }).eq("id", id)));
-
-    ids.forEach((id, i) => {
-      void logAudit({
-        orgId: orgId!, action: "update", entityType: "contact", entityId: id,
-        oldValues: { status: antes[i]?.status ?? null }, newValues: { status },
-      });
+  const batchChangeStatus = (status: ContactStatus) => {
+    bulkUpdateStatus.mutate({ contatos: selecionados(), status }, {
+      onSuccess: (n) => {
+        setSelectedContacts(new Set());
+        toast({ title: `Status atualizado para ${n} contatos` });
+      },
+      onError: (e: any) => toast({ title: "Erro ao atualizar", description: e.message, variant: "destructive" }),
     });
-
-    setSelectedContacts(new Set());
-    fetchData();
-    toast({ title: `Status atualizado para ${ids.length} contatos` });
   };
 
   const exportCSV = async () => {
@@ -316,7 +229,7 @@ export default function Contacts() {
      */
     if (!orgId) return;
     let q = supabase.from("contacts").select("*").eq("org_id", orgId);
-    q = applySort(applyFilters(q));
+    q = applyContactSort(applyContactFilters(q, debouncedSearch, filters), sortKey, sortDir);
     const { data } = await q;
     const source = data || [];
 
@@ -634,7 +547,7 @@ export default function Contacts() {
       <ContactDrawer
         contact={drawerContact}
         onClose={() => setDrawerContact(null)}
-        onUpdate={fetchData}
+        onUpdate={invalidar}
         companies={companies}
         members={members}
       />
@@ -643,15 +556,20 @@ export default function Contacts() {
       <ContactCreateModal
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onCreated={fetchData}
+        onCreated={invalidar}
         companies={companies}
       />
 
-      {/* CSV Import */}
+      {/*
+        O importador é genérico (contatos e empresas) e faz o insert por conta
+        própria; quem sabe qual lista ficou velha é esta página, então a
+        invalidação entra pelo callback em vez de o modal ganhar uma mutation
+        específica de contatos que quebraria o uso em Empresas.
+      */}
       <CSVImportModal
         open={csvOpen}
         onOpenChange={setCsvOpen}
-        onImported={fetchData}
+        onImported={invalidar}
         entityType="contacts"
       />
     </div>

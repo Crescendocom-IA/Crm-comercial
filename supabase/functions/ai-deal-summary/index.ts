@@ -26,11 +26,49 @@ const texto = (v: unknown): string => {
   return s === "" ? "não informado" : s;
 };
 
-function diasDesde(iso: string | null | undefined): number | null {
+/*
+ * Toda data vai para o contexto com o cálculo JÁ FEITO.
+ *
+ * Num teste real o modelo leu "fechamento: 2026-07-10" com a data de hoje
+ * disponível e escreveu "está próxima" — quando já estava 13 dias vencida.
+ * Aritmética de data é justamente o tipo de raciocínio em que um LLM erra sem
+ * avisar, e o erro soa plausível: o vendedor não confere. Se o número vem
+ * pronto, não há o que errar.
+ */
+
+/** Diferença em dias inteiros, ignorando hora — datas do CRM são dia cheio. */
+function diffDias(a: Date, b: Date): number {
+  const ua = Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate());
+  const ub = Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate());
+  return Math.round((ua - ub) / 86_400_000);
+}
+
+function parse(iso: string | null | undefined): Date | null {
   if (!iso) return null;
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return Math.floor((Date.now() - d.getTime()) / 86_400_000);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** Data-alvo (prazo): "2026-07-10 (VENCIDA há 13 dias)". */
+function prazo(iso: string | null | undefined): string {
+  const d = parse(iso);
+  if (!d) return "não informado";
+  const dia = d.toISOString().slice(0, 10);
+  const n = diffDias(d, new Date());
+  if (n > 0) return `${dia} (faltam ${n} dia${n === 1 ? "" : "s"})`;
+  if (n === 0) return `${dia} (hoje)`;
+  return `${dia} (VENCIDA há ${-n} dia${-n === 1 ? "" : "s"})`;
+}
+
+/** Evento passado: "2026-06-08 (há 45 dias)". */
+function passado(iso: string | null | undefined): string {
+  const d = parse(iso);
+  if (!d) return "não informado";
+  const dia = d.toISOString().slice(0, 10);
+  const n = diffDias(new Date(), d);
+  if (n === 0) return `${dia} (hoje)`;
+  if (n === 1) return `${dia} (ontem)`;
+  return `${dia} (há ${n} dias)`;
 }
 
 serve(async (req) => {
@@ -109,8 +147,27 @@ serve(async (req) => {
 
     const notas = atividades.filter((a: any) => a.type === "note");
     const interacoes = atividades.filter((a: any) => a.type !== "note");
-    const diasSemAtividade = diasDesde(atividades[0]?.created_at);
-    const diasDesdeCriacao = diasDesde(deal.created_at);
+
+    /*
+     * Há quanto tempo está NESTE estágio — sinal forte de negócio travado, e
+     * que não estava no contexto antes. Vem da última troca de estágio no
+     * audit_log; sem registro de troca, o deal nunca saiu do estágio inicial e
+     * a referência passa a ser a criação.
+     *
+     * Query própria, sem o corte de 30 dias do histórico: uma troca de estágio
+     * de 3 meses atrás é exatamente o caso que mais interessa aqui.
+     */
+    const { data: ultimaTroca } = await admin
+      .from("audit_logs")
+      .select("created_at, new_values")
+      .eq("entity_type", "deal").eq("entity_id", deal_id).eq("action", "update")
+      .not("new_values->>stage", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const desdeQuandoNoEstagio = ultimaTroca?.created_at ?? deal.created_at;
+    const origemDoEstagio = ultimaTroca ? "última mudança de estágio" : "criação do negócio (nunca mudou de estágio)";
 
     // Qualificação BANT — o campo é jsonb e pode não existir.
     const bant = (deal as any).qualification ?? null;
@@ -127,9 +184,13 @@ Status: ${texto(deal.status)}
 Pipeline: ${pipelineNome}
 Estágio atual: ${texto(stage?.name)}${stage?.win_probability != null ? ` (probabilidade do estágio: ${stage.win_probability}%)` : ""}
 Probabilidade informada no negócio: ${deal.probability != null ? `${deal.probability}%` : "não informado"}
-Data prevista de fechamento: ${texto(deal.close_date)}
-Criado há: ${diasDesdeCriacao != null ? `${diasDesdeCriacao} dia(s)` : "não informado"}
+Data prevista de fechamento: ${prazo(deal.close_date)}
+Criado em: ${passado(deal.created_at)}
+No estágio atual desde: ${passado(desdeQuandoNoEstagio)} — referência: ${origemDoEstagio}
 Motivo da perda: ${texto(deal.loss_reason)}
+
+NOTA: as datas acima já vêm com o cálculo pronto. Use os números como estão;
+não recalcule prazos nem infira "próximo"/"vencido" por conta própria.
 
 ## CLIENTE
 Contato: ${texto(deal.contact ? `${deal.contact.first_name ?? ""} ${deal.contact.last_name ?? ""}`.trim() : null)}
@@ -145,16 +206,16 @@ ${bantTexto}
 
 ## ATIVIDADE
 Total registrado: ${atividades.length} (limitado às 20 mais recentes)
-Dias desde a última atividade: ${diasSemAtividade != null ? diasSemAtividade : "nenhuma atividade registrada"}
+Última atividade: ${atividades.length ? passado(atividades[0].created_at) : "nenhuma atividade registrada"}
 
 ### Interações recentes
 ${interacoes.length === 0 ? "  nenhuma interação registrada" : interacoes.slice(0, 12).map((a: any) =>
-  `  - [${a.created_at?.slice(0, 10)}] ${a.type}: ${texto(a.title)}${a.body ? ` — ${String(a.body).slice(0, 200)}` : ""}${a.completed_at ? " (concluída)" : " (pendente)"}`,
+  `  - [${passado(a.created_at)}] ${a.type}: ${texto(a.title)}${a.body ? ` — ${String(a.body).slice(0, 200)}` : ""}${a.completed_at ? " (concluída)" : " (pendente)"}`,
 ).join("\n")}
 
 ### Notas
 ${notas.length === 0 ? "  nenhuma nota" : notas.slice(0, 8).map((n: any) =>
-  `  - [${n.created_at?.slice(0, 10)}] ${texto(n.title)}${n.body ? `: ${String(n.body).slice(0, 300)}` : ""}`,
+  `  - [${passado(n.created_at)}] ${texto(n.title)}${n.body ? `: ${String(n.body).slice(0, 300)}` : ""}`,
 ).join("\n")}
 
 ## HISTÓRICO DE ALTERAÇÕES (últimos 30 dias)
@@ -163,7 +224,7 @@ ${historico.length === 0 ? "  nenhuma alteração registrada no período" : hist
     .filter((k) => JSON.stringify(h.old_values?.[k]) !== JSON.stringify(h.new_values?.[k]))
     .map((k) => `${k}: ${texto(h.old_values?.[k])} → ${texto(h.new_values?.[k])}`)
     .join("; ");
-  return `  - [${h.created_at?.slice(0, 10)}] ${h.action}${mudou ? ` (${mudou})` : ""}`;
+  return `  - [${passado(h.created_at)}] ${h.action}${mudou ? ` (${mudou})` : ""}`;
 }).join("\n")}
 `.trim();
 

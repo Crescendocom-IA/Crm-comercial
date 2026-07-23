@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { STALE_TIME } from "@/hooks/queries/config";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -33,10 +34,19 @@ const SecuritySettings = lazy(() => import("./pages/SecuritySettings"));
 const SalesGoals = lazy(() => import("./pages/SalesGoals"));
 const Team = lazy(() => import("./pages/Team"));
 
+/*
+ * O default cobre o caso mais comum — listas. Detalhe e contagem ajustam o
+ * staleTime na própria query, com os valores de hooks/queries/config.ts.
+ *
+ * Os 5 minutos anteriores vinham do template e nunca foram exercitados: até a
+ * migração de Contatos, nenhum useQuery existia no app. Para uma lista de CRM,
+ * onde outra pessoa do time cria um contato do lado, 5 minutos de dado velho é
+ * tempo demais.
+ */
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000,
+      staleTime: STALE_TIME.list,
       gcTime: 10 * 60 * 1000,
       refetchOnWindowFocus: false,
     },

@@ -1,16 +1,19 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState } from "react";
+import {
+  useCompaniesQuery, useCompanyQuery, useCompanyMutation, useCompanyBulkMutation,
+  applyCompanyFilters, applyCompanySort, COMPANIES_PAGE_SIZE,
+  type CompanyFilters, type CompanySortKey, type CompanySortDir,
+} from "@/hooks/queries/useCompanies";
+import { useMembersQuery, useIndustriesQuery } from "@/hooks/queries/useOrgOptions";
 import { useRole } from "@/hooks/useRole";
-import { logAudit } from "@/lib/audit";
 import { ErpBadge } from "@/components/crm/ErpBadge";
 import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
-import { useIndustries } from "@/hooks/useIndustries";
 import { useDebounce } from "@/hooks/useDebounce";
 import { EmptyState } from "@/components/crm/EmptyState";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,29 +38,18 @@ import { CSVImportModal } from "@/components/crm/CSVImportModal";
 import type { Database } from "@/integrations/supabase/types";
 
 type Company = Database["public"]["Tables"]["companies"]["Row"];
-type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 
-type SortKey = "name" | "domain" | "industry" | "size" | "revenue" | "created_at";
-type SortDir = "asc" | "desc";
+type SortKey = CompanySortKey;
+type SortDir = CompanySortDir;
 type ViewMode = "table" | "cards";
-const PAGE_SIZE = 50;
-
-interface CompanyFilters {
-  industry?: string;
-  size?: string;
-  ownerId?: string;
-}
 
 export default function Companies() {
   const { orgId } = useOrg();
-  const { user } = useAuth();
   const { toast } = useToast();
   // Lista configurada da org, não derivada da página: derivar deixaria o filtro
   // mostrando só as indústrias presentes nos 50 registros carregados.
-  const { industries } = useIndustries();
+  const { industries } = useIndustriesQuery();
 
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [members, setMembers] = useState<Profile[]>([]);
   const [search, setSearch] = useState("");
   // Mesma ideia do Contacts: input instantâneo, filtragem esperando a pausa.
   const debouncedSearch = useDebounce(search, 300);
@@ -65,13 +57,11 @@ export default function Companies() {
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(0);
-  const [totalCount, setTotalCount] = useState(0);
   const [filters, setFilters] = useState<CompanyFilters>({});
   const [showFilters, setShowFilters] = useState(false);
   const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const { canDelete } = useRole();
-  const [loading, setLoading] = useState(true);
 
   const [drawerCompany, setDrawerCompany] = useState<Company | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -88,63 +78,37 @@ export default function Companies() {
 
   /*
    * Deep-link /companies?id=<uuid>, usado pelo drawer de contato para abrir a
-   * empresa vinculada. Depende de `companies` porque o drawer precisa do
-   * registro carregado — em navegação direta o efeito roda antes do fetch e só
-   * encontra a empresa na segunda passada.
+   * empresa vinculada. Busca pelo id em vez de procurar na lista carregada:
+   * com paginação no servidor a lista é só a página atual, e a empresa do
+   * link pode estar em qualquer outra — o drawer nunca abriria.
    */
+  const [deepLinkId, setDeepLinkId] = useState<string | null>(null);
+  const { data: empresaDoLink } = useCompanyQuery(deepLinkId);
+
   useEffect(() => {
     const id = searchParams.get("id");
     if (!id) return;
-    /*
-     * Busca a empresa DIRETO pelo id, em vez de procurá-la na lista carregada.
-     * Com paginação no servidor a lista é só a página atual, e a empresa
-     * vinda do link poderia estar em qualquer outra — o drawer nunca abriria.
-     */
-    void supabase
-      .from("companies")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle()
-      .then(({ data }) => { if (data) setDrawerCompany(data as Company); });
+    setDeepLinkId(id);
     searchParams.delete("id");
     setSearchParams(searchParams, { replace: true });
   }, [searchParams, setSearchParams]);
 
-  /** Busca e filtros na query, não em memória. */
-  const applyFilters = useCallback((q: any) => {
-    if (debouncedSearch) {
-      // Vírgula e parênteses são sintaxe do .or() do PostgREST.
-      const term = debouncedSearch.replace(/[,()]/g, " ").trim();
-      if (term) q = q.or(`name.ilike.%${term}%,domain.ilike.%${term}%,industry.ilike.%${term}%`);
-    }
-    if (filters.industry) q = q.eq("industry", filters.industry);
-    if (filters.size) q = q.eq("size", filters.size);
-    if (filters.ownerId) q = q.eq("owner_id", filters.ownerId);
-    return q;
-  }, [debouncedSearch, filters]);
+  useEffect(() => {
+    if (empresaDoLink) setDrawerCompany(empresaDoLink);
+  }, [empresaDoLink]);
 
-  const applySort = useCallback(
-    (q: any) => q.order(sortKey, { ascending: sortDir === "asc" }),
-    [sortKey, sortDir],
-  );
+  /*
+   * Leitura via React Query. Os parâmetros compõem a chave: mudou página,
+   * busca, filtro ou ordenação, é outra entrada de cache — e a anterior fica
+   * servindo a tela enquanto a nova carrega.
+   */
+  const queryParams = { page, search: debouncedSearch, filters, sortKey, sortDir };
 
-  const fetchData = useCallback(async () => {
-    if (!orgId) return;
-    let cQuery = supabase.from("companies").select("*", { count: "exact" }).eq("org_id", orgId);
-    cQuery = applySort(applyFilters(cQuery))
-      .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+  const { data: companies, count: totalCount, isLoading: loading } = useCompaniesQuery(queryParams);
+  const members = useMembersQuery();
 
-    const [cRes, mRes] = await Promise.all([
-      cQuery,
-      supabase.from("profiles").select("*").eq("org_id", orgId),
-    ]);
-    setCompanies(cRes.data || []);
-    setTotalCount(cRes.count ?? 0);
-    setMembers(mRes.data || []);
-    setLoading(false);
-  }, [orgId, page, applyFilters, applySort]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
+  const { invalidar } = useCompanyMutation();
+  const { bulkDelete } = useCompanyBulkMutation();
 
   // Filtro/busca/ordenação novos invalidam a página atual.
   useEffect(() => { setPage(0); }, [debouncedSearch, filters, sortKey, sortDir]);
@@ -154,7 +118,7 @@ export default function Companies() {
    * fica como alias para o JSX não mudar.
    */
   const paginated = companies;
-  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+  const totalPages = Math.ceil(totalCount / COMPANIES_PAGE_SIZE);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir(sortDir === "asc" ? "desc" : "asc");
@@ -172,23 +136,19 @@ export default function Companies() {
     setSelectedCompanies(next);
   };
 
-  const batchDelete = async () => {
-    const ids = Array.from(selectedCompanies);
-    // Dados capturados antes do delete — depois não há de onde ler o nome.
-    const antes = ids.map((id) => companies.find((c) => c.id === id));
-    await Promise.all(ids.map((id) => supabase.from("companies").delete().eq("id", id)));
-
-    // Uma entrada por entidade, não uma agregada.
-    ids.forEach((id, i) => {
-      void logAudit({
-        orgId: orgId!, action: "delete", entityType: "company", entityId: id,
-        oldValues: antes[i] ? { name: antes[i]!.name, domain: antes[i]!.domain } : undefined,
-      });
+  /*
+   * Passa as empresas inteiras, não os ids: a mutation precisa dos valores
+   * antes da escrita para o log — depois do delete não há de onde ler o nome.
+   */
+  const batchDelete = () => {
+    const alvos = companies.filter((c) => selectedCompanies.has(c.id));
+    bulkDelete.mutate(alvos, {
+      onSuccess: (n) => {
+        setSelectedCompanies(new Set());
+        toast({ title: `${n} empresas excluídas` });
+      },
+      onError: (e: any) => toast({ title: "Erro ao excluir", description: e.message, variant: "destructive" }),
     });
-
-    setSelectedCompanies(new Set());
-    fetchData();
-    toast({ title: `${ids.length} empresas excluídas` });
   };
 
   const exportCSV = async () => {
@@ -196,7 +156,7 @@ export default function Companies() {
     // não sobre a página aberta.
     if (!orgId) return;
     let q = supabase.from("companies").select("*").eq("org_id", orgId);
-    q = applySort(applyFilters(q));
+    q = applyCompanySort(applyCompanyFilters(q, debouncedSearch, filters), sortKey, sortDir);
     const { data } = await q;
 
     const rows = (data || []).map((c) => ({
@@ -225,8 +185,19 @@ export default function Companies() {
 
   if (!orgId) return <div className="py-20 text-center text-muted-foreground">Crie uma organização em Configurações primeiro.</div>;
 
-  /* Conta sem nenhuma empresa pede CTA; filtro sem resultado pede ajuste. */
-  const emptyState = companies.length === 0 ? (
+  /*
+   * Conta sem nenhuma empresa pede CTA; filtro sem resultado pede ajuste.
+   *
+   * O discriminador é a busca/filtro ativo, não `companies.length`: desde que
+   * a paginação foi para o servidor, `companies` É a lista já filtrada, então
+   * testar o tamanho dela dava sempre o primeiro caso e a variante "Nenhuma
+   * empresa encontrada" nunca aparecia — quem buscava um nome inexistente via
+   * "Nenhuma empresa ainda" com um botão de criar, como se a base estivesse
+   * vazia. Mesmo defeito que existia em Contatos.
+   */
+  const buscaOuFiltroAtivo = !!debouncedSearch || Object.values(filters).some(Boolean);
+
+  const emptyState = !buscaOuFiltroAtivo ? (
     <EmptyState
       icon={<Building2 className="h-7 w-7 text-muted-foreground" />}
       title="Nenhuma empresa ainda"
@@ -428,15 +399,21 @@ export default function Companies() {
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Página {page + 1} de {totalPages} · {totalCount} empresas</span>
           <div className="flex gap-1">
-            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}><ChevronLeft className="h-4 w-4" /></Button>
-            <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}><ChevronRight className="h-4 w-4" /></Button>
+            {/* Só ícone: sem aria-label o botão é anunciado como "botão" e nada mais. */}
+            <Button variant="outline" size="sm" aria-label="Página anterior" disabled={page === 0} onClick={() => setPage(page - 1)}><ChevronLeft className="h-4 w-4" /></Button>
+            <Button variant="outline" size="sm" aria-label="Próxima página" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}><ChevronRight className="h-4 w-4" /></Button>
           </div>
         </div>
       )}
 
-      <CompanyDrawer company={drawerCompany} onClose={() => setDrawerCompany(null)} onUpdate={fetchData} members={members} />
-      <CompanyCreateModal open={createOpen} onOpenChange={setCreateOpen} onCreated={fetchData} />
-      <CSVImportModal open={csvOpen} onOpenChange={setCsvOpen} onImported={fetchData} entityType="companies" />
+      <CompanyDrawer company={drawerCompany} onClose={() => setDrawerCompany(null)} onUpdate={invalidar} members={members} />
+      <CompanyCreateModal open={createOpen} onOpenChange={setCreateOpen} onCreated={invalidar} />
+      {/*
+        O importador é genérico (contatos e empresas) e faz o insert por conta
+        própria; quem sabe qual lista ficou velha é esta página, então a
+        invalidação entra pelo callback.
+      */}
+      <CSVImportModal open={csvOpen} onOpenChange={setCsvOpen} onImported={invalidar} entityType="companies" />
     </div>
   );
 }

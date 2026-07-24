@@ -644,6 +644,7 @@ function SalesReport({ deals, stages, members, companies, allDeals, periodRange 
 // TAB 2: Activities Report
 // ══════════════════════════════════════════════
 function ActivitiesReport({ activities, members }: { activities: ActivityRow[]; members: Profile[] }) {
+  const { toast } = useToast();
   const typeLabels: Record<string, string> = { call: "Ligação", email: "Email", meeting: "Reunião", note: "Nota", task: "Tarefa" };
 
   // By type donut

@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,30 +29,32 @@ const typeConfig = {
 export function AIInsightsPanel() {
   const { orgId } = useOrg();
   const navigate = useNavigate();
-  const [insights, setInsights] = useState<Insight[]>([]);
-  const [loading, setLoading] = useState(false);
   const [dismissed, setDismissed] = useState<Set<number>>(new Set());
   const [open, setOpen] = useState(false);
 
-  const fetchInsights = useCallback(async () => {
-    if (!orgId) return;
-    setLoading(true);
-    try {
+  /*
+   * Os insights vêm de uma edge function de IA — cada chamada custa. A versão
+   * anterior evitava recomputar com um `insights.length === 0 &&` no efeito; o
+   * React Query faz isso de forma explícita: dispara na primeira abertura e
+   * serve do cache nas seguintes, até o staleTime. O botão de atualizar chama
+   * refetch(), que força mesmo dentro do prazo.
+   */
+  const { data: insights = [], isLoading, isFetching, refetch } = useQuery({
+    queryKey: ["ai-insights", orgId] as const,
+    enabled: !!orgId && open,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("ai-insights", {
         body: { org_id: orgId },
       });
       if (error) throw error;
-      setInsights(data?.insights || []);
-      setDismissed(new Set());
-    } catch (e) {
-      console.error("Failed to fetch insights:", e);
-    }
-    setLoading(false);
-  }, [orgId]);
-
-  useEffect(() => {
-    if (open && insights.length === 0 && !loading) fetchInsights();
-  }, [open, orgId]);
+      return (data?.insights ?? []) as Insight[];
+    },
+  });
+  // Zerar as descartadas quando uma nova rodada chega é feito no clique de
+  // atualizar; um re-render por staleness não deveria ressuscitar descartes.
+  const loading = isLoading || isFetching;
+  const atualizar = () => { setDismissed(new Set()); void refetch(); };
 
   const visibleInsights = insights.filter((_, i) => !dismissed.has(i));
 
@@ -79,7 +82,7 @@ export function AIInsightsPanel() {
                 <p className="text-xs text-muted-foreground">Análise automática do seu CRM</p>
               </div>
             </div>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={fetchInsights} disabled={loading}>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={atualizar} disabled={loading}>
               <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             </Button>
           </div>
@@ -98,7 +101,7 @@ export function AIInsightsPanel() {
               <div className="text-center py-12">
                 <CheckCircle2 className="h-8 w-8 text-success/30 mx-auto mb-2" />
                 <p className="text-xs text-muted-foreground">Tudo em dia! Nenhum insight pendente.</p>
-                <Button variant="outline" size="sm" className="mt-3 text-xs" onClick={fetchInsights}>
+                <Button variant="outline" size="sm" className="mt-3 text-xs" onClick={atualizar}>
                   Verificar novamente
                 </Button>
               </div>

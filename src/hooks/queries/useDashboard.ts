@@ -368,6 +368,79 @@ export function useDashboardCharts(filters: DashboardFilters) {
   };
 }
 
+/* ── Fonte do painel global "Em Risco" ────────────────────────────────────── */
+
+/**
+ * Leituras do painel Em Risco (AtRiskPanel), que roda no header/sidebar e tem
+ * regras próprias de risco — computação bem diferente do bloco do dashboard, e
+ * por isso mantida no componente. Aqui migra só o fetch: as cinco leituras
+ * viram uma query cacheada, disparada quando o Sheet abre.
+ *
+ * deals/contacts/activities ficam sob os prefixos de domínio, então uma
+ * mutação de negócio ou contato mantém o painel fresco; as regras têm chave
+ * própria, invalidada quando o editor de regras salva.
+ */
+export function useAtRiskData(enabled: boolean) {
+  const { orgId } = useOrg();
+
+  const deals = useQuery({
+    queryKey: ["deals", orgId, "at-risk"] as const,
+    enabled: !!orgId && enabled,
+    staleTime: STALE_TIME.counts,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("deals").select("*")
+        .eq("org_id", orgId!).eq("status", "open");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+  const contacts = useQuery({
+    queryKey: ["contacts", orgId, "at-risk"] as const,
+    enabled: !!orgId && enabled,
+    staleTime: STALE_TIME.counts,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("contacts").select("*").eq("org_id", orgId!);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+  const activities = useQuery({
+    queryKey: ["activities", orgId, "at-risk"] as const,
+    enabled: !!orgId && enabled,
+    staleTime: STALE_TIME.list,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("activities").select("*")
+        .eq("org_id", orgId!).order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+  const stages = useStagesQuery();
+  const rules = useQuery({
+    queryKey: ["risk_rules", orgId] as const,
+    enabled: !!orgId && enabled,
+    staleTime: STALE_TIME.detail,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("risk_rules").select("*")
+        .eq("org_id", orgId!).eq("is_active", true);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const qc = useQueryClient();
+  return {
+    deals: deals.data ?? [],
+    contacts: contacts.data ?? [],
+    activities: activities.data ?? [],
+    stages,
+    rules: rules.data ?? [],
+    isLoading: deals.isLoading || contacts.isLoading || activities.isLoading || rules.isLoading,
+    // Chamado pelo editor de regras ao fechar: recomputa com as regras novas.
+    invalidateRules: () => qc.invalidateQueries({ queryKey: ["risk_rules", orgId] }),
+  };
+}
+
 /* ── Em risco (o bloco do dashboard, não o painel global) ─────────────────── */
 
 export function useDashboardAtRisk(filters: DashboardFilters) {

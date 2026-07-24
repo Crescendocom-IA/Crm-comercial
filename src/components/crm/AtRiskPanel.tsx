@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
+import { useAtRiskData } from "@/hooks/queries/useDashboard";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -55,30 +55,19 @@ const DEFAULT_RULES: Omit<RiskRule, "id" | "org_id" | "created_at">[] = [
 export function AtRiskPanel({ open, onOpenChange }: AtRiskPanelProps) {
   const navigate = useNavigate();
   const { orgId } = useOrg();
-  const [items, setItems] = useState<AtRiskItem[]>([]);
-  const [loading, setLoading] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
 
-  const fetchAtRisk = useCallback(async () => {
-    if (!orgId) return;
-    setLoading(true);
-    try {
-      const [dealsRes, contactsRes, activitiesRes, stagesRes, rulesRes] = await Promise.all([
-        supabase.from("deals").select("*").eq("org_id", orgId).eq("status", "open"),
-        supabase.from("contacts").select("*").eq("org_id", orgId),
-        supabase.from("activities").select("*").eq("org_id", orgId).order("created_at", { ascending: false }),
-        supabase.from("pipeline_stages").select("*").eq("org_id", orgId),
-        supabase.from("risk_rules").select("*").eq("org_id", orgId).eq("is_active", true),
-      ]);
+  // As leituras vivem em React Query, disparadas quando o Sheet abre; a
+  // avaliação das regras (abaixo) continua aqui, que é o que difere do
+  // bloco simples do dashboard.
+  const { deals, contacts, activities, stages, rules: dbRules, isLoading: loading, invalidateRules } =
+    useAtRiskData(open);
 
-      const deals = dealsRes.data || [];
-      const contacts = contactsRes.data || [];
-      const activities = activitiesRes.data || [];
-      const stages = stagesRes.data || [];
-      const dbRules = (rulesRes.data as RiskRule[]) || [];
-
+  const items = useMemo<AtRiskItem[]>(() => {
+    if (!orgId) return [];
+    {
       // Use DB rules or defaults
-      const activeRules = dbRules.length > 0 ? dbRules : DEFAULT_RULES.map((r, i) => ({
+      const activeRules = (dbRules as RiskRule[]).length > 0 ? (dbRules as RiskRule[]) : DEFAULT_RULES.map((r, i) => ({
         ...r, id: `default-${i}`, org_id: orgId, created_at: "",
       }));
 
@@ -247,15 +236,9 @@ export function AtRiskPanel({ open, onOpenChange }: AtRiskPanelProps) {
         return maxB - maxA;
       });
 
-      setItems(result);
-    } finally {
-      setLoading(false);
+      return result;
     }
-  }, [orgId]);
-
-  useEffect(() => {
-    if (open) fetchAtRisk();
-  }, [open, fetchAtRisk]);
+  }, [orgId, deals, contacts, activities, stages, dbRules]);
 
   const dealItems = items.filter((i) => i.type === "deal");
   const contactItems = items.filter((i) => i.type === "contact");
@@ -396,7 +379,7 @@ export function AtRiskPanel({ open, onOpenChange }: AtRiskPanelProps) {
         </SheetContent>
       </Sheet>
 
-      <RiskRulesManager open={rulesOpen} onOpenChange={(v) => { setRulesOpen(v); if (!v) fetchAtRisk(); }} />
+      <RiskRulesManager open={rulesOpen} onOpenChange={(v) => { setRulesOpen(v); if (!v) invalidateRules(); }} />
     </>
   );
 }

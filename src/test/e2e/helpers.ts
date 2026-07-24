@@ -1,5 +1,5 @@
 import { Page, expect, test } from "@playwright/test";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export const CREDS = {
   email: process.env.E2E_EMAIL || "",
@@ -7,6 +7,20 @@ export const CREDS = {
 };
 
 export const hasCreds = !!CREDS.email && !!CREDS.password;
+
+/*
+ * Arquivos de sessão gravados pelo global-setup. Os specs os consomem via
+ * test.use({ storageState }); assim o login acontece uma vez por suíte, não uma
+ * vez por teste — o que reduz os sign-ins e derruba a suspeita do flake por
+ * limite de taxa do GoTrue.
+ */
+export const STORAGE = {
+  user: ".auth/user.json",
+  onboarding: ".auth/user-onboarding.json",
+} as const;
+
+/** Um contexto sem sessão, para os testes que precisam começar deslogados. */
+export const LOGGED_OUT: { cookies: []; origins: [] } = { cookies: [], origins: [] };
 
 /**
  * Pula o teste com um motivo claro quando faltam credenciais, em vez de deixá-lo
@@ -24,7 +38,14 @@ export function requireCreds() {
  * testes. `scripts/create-test-user.ts` deixa a org vazia de propósito; quem
  * precisa de volume o cria aqui e limpa depois.
  */
+let sessaoApi: { client: SupabaseClient; orgId: string; userId: string } | null = null;
+
 export async function apiComoUsuario() {
+  // Memoizado por processo: com workers=1 todos os specs rodam no mesmo Node,
+  // então um sign-in de API serve a suíte inteira em vez de um por spec que
+  // semeia dados — menos pressão no limite de taxa do GoTrue.
+  if (sessaoApi) return sessaoApi;
+
   const url = process.env.VITE_SUPABASE_URL;
   const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !key) throw new Error("VITE_SUPABASE_URL/PUBLISHABLE_KEY ausentes no ambiente");
@@ -39,7 +60,8 @@ export async function apiComoUsuario() {
     .from("user_roles").select("org_id").eq("user_id", data.user!.id).maybeSingle();
   if (!papel?.org_id) throw new Error("conta E2E sem organização");
 
-  return { client, orgId: papel.org_id as string, userId: data.user!.id };
+  sessaoApi = { client, orgId: papel.org_id as string, userId: data.user!.id };
+  return sessaoApi;
 }
 
 /**

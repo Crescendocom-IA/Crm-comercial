@@ -22,6 +22,8 @@ const BASE_URL = process.env.E2E_BASE_URL || "http://localhost:8080";
 
 export default defineConfig({
   testDir: "./src/test/e2e",
+  // Loga uma vez, antes da suíte, e grava a sessão em .auth/*.json.
+  globalSetup: "./src/test/e2e/global-setup.ts",
   timeout: 60_000,
   expect: { timeout: 15_000 },
   fullyParallel: false,
@@ -32,6 +34,10 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     actionTimeout: 15_000,
+    // Sessão padrão: a conta principal, já logada. Os specs que precisam
+    // começar deslogados (login, onboarding) ou com a conta de onboarding
+    // sobrescrevem com test.use({ storageState }) no próprio arquivo.
+    storageState: ".auth/user.json",
   },
   projects: [
     // channel: "chrome" usa o Chrome do sistema em vez do binário do Playwright,

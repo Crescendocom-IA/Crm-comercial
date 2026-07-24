@@ -3,6 +3,15 @@ import { useRole } from "@/hooks/useRole";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  useOrganizationQuery, useOrganizationMutation, usePipelineMutation, useStageMutation,
+  useLossReasonsQuery, useLossReasonMutation, useCustomFieldsQuery, useCustomFieldsMutation,
+  useNotificationPrefsQuery, useNotificationPrefsMutation, useOrgUsageQuery,
+} from "@/hooks/queries/useSettings";
+import { usePipelinesQuery, useStagesQuery } from "@/hooks/queries/useOrgOptions";
+import {
+  useTeamMembersQuery, useInvitationMutation, useTeamMutation, useTeamsQuery, useTeamGroupMutation,
+} from "@/hooks/queries/useTeam";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrg } from "@/hooks/useOrg";
 import { Button } from "@/components/ui/button";
@@ -137,19 +146,17 @@ function GeneralTab({ orgId, userId, profile }: { orgId: string | null; userId?:
     if (profile) setProfileForm({ name: profile.name || "", title: profile.title || "", timezone: profile.timezone || "UTC" });
   }, [profile]);
 
+  const { data: org } = useOrganizationQuery();
+  const { update: updateOrg } = useOrganizationMutation();
+
   useEffect(() => {
-    if (orgId) {
-      supabase.from("organizations").select("*").eq("id", orgId).single().then(({ data }) => {
-        if (data) {
-          const settings = (data.settings as Record<string, unknown>) || {};
-          setOrgSettings(settings);
-          setOrgForm({ name: data.name, slug: data.slug, currency: (settings.currency as string) || "BRL", timezone: (settings.timezone as string) || "America/Sao_Paulo" });
-          const savedIndustries = settings.industries as string[] | undefined;
-          setIndustries(savedIndustries && savedIndustries.length > 0 ? savedIndustries : DEFAULT_INDUSTRIES);
-        }
-      });
-    }
-  }, [orgId]);
+    if (!org) return;
+    const settings = (org.settings as Record<string, unknown>) || {};
+    setOrgSettings(settings);
+    setOrgForm({ name: org.name, slug: org.slug, currency: (settings.currency as string) || "BRL", timezone: (settings.timezone as string) || "America/Sao_Paulo" });
+    const savedIndustries = settings.industries as string[] | undefined;
+    setIndustries(savedIndustries && savedIndustries.length > 0 ? savedIndustries : DEFAULT_INDUSTRIES);
+  }, [org]);
 
   const saveProfile = async () => {
     if (!userId) return;
@@ -159,25 +166,25 @@ function GeneralTab({ orgId, userId, profile }: { orgId: string | null; userId?:
     toast(error ? { title: "Erro", description: error.message, variant: "destructive" } : { title: "Perfil atualizado" });
   };
 
-  const saveOrg = async () => {
-    if (!orgId) return;
+  const saveOrg = () => {
     const mergedSettings = { ...orgSettings, currency: orgForm.currency, timezone: orgForm.timezone };
-    const { error } = await supabase.from("organizations").update({
+    updateOrg.mutate({
       name: orgForm.name,
       slug: orgForm.slug.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
       settings: mergedSettings,
-    }).eq("id", orgId);
-    if (!error) setOrgSettings(mergedSettings);
-    toast(error ? { title: "Erro", description: error.message, variant: "destructive" } : { title: "Organização atualizada" });
+    } as any, {
+      onSuccess: () => { setOrgSettings(mergedSettings); toast({ title: "Organização atualizada" }); },
+      onError: (e) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
-  const saveIndustries = async (updated: string[]) => {
-    if (!orgId) return;
+  const saveIndustries = (updated: string[]) => {
     setIndustries(updated);
     const mergedSettings = { ...orgSettings, industries: updated };
-    const { error } = await supabase.from("organizations").update({ settings: mergedSettings }).eq("id", orgId);
-    if (!error) setOrgSettings(mergedSettings);
-    toast(error ? { title: "Erro", description: error.message, variant: "destructive" } : { title: "Indústrias atualizadas" });
+    updateOrg.mutate({ settings: mergedSettings } as any, {
+      onSuccess: () => { setOrgSettings(mergedSettings); toast({ title: "Indústrias atualizadas" }); },
+      onError: (e) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
   const addIndustry = () => {
@@ -290,91 +297,71 @@ function GeneralTab({ orgId, userId, profile }: { orgId: string | null; userId?:
 // ── Pipelines Tab ──
 function PipelinesTab({ orgId }: { orgId: string | null }) {
   const { toast } = useToast();
-  const [pipelines, setPipelines] = useState<Database["public"]["Tables"]["pipelines"]["Row"][]>([]);
-  const [stages, setStages] = useState<PipelineStage[]>([]);
+  const pipelines = usePipelinesQuery();
+  const stages = useStagesQuery();
+  const { create: createPipelineMut, remove: removePipelineMut } = usePipelineMutation();
+  const { add: addStageMut, remove: removeStageMut, swapOrder } = useStageMutation();
   const [selectedPipeline, setSelectedPipeline] = useState("");
   const [newPipelineName, setNewPipelineName] = useState("");
   const [newStageName, setNewStageName] = useState("");
   const [newStageColor, setNewStageColor] = useState("#3b82f6");
   const [newStageProb, setNewStageProb] = useState("0");
   // Loss reasons
-  const [lossReasons, setLossReasons] = useState<any[]>([]);
+  const lossReasons = useLossReasonsQuery();
+  const { add: addLossReasonMut, remove: removeLossReasonMut } = useLossReasonMutation();
   const [newLossReason, setNewLossReason] = useState("");
 
-  const fetchAll = useCallback(async () => {
-    if (!orgId) return;
-    const [{ data: p }, { data: s }, { data: lr }] = await Promise.all([
-      supabase.from("pipelines").select("*").eq("org_id", orgId),
-      supabase.from("pipeline_stages").select("*").eq("org_id", orgId).order("order"),
-      supabase.from("loss_reasons").select("*").eq("org_id", orgId) as any,
-    ]);
-    setPipelines(p || []);
-    setStages(s || []);
-    setLossReasons(lr || []);
-    if (p?.length && !selectedPipeline) setSelectedPipeline(p[0].id);
-  }, [orgId, selectedPipeline]);
+  // Seleciona o primeiro pipeline assim que a lista chega.
+  useEffect(() => {
+    if (pipelines.length && !selectedPipeline) setSelectedPipeline(pipelines[0].id);
+  }, [pipelines, selectedPipeline]);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
-
-  const createPipeline = async () => {
-    if (!orgId || !newPipelineName) return;
-    const { data } = await supabase.from("pipelines").insert({ org_id: orgId, name: newPipelineName, is_default: pipelines.length === 0 }).select().single();
-    setNewPipelineName("");
-    if (data) setSelectedPipeline(data.id);
-    fetchAll();
-    toast({ title: "Pipeline criado" });
-  };
-
-  const deletePipeline = async (id: string) => {
-    await supabase.from("pipeline_stages").delete().eq("pipeline_id", id);
-    await supabase.from("pipelines").delete().eq("id", id);
-    setSelectedPipeline("");
-    fetchAll();
-    toast({ title: "Pipeline excluído" });
-  };
-
-  const addStage = async () => {
-    if (!orgId || !selectedPipeline || !newStageName) return;
-    const maxOrder = stages.filter((s) => s.pipeline_id === selectedPipeline).reduce((max, s) => Math.max(max, s.order), -1);
-    await supabase.from("pipeline_stages").insert({
-      org_id: orgId, pipeline_id: selectedPipeline, name: newStageName,
-      order: maxOrder + 1, color: newStageColor, win_probability: parseFloat(newStageProb) || 0,
+  const createPipeline = () => {
+    if (!newPipelineName) return;
+    createPipelineMut.mutate({ name: newPipelineName, isDefault: pipelines.length === 0 }, {
+      onSuccess: (data) => { setNewPipelineName(""); if (data) setSelectedPipeline(data.id); toast({ title: "Pipeline criado" }); },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
     });
-    setNewStageName("");
-    fetchAll();
-    toast({ title: "Estágio adicionado" });
   };
 
-  const deleteStage = async (id: string) => {
-    await supabase.from("pipeline_stages").delete().eq("id", id);
-    fetchAll();
-    toast({ title: "Estágio excluído" });
+  const deletePipeline = (id: string) =>
+    removePipelineMut.mutate(id, { onSuccess: () => { setSelectedPipeline(""); toast({ title: "Pipeline excluído" }); } });
+
+  const addStage = () => {
+    if (!selectedPipeline || !newStageName) return;
+    const maxOrder = stages.filter((s) => s.pipeline_id === selectedPipeline).reduce((max, s) => Math.max(max, s.order), -1);
+    addStageMut.mutate({
+      pipelineId: selectedPipeline, name: newStageName,
+      order: maxOrder + 1, color: newStageColor, winProbability: parseFloat(newStageProb) || 0,
+    }, {
+      onSuccess: () => { setNewStageName(""); toast({ title: "Estágio adicionado" }); },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
-  const moveStage = async (stageId: string, direction: "up" | "down") => {
+  const deleteStage = (id: string) =>
+    removeStageMut.mutate(id, { onSuccess: () => toast({ title: "Estágio excluído" }) });
+
+  const moveStage = (stageId: string, direction: "up" | "down") => {
     const pStages = stages.filter((s) => s.pipeline_id === selectedPipeline).sort((a, b) => a.order - b.order);
     const idx = pStages.findIndex((s) => s.id === stageId);
     if ((direction === "up" && idx === 0) || (direction === "down" && idx === pStages.length - 1)) return;
     const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-    await Promise.all([
-      supabase.from("pipeline_stages").update({ order: pStages[swapIdx].order }).eq("id", pStages[idx].id),
-      supabase.from("pipeline_stages").update({ order: pStages[idx].order }).eq("id", pStages[swapIdx].id),
-    ]);
-    fetchAll();
+    swapOrder.mutate({
+      a: { id: pStages[idx].id, order: pStages[idx].order },
+      b: { id: pStages[swapIdx].id, order: pStages[swapIdx].order },
+    });
   };
 
-  const addLossReason = async () => {
-    if (!orgId || !newLossReason) return;
-    await supabase.from("loss_reasons").insert({ org_id: orgId, label: newLossReason } as any);
-    setNewLossReason("");
-    fetchAll();
-    toast({ title: "Razão de perda adicionada" });
+  const addLossReason = () => {
+    if (!newLossReason) return;
+    addLossReasonMut.mutate(newLossReason, {
+      onSuccess: () => { setNewLossReason(""); toast({ title: "Razão de perda adicionada" }); },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
-  const deleteLossReason = async (id: string) => {
-    await supabase.from("loss_reasons").delete().eq("id", id);
-    fetchAll();
-  };
+  const deleteLossReason = (id: string) => removeLossReasonMut.mutate(id);
 
   const pipelineStages = stages.filter((s) => s.pipeline_id === selectedPipeline).sort((a, b) => a.order - b.order);
 
@@ -483,7 +470,8 @@ function PipelinesTab({ orgId }: { orgId: string | null }) {
 // ── Custom Fields Tab ──
 function CustomFieldsTab({ orgId }: { orgId: string | null }) {
   const { toast } = useToast();
-  const [fields, setFields] = useState<any[]>([]);
+  const fields = useCustomFieldsQuery();
+  const { create: createFieldMut, remove: removeFieldMut } = useCustomFieldsMutation();
   const [entityType, setEntityType] = useState("contacts");
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({
@@ -491,34 +479,26 @@ function CustomFieldsTab({ orgId }: { orgId: string | null }) {
     show_in_table: true, show_in_card: true, options: "",
   });
 
-  const fetchFields = useCallback(async () => {
-    if (!orgId) return;
-    const { data } = await supabase.from("custom_field_definitions").select("*").eq("org_id", orgId).order("field_order") as any;
-    setFields(data || []);
-  }, [orgId]);
-
-  useEffect(() => { fetchFields(); }, [fetchFields]);
-
-  const createField = async () => {
-    if (!orgId || !form.field_key || !form.field_label) return;
+  const createField = () => {
+    if (!form.field_key || !form.field_label) return;
     const opts = form.options ? form.options.split(",").map((o: string) => o.trim()).filter(Boolean) : [];
-    await supabase.from("custom_field_definitions").insert({
-      org_id: orgId, entity_type: entityType, field_key: form.field_key.toLowerCase().replace(/\s+/g, "_"),
-      field_label: form.field_label, field_type: form.field_type, is_required: form.is_required,
-      show_in_table: form.show_in_table, show_in_card: form.show_in_card, options: opts,
-      field_order: fields.filter((f: any) => f.entity_type === entityType).length,
-    } as any);
-    setShowCreate(false);
-    setForm({ field_key: "", field_label: "", field_type: "text", is_required: false, show_in_table: true, show_in_card: true, options: "" });
-    fetchFields();
-    toast({ title: "Campo criado" });
+    createFieldMut.mutate({
+      entityType, fieldKey: form.field_key.toLowerCase().replace(/\s+/g, "_"),
+      fieldLabel: form.field_label, fieldType: form.field_type, isRequired: form.is_required,
+      showInTable: form.show_in_table, showInCard: form.show_in_card, options: opts,
+      fieldOrder: fields.filter((f: any) => f.entity_type === entityType).length,
+    }, {
+      onSuccess: () => {
+        setShowCreate(false);
+        setForm({ field_key: "", field_label: "", field_type: "text", is_required: false, show_in_table: true, show_in_card: true, options: "" });
+        toast({ title: "Campo criado" });
+      },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
-  const deleteField = async (id: string) => {
-    await supabase.from("custom_field_definitions").delete().eq("id", id);
-    fetchFields();
-    toast({ title: "Campo excluído" });
-  };
+  const deleteField = (id: string, fieldEntityType: string) =>
+    removeFieldMut.mutate({ id, entityType: fieldEntityType }, { onSuccess: () => toast({ title: "Campo excluído" }) });
 
   const entityFields = fields.filter((f: any) => f.entity_type === entityType);
 
@@ -580,7 +560,7 @@ function CustomFieldsTab({ orgId }: { orgId: string | null }) {
                       <ConfirmDeleteDialog
                         title="Excluir campo personalizado?"
                         description="Os valores já preenchidos neste campo serão perdidos. Esta ação não pode ser desfeita."
-                        onConfirm={() => deleteField(f.id)}
+                        onConfirm={() => deleteField(f.id, f.entity_type)}
                         trigger={<button className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3 w-3" /></button>}
                       />
                     </TableCell>
@@ -634,75 +614,39 @@ function CustomFieldsTab({ orgId }: { orgId: string | null }) {
 // ── Members Tab ──
 function MembersTab({ orgId, userId }: { orgId: string | null; userId?: string }) {
   const { toast } = useToast();
-  const [members, setMembers] = useState<(Profile & { role?: string })[]>([]);
-  const [roles, setRoles] = useState<any[]>([]);
+  const { members } = useTeamMembersQuery();
+  const { teams, teamMembers } = useTeamsQuery();
+  const { invite } = useInvitationMutation();
+  const { removeMember } = useTeamMutation();
+  const { create: createTeamMut, remove: removeTeamMut, toggleMember } = useTeamGroupMutation();
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<string>("member");
-  // Teams
-  const [teams, setTeams] = useState<any[]>([]);
-  const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [newTeamName, setNewTeamName] = useState("");
 
-  const fetchAll = useCallback(async () => {
-    if (!orgId) return;
-    const [{ data: profs }, { data: rl }, { data: tms }, { data: tmem }] = await Promise.all([
-      supabase.from("profiles").select("*").eq("org_id", orgId),
-      supabase.from("user_roles").select("*").eq("org_id", orgId),
-      supabase.from("teams").select("*").eq("org_id", orgId) as any,
-      supabase.from("team_members").select("*") as any,
-    ]);
-    setRoles(rl || []);
-    setTeams(tms || []);
-    setTeamMembers(tmem || []);
-    const merged = (profs || []).map((p) => {
-      const r = (rl || []).find((r: any) => r.user_id === p.id);
-      return { ...p, role: r?.role || "member" };
+  const sendInvite = () => {
+    if (!inviteEmail) return;
+    invite.mutate({ email: inviteEmail, role: inviteRole }, {
+      onSuccess: () => { setInviteEmail(""); toast({ title: "Convite enviado!" }); },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
     });
-    setMembers(merged);
-  }, [orgId]);
-
-  useEffect(() => { fetchAll(); }, [fetchAll]);
-
-  const sendInvite = async () => {
-    if (!orgId || !inviteEmail) return;
-    const { error } = await supabase.from("invitations").insert({
-      org_id: orgId, email: inviteEmail, invited_by: userId, role: inviteRole as any,
-    });
-    if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
-    setInviteEmail("");
-    toast({ title: "Convite enviado!" });
   };
 
-  const removeUser = async (uid: string) => {
+  const removeUser = (uid: string) => {
     if (uid === userId) { toast({ title: "Você não pode remover a si mesmo", variant: "destructive" }); return; }
-    await supabase.from("user_roles").delete().eq("user_id", uid).eq("org_id", orgId!);
-    await supabase.from("profiles").update({ org_id: null }).eq("id", uid);
-    fetchAll();
-    toast({ title: "Acesso revogado" });
+    removeMember.mutate(uid, { onSuccess: () => toast({ title: "Acesso revogado" }) });
   };
 
-  const createTeam = async () => {
-    if (!orgId || !newTeamName) return;
-    await supabase.from("teams").insert({ org_id: orgId, name: newTeamName } as any);
-    setNewTeamName("");
-    fetchAll();
-    toast({ title: "Equipe criada" });
+  const createTeam = () => {
+    if (!newTeamName) return;
+    createTeamMut.mutate(newTeamName, { onSuccess: () => { setNewTeamName(""); toast({ title: "Equipe criada" }); } });
   };
 
-  const deleteTeam = async (id: string) => {
-    await supabase.from("teams").delete().eq("id", id);
-    fetchAll();
-    toast({ title: "Equipe excluída" });
-  };
+  const deleteTeam = (id: string) =>
+    removeTeamMut.mutate(id, { onSuccess: () => toast({ title: "Equipe excluída" }) });
 
-  const toggleTeamMember = async (teamId: string, uid: string) => {
-    const exists = teamMembers.find((tm: any) => tm.team_id === teamId && tm.user_id === uid);
-    if (exists) {
-      await supabase.from("team_members").delete().eq("team_id", teamId).eq("user_id", uid);
-    } else {
-      await supabase.from("team_members").insert({ team_id: teamId, user_id: uid } as any);
-    }
-    fetchAll();
+  const toggleTeamMember = (teamId: string, uid: string) => {
+    const exists = teamMembers.some((tm: any) => tm.team_id === teamId && tm.user_id === uid);
+    toggleMember.mutate({ teamId, userId: uid, isMember: exists });
   };
 
   const roleLabels: Record<string, string> = { owner: "Proprietário", admin: "Administrador", member: "Membro" };
@@ -852,22 +796,19 @@ function NotificationsTab({ orgId, userId }: { orgId: string | null; userId?: st
   });
   const [loaded, setLoaded] = useState(false);
 
-  useEffect(() => {
-    if (!orgId || !userId) return;
-    supabase.from("notification_preferences").select("*").eq("user_id", userId).eq("org_id", orgId).single()
-      .then(({ data }: any) => {
-        if (data) setPrefs(data);
-        setLoaded(true);
-      });
-  }, [orgId, userId]);
+  const { data: savedPrefs } = useNotificationPrefsQuery(userId);
+  const savePrefs = useNotificationPrefsMutation(userId);
 
-  const save = async () => {
-    if (!orgId || !userId) return;
-    const { error } = await supabase.from("notification_preferences").upsert({
-      user_id: userId, org_id: orgId, ...prefs,
-    } as any, { onConflict: "user_id,org_id" });
-    toast(error ? { title: "Erro", variant: "destructive" } : { title: "Preferências salvas" });
-  };
+  useEffect(() => {
+    if (savedPrefs) setPrefs(savedPrefs);
+    setLoaded(true);
+  }, [savedPrefs]);
+
+  const save = () =>
+    savePrefs.mutate(prefs, {
+      onSuccess: () => toast({ title: "Preferências salvas" }),
+      onError: () => toast({ title: "Erro", variant: "destructive" }),
+    });
 
   const Toggle = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
     <div className="flex items-center justify-between py-1.5">
@@ -989,18 +930,8 @@ function AppearanceTab() {
 
 // ── Billing Tab ──
 function BillingTab({ orgId }: { orgId: string | null }) {
-  const [org, setOrg] = useState<any>(null);
-  const [counts, setCounts] = useState({ contacts: 0, deals: 0, companies: 0 });
-
-  useEffect(() => {
-    if (!orgId) return;
-    supabase.from("organizations").select("*").eq("id", orgId).single().then(({ data }) => setOrg(data));
-    Promise.all([
-      supabase.from("contacts").select("id", { count: "exact", head: true }).eq("org_id", orgId),
-      supabase.from("deals").select("id", { count: "exact", head: true }).eq("org_id", orgId),
-      supabase.from("companies").select("id", { count: "exact", head: true }).eq("org_id", orgId),
-    ]).then(([c, d, co]) => setCounts({ contacts: c.count || 0, deals: d.count || 0, companies: co.count || 0 }));
-  }, [orgId]);
+  const { data: org } = useOrganizationQuery();
+  const counts = useOrgUsageQuery();
 
   const plans = [
     { name: "Free", price: "R$ 0", features: ["500 contatos", "2 pipelines", "1 usuário", "Relatórios básicos"], limit: { contacts: 500, users: 1 }, current: org?.plan === "free" || !org?.plan },

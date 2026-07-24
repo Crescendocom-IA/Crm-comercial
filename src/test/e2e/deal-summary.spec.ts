@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { requireCreds, login } from "./helpers";
+import { requireCreds } from "./helpers";
 
 /*
  * Painel de resumo com IA: skeleton -> texto em streaming -> Copiar.
@@ -14,8 +14,6 @@ test.describe("Resumo de negócio com IA", () => {
     requireCreds();
     test.skip(!DEAL_ID, "E2E_DEAL_ID não definido");
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-
-    await login(page);
     await page.goto(`/deals/${DEAL_ID}`);
 
     // Conta nova cai no onboarding, que é modal e engole o clique no botão.

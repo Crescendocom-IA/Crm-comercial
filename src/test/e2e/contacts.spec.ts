@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { requireCreds, login, apiComoUsuario } from "./helpers";
+import { requireCreds, apiComoUsuario } from "./helpers";
 
 /*
  * Contatos depois da migração para React Query. Cobre os três caminhos que a
@@ -32,7 +32,6 @@ async function totalDeContatos(page: Page): Promise<number> {
 test.describe("Contatos", () => {
   test("busca filtra no servidor e limpar restaura a lista", async ({ page }) => {
     requireCreds();
-    await login(page);
     await page.goto("/contacts");
 
     const totalAntes = await totalDeContatos(page);
@@ -53,7 +52,6 @@ test.describe("Contatos", () => {
 
   test("criar contato aparece na lista sem recarregar a página", async ({ page }) => {
     requireCreds();
-    await login(page);
     await page.goto("/contacts");
 
     const antes = await totalDeContatos(page);
@@ -96,7 +94,6 @@ test.describe("Contatos", () => {
     expect(error, "falha ao semear contatos").toBeNull();
 
     try {
-      await login(page);
       await page.goto("/contacts");
 
       // Decidir antes da lista carregar daria sempre "não há paginador".

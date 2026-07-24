@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { requireCreds, login } from "./helpers";
+import { requireCreds } from "./helpers";
 
 /*
  * Abre o copilot flutuante, manda uma mensagem e verifica que a resposta chega
@@ -9,7 +9,6 @@ import { requireCreds, login } from "./helpers";
 test.describe("AI Copilot", () => {
   test("responde com streaming (texto cresce progressivamente)", async ({ page }) => {
     requireCreds();
-    await login(page);
     await page.goto("/dashboard");
 
     // Ctrl+J é atalho do Chrome (abre Downloads) — o browser o intercepta antes

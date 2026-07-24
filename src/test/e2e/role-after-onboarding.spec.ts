@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { resetarOnboarding } from "./helpers";
+import { resetarOnboarding, STORAGE } from "./helpers";
 
 /*
  * Valida a consolidação do papel no AuthContext no caminho que mais preocupa:
@@ -12,33 +12,20 @@ import { resetarOnboarding } from "./helpers";
  * Requer a conta e2e-onb@flowcrm.test, criada com email confirmado e SEM
  * promoção manual: o papel de owner vem do trigger handle_new_user (achado-3).
  */
-const EMAIL = process.env.E2E_ONB_EMAIL || "e2e-onb@flowcrm.test";
-const PASSWORD = process.env.E2E_ONB_PASSWORD || "E2eTest2026!";
+
+// Entra já logado como a conta de onboarding (sessão gravada pelo global-setup).
+test.use({ storageState: STORAGE.onboarding });
 
 test.describe("Papel após onboarding", () => {
   test("ações de owner aparecem sem reload", async ({ page }) => {
-    // O próprio teste completa o onboarding ao pular; sem devolver a conta ao
-    // estado pendente ele só passaria na primeira execução.
-    await resetarOnboarding();
-
-    await page.goto("/login");
-    await page.getByRole("tab", { name: "Entrar" }).click();
-    await page.getByPlaceholder("seu@email.com").first().fill(EMAIL);
-    await page.getByPlaceholder("••••••••").fill(PASSWORD);
-    await page.getByRole("button", { name: /entrar/i }).click();
-
     /*
-     * Confirma que o login passou ANTES de esperar o modal.
-     *
-     * Sem isto, um login que não completa (a suíte inteira faz um sign-in por
-     * teste, e o GoTrue limita por IP) falhava lá embaixo com "botão não
-     * visível" — mensagem que manda procurar no lugar errado. Aqui a falha diz
-     * que foi o login, e o texto de erro da própria tela vai junto.
+     * A sessão vem do storageState, mas o ESTADO do onboarding é do banco: o
+     * próprio teste o completa ao pular, então sem devolver onboarding_completed
+     * a false ele só passaria na primeira execução. O reset roda antes do goto,
+     * então quando o AuthContext carregar o perfil o modal já deve aparecer.
      */
-    await expect(
-      page,
-      "login não completou: ver a mensagem de erro na tela de login",
-    ).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+    await resetarOnboarding();
+    await page.goto("/dashboard");
 
     // Onboarding abre porque onboarding_completed = false. No passo de
     // boas-vindas o botão de avançar é "Vamos começar"; "Continuar" só nos
@@ -62,24 +49,36 @@ test.describe("Papel após onboarding", () => {
     // Sair por aqui dispara refreshProfile() -> recarrega profile E papel.
     await pular.click();
 
-    /*
-     * Espera o modal sumir, não a URL: já estávamos em /dashboard, então
-     * toHaveURL(/dashboard/) passaria instantaneamente sem esperar nada — e o
-     * navigate("/dashboard") do skip dispararia depois, desfazendo a navegação
-     * seguinte. Como setIsOpen(false) e navigate() estão no mesmo bloco
-     * síncrono, o diálogo escondido garante que a navegação do skip já ocorreu.
-     */
+    // Espera o modal sumir antes de navegar.
     await expect(page.getByRole("dialog", { name: /configuração inicial/i }))
       .toBeHidden({ timeout: 15_000 });
 
-    // Navegação SPA (clique na sidebar), sem reload.
-    await page.getByRole("link", { name: "Automações" }).click();
-    await expect(page).toHaveURL(/\/automations/, { timeout: 15_000 });
-
-    // "Nova Automação" é gated por canManage (owner/admin). Se o papel não
-    // tivesse chegado ao contexto, o botão não existiria.
-    await expect(page.getByRole("button", { name: /nova automação/i })).toBeVisible({
-      timeout: 15_000,
-    });
+    /*
+     * ATENÇÃO — o modal sumir NÃO garante que a navegação do skip já ocorreu.
+     *
+     * handleSkipOnboarding faz `await refreshProfile()` e SÓ ENTÃO navega para
+     * /dashboard. Mas o modal pode fechar antes disso, pelo efeito reativo que
+     * observa profile.onboarding_completed (agora true) — um caminho diferente
+     * da linha de navegação do handler. Resultado: o navigate("/dashboard")
+     * atrasado do skip dispara num momento sem cota superior (depende da latência
+     * do refreshProfile) e pode desfazer a navegação abaixo — inclusive DEPOIS
+     * dela colar. Não afeta um usuário real (que ia para /dashboard mesmo), só um
+     * teste que navega para outro lugar no mesmo instante.
+     *
+     * Por isso navegação E asserção vão juntas num toPass: o laço só sai quando
+     * estamos em /automations E o botão está visível AO MESMO TEMPO. Se um bounce
+     * atrasado nos jogar de volta para /dashboard, a iteração renavega. Isto não
+     * afrouxa o que o teste protege: se o papel de owner NÃO chegasse ao contexto,
+     * o botão nunca apareceria em /automations e o toPass estouraria — a
+     * regressão continua pega.
+     */
+    const novaAutomacao = page.getByRole("button", { name: /nova automação/i });
+    await expect(async () => {
+      if (!/\/automations/.test(page.url())) {
+        await page.getByRole("link", { name: "Automações" }).click();
+      }
+      await expect(page).toHaveURL(/\/automations/, { timeout: 3_000 });
+      await expect(novaAutomacao).toBeVisible({ timeout: 3_000 });
+    }).toPass({ timeout: 30_000 });
   });
 });

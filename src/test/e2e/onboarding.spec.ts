@@ -1,4 +1,9 @@
 import { test, expect } from "@playwright/test";
+import { LOGGED_OUT } from "./helpers";
+
+// Faz signup de uma conta nova: tem que começar deslogado, ignorando a sessão
+// padrão do global-setup.
+test.use({ storageState: LOGGED_OUT });
 
 /*
  * Cria conta nova, avança um passo, clica "Configurar depois" e confirma que o

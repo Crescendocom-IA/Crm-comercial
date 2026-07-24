@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { requireCreds, login } from "./helpers";
+import { requireCreds } from "./helpers";
 
 /*
  * Cria automação deal.won -> criar tarefa, marca um deal como ganho pela ação em
@@ -11,7 +11,6 @@ import { requireCreds, login } from "./helpers";
 test.describe("Automação deal.won", () => {
   test("deal ganho cria tarefa via automação", async ({ page }) => {
     requireCreds();
-    await login(page);
 
     const taskTitle = `Tarefa auto ${Date.now()}`;
 

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { requireCreds, login, apiComoUsuario } from "./helpers";
+import { requireCreds, apiComoUsuario } from "./helpers";
 
 /*
  * Smoke do dashboard depois da migração para React Query. Não valida os
@@ -29,7 +29,6 @@ test.describe("Dashboard", () => {
     expect(error, "falha ao semear negócio ganho").toBeNull();
 
     try {
-      await login(page);
       await page.goto("/dashboard");
 
       // O título prova que a rota montou; o "Atualizado HH:MM" vem do

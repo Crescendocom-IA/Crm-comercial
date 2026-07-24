@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { requireCreds, login } from "./helpers";
+import { requireCreds } from "./helpers";
 
 /*
  * Cria um deal, arrasta entre colunas, confirma persistência após reload, e
@@ -9,7 +9,6 @@ import { requireCreds, login } from "./helpers";
 test.describe("Kanban de negócios", () => {
   test("cria, arrasta e persiste; drag dispara 1 request", async ({ page }) => {
     requireCreds();
-    await login(page);
     await page.goto("/deals");
 
     // Cria um deal com título único.

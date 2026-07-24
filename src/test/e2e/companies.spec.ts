@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { requireCreds, login, apiComoUsuario } from "./helpers";
+import { requireCreds, apiComoUsuario } from "./helpers";
 
 /*
  * Empresas depois da migração para React Query. A tela não tinha nenhuma
@@ -25,7 +25,6 @@ async function totalDeEmpresas(page: Page): Promise<number> {
 test.describe("Empresas", () => {
   test("busca filtra no servidor e mostra o empty state certo", async ({ page }) => {
     requireCreds();
-    await login(page);
     await page.goto("/companies");
 
     const total = await totalDeEmpresas(page);
@@ -47,7 +46,6 @@ test.describe("Empresas", () => {
     const { client } = await apiComoUsuario();
 
     try {
-      await login(page);
       await page.goto("/companies");
 
       const antes = await totalDeEmpresas(page);
@@ -77,7 +75,6 @@ test.describe("Empresas", () => {
     expect(error, "falha ao semear empresa").toBeNull();
 
     try {
-      await login(page);
       await page.goto("/companies");
       await totalDeEmpresas(page);
 

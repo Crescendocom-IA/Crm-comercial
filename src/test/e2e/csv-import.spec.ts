@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { requireCreds, login } from "./helpers";
+import { requireCreds } from "./helpers";
 import { writeFileSync, mkdtempSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -15,7 +15,6 @@ import { join } from "path";
 test.describe("Import de CSV", () => {
   test("campos com vírgula entre aspas entram inteiros", async ({ page }) => {
     requireCreds();
-    await login(page);
 
     /*
      * A vírgula entre aspas vai no CARGO — contatos não têm campo "empresa" no

@@ -1,5 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { CREDS, hasCreds, login } from "./helpers";
+import { hasCreds, login, LOGGED_OUT } from "./helpers";
+
+// Este arquivo testa o próprio fluxo de login: precisa começar deslogado,
+// ignorando a sessão padrão do global-setup.
+test.use({ storageState: LOGGED_OUT });
 
 test.describe("Login", () => {
   // Roda SEMPRE — não precisa de conta. Prova que a página carrega e o app bootou.

@@ -1,5 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRole } from "@/hooks/useRole";
+import {
+  useIntegrationsQuery, useIntegrationMutation, useWebhooksQuery, useWebhookMutation,
+  useApiKeysQuery, useApiKeyMutation,
+} from "@/hooks/queries/useIntegrations";
+import { useOrganizationQuery, useOrganizationMutation } from "@/hooks/queries/useSettings";
 import { ErpIntegrationTab } from "@/components/crm/ErpIntegrationTab";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -102,37 +107,22 @@ export default function Integrations() {
 function IntegrationsTab({ orgId, userId }: { orgId: string | null; userId?: string }) {
   const { toast } = useToast();
   const { canManage } = useRole();
-  const [configs, setConfigs] = useState<IntegrationConfig[]>([]);
+  const { configs } = useIntegrationsQuery();
+  const { saveConfig: saveConfigMut, toggle, invalidar: invalidarConfigs } = useIntegrationMutation();
   const [editProvider, setEditProvider] = useState<string | null>(null);
   const [editConfig, setEditConfig] = useState<any>({});
 
-  const fetchConfigs = useCallback(async () => {
-    if (!orgId) return;
-    const { data } = await supabase.from("integration_configs").select("*").eq("org_id", orgId) as any;
-    setConfigs(data || []);
-  }, [orgId]);
-
-  useEffect(() => { fetchConfigs(); }, [fetchConfigs]);
-
   const getConfig = (provider: string) => configs.find((c) => c.provider === provider);
 
-  const saveConfig = async (provider: string) => {
-    if (!orgId) return;
+  const saveConfig = (provider: string) => {
     const existing = getConfig(provider);
-    if (existing) {
-      await supabase.from("integration_configs").update({ config: editConfig, is_active: true } as any).eq("id", existing.id);
-    } else {
-      await supabase.from("integration_configs").insert({ org_id: orgId, provider, config: editConfig, connected_by: userId } as any);
-    }
-    toast({ title: `${provider} configurado` });
-    setEditProvider(null);
-    fetchConfigs();
+    saveConfigMut.mutate({ id: existing?.id, provider, config: editConfig, connectedBy: userId }, {
+      onSuccess: () => { toast({ title: `${provider} configurado` }); setEditProvider(null); },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
-  const toggleActive = async (id: string, active: boolean) => {
-    await supabase.from("integration_configs").update({ is_active: active } as any).eq("id", id);
-    fetchConfigs();
-  };
+  const toggleActive = (id: string, active: boolean) => toggle.mutate({ id, active });
 
   const [slackConnecting, setSlackConnecting] = useState(false);
   const [slackChannels, setSlackChannels] = useState<{ id: string; name: string }[]>([]);
@@ -156,7 +146,7 @@ function IntegrationsTab({ orgId, userId }: { orgId: string | null; userId?: str
         setSlackWorkspace(data.workspace_name);
         setSlackChannels(data.channels || []);
         toast({ title: `Conectado ao workspace ${data.workspace_name}` });
-        fetchConfigs();
+        invalidarConfigs();
       } else {
         setSlackSetupGuide(true);
       }
@@ -338,64 +328,40 @@ function IntegrationsTab({ orgId, userId }: { orgId: string | null; userId?: str
 }
 function WebhooksTab({ orgId }: { orgId: string | null }) {
   const { toast } = useToast();
-  const [webhooks, setWebhooks] = useState<WebhookRow[]>([]);
+  const { webhooks } = useWebhooksQuery();
+  const { create: createWebhookMut, remove: removeWebhookMut, toggle: toggleWebhookMut } = useWebhookMutation();
+  const { data: org } = useOrganizationQuery();
+  const { update: updateOrg } = useOrganizationMutation();
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: "", url: "", events: [] as string[], secret: "" });
-  const [inboundSecret, setInboundSecret] = useState<string>("");
   const [generatingSecret, setGeneratingSecret] = useState(false);
 
-  const fetchWebhooks = useCallback(async () => {
-    if (!orgId) return;
-    const { data } = await supabase.from("webhooks").select("*").eq("org_id", orgId) as any;
-    setWebhooks(data || []);
-  }, [orgId]);
+  // O secret de entrada vive em organizations.settings; deriva da org em cache.
+  const inboundSecret = ((org?.settings as any)?.inbound_webhook_secret as string) || "";
 
-  const fetchInboundSecret = useCallback(async () => {
-    if (!orgId) return;
-    const { data } = await supabase.from("organizations").select("settings").eq("id", orgId).single() as any;
-    setInboundSecret((data?.settings?.inbound_webhook_secret as string) || "");
-  }, [orgId]);
-
-  const generateInboundSecret = async () => {
-    if (!orgId) return;
+  const generateInboundSecret = () => {
     setGeneratingSecret(true);
     const secret = (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
-    const { data: org } = await supabase.from("organizations").select("settings").eq("id", orgId).single() as any;
-    const merged = { ...(org?.settings || {}), inbound_webhook_secret: secret };
-    const { error } = await supabase.from("organizations").update({ settings: merged }).eq("id", orgId);
-    setGeneratingSecret(false);
-    if (error) {
-      toast({ title: "Erro ao gerar secret", description: error.message + " (apenas o owner da org pode gerar)", variant: "destructive" });
-      return;
-    }
-    setInboundSecret(secret);
-    toast({ title: "Secret gerado", description: "A URL de entrada foi atualizada. Reconfigure seus sistemas externos com a nova URL." });
+    const merged = { ...((org?.settings as any) || {}), inbound_webhook_secret: secret };
+    updateOrg.mutate({ settings: merged } as any, {
+      onSuccess: () => toast({ title: "Secret gerado", description: "A URL de entrada foi atualizada. Reconfigure seus sistemas externos com a nova URL." }),
+      onError: (e: any) => toast({ title: "Erro ao gerar secret", description: e.message + " (apenas o owner da org pode gerar)", variant: "destructive" }),
+      onSettled: () => setGeneratingSecret(false),
+    });
   };
 
-  useEffect(() => { fetchWebhooks(); fetchInboundSecret(); }, [fetchWebhooks, fetchInboundSecret]);
-
-  const createWebhook = async () => {
-    if (!orgId || !form.name || !form.url) return;
-    await supabase.from("webhooks").insert({
-      org_id: orgId, name: form.name, url: form.url, events: form.events,
-      secret: form.secret || null,
-    } as any);
-    toast({ title: "Webhook criado" });
-    setShowCreate(false);
-    setForm({ name: "", url: "", events: [], secret: "" });
-    fetchWebhooks();
+  const createWebhook = () => {
+    if (!form.name || !form.url) return;
+    createWebhookMut.mutate({ name: form.name, url: form.url, events: form.events, secret: form.secret || null }, {
+      onSuccess: () => { toast({ title: "Webhook criado" }); setShowCreate(false); setForm({ name: "", url: "", events: [], secret: "" }); },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
-  const deleteWebhook = async (id: string) => {
-    await supabase.from("webhooks").delete().eq("id", id);
-    toast({ title: "Webhook excluído" });
-    fetchWebhooks();
-  };
+  const deleteWebhook = (id: string) =>
+    removeWebhookMut.mutate(id, { onSuccess: () => toast({ title: "Webhook excluído" }) });
 
-  const toggleWebhook = async (id: string, active: boolean) => {
-    await supabase.from("webhooks").update({ is_active: active } as any).eq("id", id);
-    fetchWebhooks();
-  };
+  const toggleWebhook = (id: string, active: boolean) => toggleWebhookMut.mutate({ id, active });
 
   const testWebhook = async (wh: WebhookRow) => {
     if (!orgId) return;
@@ -589,18 +555,11 @@ function WebhooksTab({ orgId }: { orgId: string | null }) {
 // ── API Keys Tab ──
 function ApiKeysTab({ orgId, userId }: { orgId: string | null; userId?: string }) {
   const { toast } = useToast();
-  const [keys, setKeys] = useState<ApiKey[]>([]);
+  const { apiKeys: keys } = useApiKeysQuery();
+  const { create: createKeyMut, revoke: revokeKeyMut, remove: removeKeyMut } = useApiKeyMutation();
   const [newKeyName, setNewKeyName] = useState("Default");
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
   const [showKey, setShowKey] = useState(false);
-
-  const fetchKeys = useCallback(async () => {
-    if (!orgId) return;
-    const { data } = await supabase.from("api_keys").select("*").eq("org_id", orgId) as any;
-    setKeys(data || []);
-  }, [orgId]);
-
-  useEffect(() => { fetchKeys(); }, [fetchKeys]);
 
   const generateKey = async () => {
     if (!orgId) return;
@@ -614,34 +573,21 @@ function ApiKeysTab({ orgId, userId }: { orgId: string | null; userId?: string }
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 
-    const { error } = await supabase.from("api_keys").insert({
-      org_id: orgId, name: newKeyName, key_hash: hashHex, key_prefix: prefix, created_by: userId,
-    } as any);
-
-    if (error) { 
-      const msg = error.message.includes("policy") || error.code === "42501" 
-        ? "Sem permissão. Apenas Owners e Admins podem gerar API keys." 
-        : error.message;
-      toast({ title: "Erro ao gerar chave", description: msg, variant: "destructive" }); 
-      return; 
-    }
-    setGeneratedKey(rawKey);
-    setShowKey(true);
-    fetchKeys();
-    toast({ title: "API Key gerada" });
+    createKeyMut.mutate({ name: newKeyName, key_hash: hashHex, key_prefix: prefix, created_by: userId }, {
+      onSuccess: () => { setGeneratedKey(rawKey); setShowKey(true); toast({ title: "API Key gerada" }); },
+      onError: (e: any) => {
+        const msg = e.message?.includes("policy") || e.code === "42501"
+          ? "Sem permissão. Apenas Owners e Admins podem gerar API keys." : e.message;
+        toast({ title: "Erro ao gerar chave", description: msg, variant: "destructive" });
+      },
+    });
   };
 
-  const revokeKey = async (id: string) => {
-    await supabase.from("api_keys").update({ is_active: false } as any).eq("id", id);
-    toast({ title: "Chave revogada" });
-    fetchKeys();
-  };
+  const revokeKey = (id: string) =>
+    revokeKeyMut.mutate(id, { onSuccess: () => toast({ title: "Chave revogada" }) });
 
-  const deleteKey = async (id: string) => {
-    await supabase.from("api_keys").delete().eq("id", id);
-    toast({ title: "Chave excluída" });
-    fetchKeys();
-  };
+  const deleteKey = (id: string) =>
+    removeKeyMut.mutate(id, { onSuccess: () => toast({ title: "Chave excluída" }) });
 
   return (
     <div className="space-y-4">

@@ -1,6 +1,10 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
+import {
+  useSalesGoalsQuery, useSalesGoalActualsQuery, useSalesGoalMutation,
+} from "@/hooks/queries/useSalesGoals";
+import { useMembersQuery } from "@/hooks/queries/useOrgOptions";
+import { useTeamsQuery } from "@/hooks/queries/useTeam";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrg } from "@/hooks/useOrg";
 import { Button } from "@/components/ui/button";
@@ -68,10 +72,11 @@ export default function SalesGoals() {
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
-  const [goals, setGoals] = useState<SalesGoal[]>([]);
-  const [members, setMembers] = useState<Member[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { goals: rawGoals, isLoading: loading } = useSalesGoalsQuery({ month, year });
+  const actuals = useSalesGoalActualsQuery({ month, year });
+  const members = useMembersQuery() as Member[];
+  const { teams, teamMembers } = useTeamsQuery();
+  const { save: saveGoalMut, remove: removeGoalMut } = useSalesGoalMutation();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editGoal, setEditGoal] = useState<SalesGoal | null>(null);
 
@@ -84,88 +89,42 @@ export default function SalesGoals() {
     team_id: "",
   });
 
-  const fetchData = useCallback(async () => {
-    if (!orgId) return;
-    setLoading(true);
-    const [{ data: g }, { data: m }, { data: t }] = await Promise.all([
-      supabase
-        .from("sales_goals")
-        .select("*")
-        .eq("org_id", orgId)
-        .eq("period_month", month)
-        .eq("period_year", year),
-      supabase.from("profiles").select("id, name, email").eq("org_id", orgId),
-      supabase.from("teams").select("id, name").eq("org_id", orgId),
-    ]);
-    setGoals((g as SalesGoal[]) || []);
-    setMembers(m || []);
-    setTeams(t || []);
-    setLoading(false);
-  }, [orgId, month, year]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-  // Compute actuals
-  useEffect(() => {
-    if (!orgId || goals.length === 0) return;
-    const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
-    const endMonth = month === 12 ? 1 : month + 1;
-    const endYear = month === 12 ? year + 1 : year;
-    const endDate = `${endYear}-${String(endMonth).padStart(2, "0")}-01`;
-
-    const computeActuals = async () => {
-      const [{ data: wonDeals }, { data: activities }, { data: newContacts }] = await Promise.all([
-        supabase.from("deals").select("id, value, owner_id").eq("org_id", orgId).eq("status", "won").gte("updated_at", startDate).lt("updated_at", endDate),
-        supabase.from("activities").select("id, user_id").eq("org_id", orgId).gte("created_at", startDate).lt("created_at", endDate),
-        supabase.from("contacts").select("id, owner_id").eq("org_id", orgId).gte("created_at", startDate).lt("created_at", endDate),
-      ]);
-
-      const teamMembers = new Map<string, string[]>();
-      if (teams.length > 0) {
-        const { data: tm } = await supabase.from("team_members").select("team_id, user_id");
-        (tm || []).forEach((r) => {
-          const arr = teamMembers.get(r.team_id) || [];
-          arr.push(r.user_id);
-          teamMembers.set(r.team_id, arr);
-        });
-      }
-
-      const updated = goals.map((g) => {
-        let current = 0;
-        const filterByAssign = (items: { id: string; owner_id?: string | null; user_id?: string | null }[]) => {
-          if (g.assign_type === "org") return items;
-          if (g.assign_type === "individual" && g.user_id) {
-            return items.filter((i) => (i.owner_id || i.user_id) === g.user_id);
-          }
-          if (g.assign_type === "team" && g.team_id) {
-            const tMembers = teamMembers.get(g.team_id) || [];
-            return items.filter((i) => tMembers.includes((i.owner_id || i.user_id) as string));
-          }
-          return items;
-        };
-
-        switch (g.goal_type) {
-          case "revenue":
-            current = filterByAssign(wonDeals || []).reduce((sum, d) => sum + (Number((d as any).value) || 0), 0);
-            break;
-          case "deals_closed":
-            current = filterByAssign(wonDeals || []).length;
-            break;
-          case "activities":
-            current = filterByAssign(activities || []).length;
-            break;
-          case "new_contacts":
-            current = filterByAssign(newContacts || []).length;
-            break;
+  /*
+   * Realizados derivados em memória (padrão Dashboard): a query traz os dados
+   * crus do período e o current_value de cada meta sai do recorte por
+   * atribuição — individual, equipe ou org.
+   */
+  const goals = useMemo(() => {
+    const teamMap = new Map<string, string[]>();
+    (teamMembers as any[]).forEach((r) => {
+      const arr = teamMap.get(r.team_id) || [];
+      arr.push(r.user_id);
+      teamMap.set(r.team_id, arr);
+    });
+    return rawGoals.map((g) => {
+      const filterByAssign = (items: { owner_id?: string | null; user_id?: string | null }[]) => {
+        if (g.assign_type === "org") return items;
+        if (g.assign_type === "individual" && g.user_id) {
+          return items.filter((i) => (i.owner_id || i.user_id) === g.user_id);
         }
-        return { ...g, current_value: current };
-      });
-
-      setGoals(updated);
-    };
-    computeActuals();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgId, goals.length, month, year]);
+        if (g.assign_type === "team" && g.team_id) {
+          const tMembers = teamMap.get(g.team_id) || [];
+          return items.filter((i) => tMembers.includes((i.owner_id || i.user_id) as string));
+        }
+        return items;
+      };
+      let current = 0;
+      switch (g.goal_type) {
+        case "revenue":
+          current = filterByAssign(actuals.wonDeals).reduce((sum, d) => sum + (Number((d as any).value) || 0), 0);
+          break;
+        case "deals_closed": current = filterByAssign(actuals.wonDeals).length; break;
+        case "activities": current = filterByAssign(actuals.activities).length; break;
+        case "new_contacts": current = filterByAssign(actuals.newContacts).length; break;
+      }
+      return { ...g, current_value: current };
+    });
+  }, [rawGoals, actuals, teamMembers]);
 
   const openCreate = () => {
     setEditGoal(null);
@@ -185,10 +144,8 @@ export default function SalesGoals() {
     setDialogOpen(true);
   };
 
-  const saveGoal = async () => {
-    if (!orgId) return;
+  const saveGoal = () => {
     const payload = {
-      org_id: orgId,
       goal_type: form.goal_type,
       target_value: parseFloat(form.target_value) || 0,
       period_month: month,
@@ -198,25 +155,14 @@ export default function SalesGoals() {
       team_id: form.assign_type === "team" ? form.team_id || null : null,
       created_by: user?.id || null,
     };
-
-    if (editGoal) {
-      const { error } = await supabase.from("sales_goals").update(payload).eq("id", editGoal.id);
-      if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
-      toast({ title: "Meta atualizada" });
-    } else {
-      const { error } = await supabase.from("sales_goals").insert(payload);
-      if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
-      toast({ title: "Meta criada" });
-    }
-    setDialogOpen(false);
-    fetchData();
+    saveGoalMut.mutate({ id: editGoal?.id, payload }, {
+      onSuccess: () => { setDialogOpen(false); toast({ title: editGoal ? "Meta atualizada" : "Meta criada" }); },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
-  const deleteGoal = async (id: string) => {
-    await supabase.from("sales_goals").delete().eq("id", id);
-    toast({ title: "Meta excluída" });
-    fetchData();
-  };
+  const deleteGoal = (id: string) =>
+    removeGoalMut.mutate(id, { onSuccess: () => toast({ title: "Meta excluída" }) });
 
   const navMonth = (dir: number) => {
     let m = month + dir;

@@ -1,4 +1,6 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { useReportsData, useDealProbabilityMutation } from "@/hooks/queries/useReports";
+import { useSegmentsQuery, useSegmentMutation } from "@/hooks/queries/useLeadScoring";
 import { useNavigate } from "react-router-dom";
 import { EmptyState } from "@/components/crm/EmptyState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +15,6 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -114,43 +115,21 @@ export default function Reports() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const [deals, setDeals] = useState<Deal[]>([]);
-  const [stages, setStages] = useState<Stage[]>([]);
-  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
-  const [members, setMembers] = useState<Profile[]>([]);
-  const [activities, setActivities] = useState<ActivityRow[]>([]);
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Uma leitura por domínio; o cast leva os tipos ao formato local das abas.
+  const reportsData = useReportsData();
+  const deals = reportsData.deals as unknown as Deal[];
+  const stages = reportsData.stages as unknown as Stage[];
+  const pipelines = reportsData.pipelines as unknown as Pipeline[];
+  const members = reportsData.members as unknown as Profile[];
+  const activities = reportsData.activities as unknown as ActivityRow[];
+  const contacts = reportsData.contacts as unknown as Contact[];
+  const companies = reportsData.companies as unknown as Company[];
+  const loading = reportsData.isLoading;
 
   // Global filters
   const [period, setPeriod] = useState<PeriodFilter>("this_month");
   const [ownerFilter, setOwnerFilter] = useState("all");
   const [pipelineFilter, setPipelineFilter] = useState("all");
-
-  const fetchAll = useCallback(async () => {
-    if (!orgId) return;
-    setLoading(true);
-    const [dRes, sRes, pRes, mRes, aRes, cRes, coRes] = await Promise.all([
-      supabase.from("deals").select("*").eq("org_id", orgId),
-      supabase.from("pipeline_stages").select("*").eq("org_id", orgId).order("order"),
-      supabase.from("pipelines").select("id,name,is_default").eq("org_id", orgId),
-      supabase.from("profiles").select("id,name,email").eq("org_id", orgId),
-      supabase.from("activities").select("*").eq("org_id", orgId).order("created_at", { ascending: false }).limit(1000),
-      supabase.from("contacts").select("id,first_name,last_name,status,lead_score,created_at,owner_id").eq("org_id", orgId),
-      supabase.from("companies").select("id,name").eq("org_id", orgId),
-    ]);
-    setDeals((dRes.data as Deal[]) || []);
-    setStages((sRes.data as Stage[]) || []);
-    setPipelines((pRes.data as Pipeline[]) || []);
-    setMembers((mRes.data as Profile[]) || []);
-    setActivities((aRes.data as ActivityRow[]) || []);
-    setContacts((cRes.data as Contact[]) || []);
-    setCompanies((coRes.data as Company[]) || []);
-    setLoading(false);
-  }, [orgId]);
-
-  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   // ── Filtered data ──────────────────
   /*
@@ -834,11 +813,12 @@ function ForecastReport({ deals, stages, members, ownerFilter, pipelineFilter }:
   }));
 
   // Inline probability edit
-  const updateProbability = async (dealId: string, newProb: number) => {
-    const { error } = await supabase.from("deals").update({ probability: newProb }).eq("id", dealId);
-    if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Probabilidade atualizada" });
-    setProbOverrides((prev) => ({ ...prev, [dealId]: newProb }));
+  const probMutation = useDealProbabilityMutation();
+  const updateProbability = (dealId: string, newProb: number) => {
+    probMutation.mutate({ dealId, probability: newProb }, {
+      onSuccess: () => { toast({ title: "Probabilidade atualizada" }); setProbOverrides((prev) => ({ ...prev, [dealId]: newProb })); },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
   return (
@@ -1069,7 +1049,16 @@ function CustomReportBuilder({ deals, contacts, activities, stages, members, com
 }) {
   const { toast } = useToast();
   const [entity, setEntity] = useState<"deals" | "contacts" | "activities">("deals");
-  const [savedReports, setSavedReports] = useState<{ id: string; name: string; entity: string; fields: string[]; filters: any }[]>([]);
+  // Relatórios salvos convivem na tabela segments (filters.type = "custom_report").
+  const segments = useSegmentsQuery();
+  const { save: saveSegment } = useSegmentMutation();
+  const savedReports = useMemo(() => (segments as any[]).filter((seg) => {
+    try { return JSON.parse(JSON.stringify(seg.filters))?.type === "custom_report"; } catch { return false; }
+  }).map((seg: any) => ({
+    id: seg.id, name: seg.name,
+    entity: (seg.filters as any)?.entity || "deals",
+    fields: (seg.filters as any)?.fields || [], filters: seg.filters,
+  })), [segments]);
   const [reportName, setReportName] = useState("");
 
   const fieldOptions: Record<string, { key: string; label: string }[]> = {
@@ -1098,22 +1087,6 @@ function CustomReportBuilder({ deals, contacts, activities, stages, members, com
   useEffect(() => {
     setSelectedFields(fieldOptions[entity].map((f) => f.key));
   }, [entity]);
-
-  // Load saved reports
-  useEffect(() => {
-    supabase.from("segments").select("*").eq("org_id", orgId).then(({ data }) => {
-      // Reuse segments table with a convention
-      const reports = (data || []).filter((s: any) => {
-        try { return JSON.parse(JSON.stringify(s.filters))?.type === "custom_report"; } catch { return false; }
-      }).map((s: any) => ({
-        id: s.id, name: s.name,
-        entity: (s.filters as any)?.entity || "deals",
-        fields: (s.filters as any)?.fields || [],
-        filters: s.filters,
-      }));
-      setSavedReports(reports);
-    });
-  }, [orgId]);
 
   // Generate table data
   const tableData = useMemo(() => {
@@ -1153,15 +1126,15 @@ function CustomReportBuilder({ deals, contacts, activities, stages, members, com
     toast(exported ? { title: "CSV exportado!" } : EMPTY_EXPORT_TOAST);
   };
 
-  const saveReport = async () => {
+  const saveReport = () => {
     if (!reportName.trim()) { toast({ title: "Informe um nome", variant: "destructive" }); return; }
-    const { error } = await supabase.from("segments").insert({
-      org_id: orgId, name: reportName,
-      filters: { type: "custom_report", entity, fields: selectedFields } as any,
+    saveSegment.mutate({
+      name: reportName, description: null,
+      filters: { type: "custom_report", entity, fields: selectedFields },
+    }, {
+      onSuccess: () => { toast({ title: "Relatório salvo!" }); setReportName(""); },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
     });
-    if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Relatório salvo!" });
-    setReportName("");
   };
 
   const loadReport = (r: typeof savedReports[0]) => {

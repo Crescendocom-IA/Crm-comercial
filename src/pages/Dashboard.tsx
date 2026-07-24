@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,15 +7,18 @@ import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import {
+  useDashboardData, useDashboardKpis, useDashboardCharts, useDashboardAtRisk,
+  type PeriodFilter, type DashboardFilters,
+} from "@/hooks/queries/useDashboard";
+import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, Legend,
+  PieChart, Pie, Cell, Line, AreaChart, Area, Legend,
 } from "recharts";
 import {
-  DollarSign, Users, Handshake, Activity, TrendingUp, TrendingDown,
-  Target, Clock, AlertTriangle, RefreshCw, ArrowRight, Zap,
+  DollarSign, Users, Handshake, TrendingUp, TrendingDown,
+  Target, Clock, AlertTriangle, RefreshCw, ArrowRight,
   CalendarDays, Award, BarChart3,
 } from "lucide-react";
 import { DashboardAIChat } from "@/components/crm/DashboardAIChat";
@@ -23,8 +26,6 @@ import { DashboardAIChat } from "@/components/crm/DashboardAIChat";
 // ── Helpers ──────────────────────────────────
 const fmt = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(v);
-
-const pct = (n: number, d: number) => (d > 0 ? Math.round((n / d) * 100) : 0);
 
 const tooltipStyle = {
   backgroundColor: "hsl(var(--popover))",
@@ -39,44 +40,6 @@ const CHART_COLORS = [
   "hsl(var(--chart-4))", "hsl(var(--chart-5))", "hsl(var(--chart-6))",
   "hsl(var(--chart-7))", "hsl(var(--chart-8))",
 ];
-
-const MONTHS_PT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-
-type Deal = {
-  id: string; title: string; value: number | null; stage_id: string | null;
-  status: string | null; owner_id: string | null; close_date: string | null;
-  probability: number | null; created_at: string | null; updated_at: string | null;
-  contact_id: string | null; company_id: string | null;
-};
-type Stage = { id: string; name: string; order: number; color: string | null; win_probability: number | null; pipeline_id: string };
-type ActivityRow = {
-  id: string; type: string; title: string; due_date: string | null;
-  completed_at: string | null; created_at: string | null; user_id: string | null;
-  deal_id: string | null; contact_id: string | null;
-};
-type Contact = { id: string; first_name: string; last_name: string | null; lead_score: number; status: string | null; created_at: string | null };
-type Profile = { id: string; name: string | null; email: string | null };
-type Pipeline = { id: string; name: string; is_default: boolean | null };
-
-type PeriodFilter = "today" | "this_week" | "this_month" | "this_quarter" | "this_year" | "all";
-
-// ── Period helpers ──────────────────────────
-function getPeriodStart(period: PeriodFilter): Date | null {
-  const now = new Date();
-  switch (period) {
-    case "today": return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    case "this_week": { const d = new Date(now); d.setDate(d.getDate() - d.getDay()); d.setHours(0, 0, 0, 0); return d; }
-    case "this_month": return new Date(now.getFullYear(), now.getMonth(), 1);
-    case "this_quarter": return new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
-    case "this_year": return new Date(now.getFullYear(), 0, 1);
-    case "all": return null;
-  }
-}
-
-function inPeriod(dateStr: string | null, start: Date | null): boolean {
-  if (!start || !dateStr) return true;
-  return new Date(dateStr) >= start;
-}
 
 // ── Gauge component ─────────────────────────
 function GaugeChart({ value, max, label }: { value: number; max: number; label: string }) {
@@ -115,261 +78,29 @@ export default function Dashboard() {
   const { orgId } = useOrg();
   const navigate = useNavigate();
 
-  const [deals, setDeals] = useState<Deal[]>([]);
-  const [stages, setStages] = useState<Stage[]>([]);
-  const [activities, setActivities] = useState<ActivityRow[]>([]);
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [members, setMembers] = useState<Profile[]>([]);
-  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
-  const [loading, setLoading] = useState(true);
-  /**
-   * fetchAll roda também no auto-refresh de 5 min e no botão de atualizar.
-   * Trocar o dashboard inteiro por skeleton nesses casos apagaria dados já na
-   * tela — o skeleton só faz sentido enquanto não há nada para mostrar.
-   */
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-  const [lastRefresh, setLastRefresh] = useState(new Date());
-
-  // Filters
+  // Filtros — recorte de visão, aplicado em memória sobre os dados em cache.
   const [period, setPeriod] = useState<PeriodFilter>("this_month");
   const [ownerFilter, setOwnerFilter] = useState("all");
   const [pipelineFilter, setPipelineFilter] = useState("all");
+  const filters: DashboardFilters = { period, ownerFilter, pipelineFilter };
 
-  // Revenue goal (from org settings or default)
-  const monthlyGoal = 100000;
+  const { members, pipelines, contacts, isLoading, isFetching, updatedAt, refetch } = useDashboardData();
+  const { kpis } = useDashboardKpis(filters);
+  const {
+    monthlyRevenue, funnelData, actByType, actByDay,
+    topPerformers, scoreDistribution, newLeadsByStatus,
+  } = useDashboardCharts(filters);
+  const atRiskDeals = useDashboardAtRisk(filters);
 
-  const fetchAll = useCallback(async () => {
-    if (!orgId) return;
-    setLoading(true);
-    const [dRes, sRes, aRes, cRes, mRes, pRes] = await Promise.all([
-      supabase.from("deals").select("*").eq("org_id", orgId),
-      supabase.from("pipeline_stages").select("*").eq("org_id", orgId).order("order"),
-      supabase.from("activities").select("*").eq("org_id", orgId).order("created_at", { ascending: false }).limit(500),
-      supabase.from("contacts").select("id,first_name,last_name,lead_score,status,created_at").eq("org_id", orgId),
-      supabase.from("profiles").select("id,name,email").eq("org_id", orgId),
-      supabase.from("pipelines").select("id,name,is_default").eq("org_id", orgId),
-    ]);
-    setDeals((dRes.data as Deal[]) || []);
-    setStages((sRes.data as Stage[]) || []);
-    setActivities((aRes.data as ActivityRow[]) || []);
-    setContacts((cRes.data as Contact[]) || []);
-    setMembers((mRes.data as Profile[]) || []);
-    setPipelines((pRes.data as Pipeline[]) || []);
-    setLoading(false);
-    setHasLoadedOnce(true);
-    setLastRefresh(new Date());
-  }, [orgId]);
-
-  useEffect(() => { fetchAll(); }, [fetchAll]);
-
-  // Auto-refresh every 5 min
-  useEffect(() => {
-    const timer = setInterval(fetchAll, 5 * 60 * 1000);
-    return () => clearInterval(timer);
-  }, [fetchAll]);
-
-  // ── Filtered data ──────────────────
-  /*
-   * getPeriodStart devolve um Date novo a cada chamada. Chamado direto no corpo
-   * do componente, periodStart mudava de identidade em todo render e invalidava
-   * todos os useMemo que dependem dele — as derivações mais caras da tela
-   * recalculavam a cada tecla digitada em qualquer campo.
-   *
-   * Memoizar por `period` também congela o "agora" enquanto o filtro não muda,
-   * o que é o comportamento desejado: o recorte não deve deslizar sozinho
-   * enquanto o usuário lê a tela.
-   */
-  const periodStart = useMemo(() => getPeriodStart(period), [period]);
-
-  const filteredDeals = useMemo(() => {
-    let list = deals;
-    if (ownerFilter !== "all") list = list.filter((d) => d.owner_id === ownerFilter);
-    if (pipelineFilter !== "all") {
-      const pipeStages = stages.filter((s) => s.pipeline_id === pipelineFilter).map((s) => s.id);
-      list = list.filter((d) => d.stage_id && pipeStages.includes(d.stage_id));
-    }
-    return list;
-  }, [deals, ownerFilter, pipelineFilter, stages]);
-
-  const periodDeals = useMemo(() =>
-    filteredDeals.filter((d) => inPeriod(d.created_at, periodStart)),
-    [filteredDeals, periodStart]
-  );
-
-  const filteredActivities = useMemo(() => {
-    let list = activities;
-    if (ownerFilter !== "all") list = list.filter((a) => a.user_id === ownerFilter);
-    return list.filter((a) => inPeriod(a.created_at, periodStart));
-  }, [activities, ownerFilter, periodStart]);
-
-  // ── KPIs ───────────────────────────
-  const wonDeals = periodDeals.filter((d) => d.status === "won");
-  const lostDeals = periodDeals.filter((d) => d.status === "lost");
-  const openDeals = filteredDeals.filter((d) => d.status === "open");
-  const totalClosed = wonDeals.length + lostDeals.length;
-  const wonRevenue = wonDeals.reduce((s, d) => s + (Number(d.value) || 0), 0);
-  const winRate = pct(wonDeals.length, totalClosed);
-  const avgTicket = wonDeals.length > 0 ? wonRevenue / wonDeals.length : 0;
-  const pipelineValue = openDeals.reduce((s, d) => s + (Number(d.value) || 0), 0);
-
-  // Avg cycle (days from created to won)
-  const avgCycle = useMemo(() => {
-    if (wonDeals.length === 0) return 0;
-    const total = wonDeals.reduce((s, d) => {
-      if (!d.created_at) return s;
-      const created = new Date(d.created_at);
-      const updated = d.updated_at ? new Date(d.updated_at) : new Date();
-      return s + Math.floor((updated.getTime() - created.getTime()) / 86400000);
-    }, 0);
-    return Math.round(total / wonDeals.length);
-  }, [wonDeals]);
-
-  // Previous period comparison
-  const prevPeriodRevenue = useMemo(() => {
-    if (period === "all") return 0;
-    const now = new Date();
-    let prevStart: Date;
-    let prevEnd: Date;
-    switch (period) {
-      case "this_month":
-        prevStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        prevEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-        break;
-      case "this_quarter":
-        const qStart = Math.floor(now.getMonth() / 3) * 3;
-        prevStart = new Date(now.getFullYear(), qStart - 3, 1);
-        prevEnd = new Date(now.getFullYear(), qStart, 0);
-        break;
-      default:
-        return 0;
-    }
-    return filteredDeals
-      .filter((d) => d.status === "won" && d.created_at && new Date(d.created_at) >= prevStart && new Date(d.created_at) <= prevEnd)
-      .reduce((s, d) => s + (Number(d.value) || 0), 0);
-  }, [filteredDeals, period]);
-
-  const revenueVariation = prevPeriodRevenue > 0 ? Math.round(((wonRevenue - prevPeriodRevenue) / prevPeriodRevenue) * 100) : 0;
-
-  // ── Monthly revenue (last 12 months) ───────
-  const monthlyRevenue = useMemo(() => {
-    const now = new Date();
-    const data: { month: string; receita: number; tendencia: number }[] = [];
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const monthWon = filteredDeals.filter((deal) => {
-        if (deal.status !== "won" || !deal.created_at) return false;
-        const c = new Date(deal.created_at);
-        return c.getFullYear() === d.getFullYear() && c.getMonth() === d.getMonth();
-      });
-      data.push({
-        month: MONTHS_PT[d.getMonth()],
-        receita: monthWon.reduce((s, deal) => s + (Number(deal.value) || 0), 0),
-        tendencia: 0,
-      });
-    }
-    // Simple moving average for trend
-    for (let i = 0; i < data.length; i++) {
-      const window = data.slice(Math.max(0, i - 2), i + 1);
-      data[i].tendencia = Math.round(window.reduce((s, d) => s + d.receita, 0) / window.length);
-    }
-    return data;
-  }, [filteredDeals]);
-
-  // ── Pipeline funnel ────────────────
-  const funnelData = useMemo(() => {
-    const pipeStages = pipelineFilter !== "all"
-      ? stages.filter((s) => s.pipeline_id === pipelineFilter)
-      : stages;
-    return pipeStages.map((s) => {
-      const stageDeals = openDeals.filter((d) => d.stage_id === s.id);
-      return {
-        name: s.name,
-        count: stageDeals.length,
-        value: stageDeals.reduce((sum, d) => sum + (Number(d.value) || 0), 0),
-        color: s.color || "hsl(var(--primary))",
-      };
-    });
-  }, [stages, openDeals, pipelineFilter]);
-
-  // ── Activities by type (donut) ────
-  const actByType = useMemo(() => {
-    const map: Record<string, number> = {};
-    filteredActivities.forEach((a) => { map[a.type] = (map[a.type] || 0) + 1; });
-    const labels: Record<string, string> = { call: "Ligação", email: "Email", meeting: "Reunião", note: "Nota", task: "Tarefa" };
-    return Object.entries(map).map(([type, count]) => ({ name: labels[type] || type, value: count }));
-  }, [filteredActivities]);
-
-  // ── Top performers ─────────────────
-  const topPerformers = useMemo(() => {
-    return members.map((m) => {
-      const mWon = wonDeals.filter((d) => d.owner_id === m.id);
-      return {
-        name: m.name || m.email || "—",
-        deals: mWon.length,
-        revenue: mWon.reduce((s, d) => s + (Number(d.value) || 0), 0),
-      };
-    }).filter((m) => m.deals > 0).sort((a, b) => b.revenue - a.revenue);
-  }, [members, wonDeals]);
-
-  // ── Activity heatmap (by day of week) ─────
-  const actByDay = useMemo(() => {
-    const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-    const counts = new Array(7).fill(0);
-    filteredActivities.forEach((a) => {
-      if (a.created_at) counts[new Date(a.created_at).getDay()]++;
-    });
-    return days.map((d, i) => ({ day: d, count: counts[i] }));
-  }, [filteredActivities]);
-
-  // ── Lead score distribution ────────
-  const scoreDistribution = useMemo(() => {
-    const buckets = [
-      { label: "0-20", min: 0, max: 20, count: 0 },
-      { label: "21-40", min: 21, max: 40, count: 0 },
-      { label: "41-60", min: 41, max: 60, count: 0 },
-      { label: "61-80", min: 61, max: 80, count: 0 },
-      { label: "81-100", min: 81, max: 100, count: 0 },
-    ];
-    contacts.forEach((c) => {
-      const s = c.lead_score || 0;
-      const bucket = buckets.find((b) => s >= b.min && s <= b.max);
-      if (bucket) bucket.count++;
-    });
-    return buckets;
-  }, [contacts]);
-
-  // ── At-risk deals ──────────────────
-  const atRiskDeals = useMemo(() => {
-    const now = new Date();
-    const fourteenDaysAgo = new Date(now.getTime() - 14 * 86400000);
-    const sevenDaysFromNow = new Date(now.getTime() + 7 * 86400000);
-
-    const inactive = openDeals.filter((d) => {
-      if (!d.updated_at) return true;
-      return new Date(d.updated_at) < fourteenDaysAgo;
-    }).sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0)).slice(0, 5);
-
-    const closingSoon = openDeals.filter((d) => {
-      if (!d.close_date) return false;
-      const cd = new Date(d.close_date);
-      return cd <= sevenDaysFromNow && (Number(d.probability) || 0) < 50;
-    }).sort((a, b) => new Date(a.close_date!).getTime() - new Date(b.close_date!).getTime());
-
-    return { inactive, closingSoon };
-  }, [openDeals]);
-
-  // ── New leads by source (simplified) ──────
-  const newLeadsByStatus = useMemo(() => {
-    const periodContacts = contacts.filter((c) => inPeriod(c.created_at, periodStart));
-    const map: Record<string, number> = {};
-    periodContacts.forEach((c) => {
-      const s = c.status || "lead";
-      map[s] = (map[s] || 0) + 1;
-    });
-    const labels: Record<string, string> = { lead: "Lead", prospect: "Prospect", customer: "Cliente", churned: "Churned" };
-    return Object.entries(map).map(([k, v]) => ({ name: labels[k] || k, value: v }));
-  }, [contacts, periodStart]);
+  // Nomes curtos para o JSX abaixo não mudar.
+  const {
+    wonRevenue, wonDealsCount, lostDealsCount, openDealsCount, totalClosed,
+    winRate, avgTicket, pipelineValue, avgCycle, revenueVariation, monthlyGoal,
+    contactsCount, newLeadsCount, pendingActivities,
+  } = kpis;
+  const lastRefresh = new Date(updatedAt);
+  // O botão gira enquanto revalida, mesmo sem trocar o skeleton.
+  const loading = isLoading;
 
   if (!orgId) {
     return (
@@ -418,20 +149,22 @@ export default function Dashboard() {
               </SelectContent>
             </Select>
           )}
-          <Button variant="outline" size="sm" className="h-8" onClick={fetchAll} disabled={loading}>
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          {/* Gira enquanto revalida (isFetching), não só na primeira carga. */}
+          <Button variant="outline" size="sm" className="h-8" onClick={refetch} disabled={isFetching}>
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
           </Button>
         </div>
       </div>
 
       {/* ── KPI Cards ── */}
       {/*
-        Durante o fetch os KPIs renderizavam com os estados iniciais — "R$ 0",
-        "0 negócios" — indistinguíveis de uma conta realmente vazia. O skeleton
-        usa a mesma grade e altura dos cards para nada saltar quando os dados
-        chegam.
+        Durante a primeira carga os KPIs renderizariam com zeros — "R$ 0",
+        "0 negócios" — indistinguíveis de uma conta vazia. isLoading do React
+        Query é verdadeiro só enquanto não há cache; no auto-refresh e no botão
+        ele é falso e os dados atuais permanecem, sem piscar o skeleton. É o que
+        o hasLoadedOnce fazia à mão.
       */}
-      {loading && !hasLoadedOnce ? (
+      {loading ? (
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-3 xl:grid-cols-6" role="status" aria-label="Carregando indicadores">
           {Array.from({ length: 6 }).map((_, i) => (
             <Card key={i}>
@@ -467,7 +200,7 @@ export default function Dashboard() {
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Ganhos</span>
               <Handshake className="h-3.5 w-3.5 text-success" />
             </div>
-            <p className="text-xl font-bold">{wonDeals.length}</p>
+            <p className="text-xl font-bold">{wonDealsCount}</p>
             <p className="text-xs text-muted-foreground">{fmt(pipelineValue)} em pipeline</p>
           </CardContent>
         </Card>
@@ -510,8 +243,8 @@ export default function Dashboard() {
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Contatos</span>
               <Users className="h-3.5 w-3.5 text-primary" />
             </div>
-            <p className="text-xl font-bold">{contacts.length}</p>
-            <p className="text-xs text-muted-foreground">{contacts.filter((c) => inPeriod(c.created_at, periodStart)).length} novos</p>
+            <p className="text-xl font-bold">{contactsCount}</p>
+            <p className="text-xs text-muted-foreground">{newLeadsCount} novos</p>
           </CardContent>
         </Card>
       </div>
@@ -791,14 +524,14 @@ export default function Dashboard() {
         crmData={{
           wonRevenue,
           pipelineValue,
-          openDealsCount: openDeals.length,
+          openDealsCount,
           winRate,
           avgTicket,
           avgCycle,
-          wonDealsCount: wonDeals.length,
-          lostDealsCount: lostDeals.length,
-          pendingActivities: filteredActivities.filter((a) => !a.completed_at).length,
-          newLeadsCount: contacts.filter((c) => inPeriod(c.created_at, periodStart)).length,
+          wonDealsCount,
+          lostDealsCount,
+          pendingActivities,
+          newLeadsCount,
           atRiskDeals: atRiskDeals.inactive.map((d) => ({
             title: d.title,
             value: Number(d.value) || 0,

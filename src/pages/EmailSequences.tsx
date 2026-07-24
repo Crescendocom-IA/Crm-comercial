@@ -1,9 +1,12 @@
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import { useRole } from "@/hooks/useRole";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  useEmailSequencesQuery, useSequenceStepsQuery, useSequenceEnrollmentsQuery,
+  useEmailSequenceMutation, useSequenceStepMutation, useSequenceEnrollmentMutation,
+} from "@/hooks/queries/useEmailSequences";
+import { useContactOptionsQuery } from "@/hooks/queries/useOrgOptions";
 import { useOrg } from "@/hooks/useOrg";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,16 +57,19 @@ const statusColors: Record<string, string> = {
 
 export default function EmailSequences() {
   const { orgId } = useOrg();
-  const { user } = useAuth();
   const { toast } = useToast();
 
-  const [sequences, setSequences] = useState<Sequence[]>([]);
+  const { sequences } = useEmailSequencesQuery();
+  const steps = useSequenceStepsQuery();
+  const enrollments = useSequenceEnrollmentsQuery();
+  const contacts = useContactOptionsQuery();
+  const seqMutation = useEmailSequenceMutation();
+  const stepMutation = useSequenceStepMutation();
+  const enrollmentMutation = useSequenceEnrollmentMutation();
+
   const [pendingDeleteSeq, setPendingDeleteSeq] = useState<string | null>(null);
   const { canDelete } = useRole();
   const [pendingDeleteStep, setPendingDeleteStep] = useState<string | null>(null);
-  const [steps, setSteps] = useState<Step[]>([]);
-  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
-  const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedSeq, setSelectedSeq] = useState<Sequence | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [enrollOpen, setEnrollOpen] = useState(false);
@@ -76,76 +82,56 @@ export default function EmailSequences() {
   const [stepDelay, setStepDelay] = useState(0);
   const [enrollContactId, setEnrollContactId] = useState("none");
 
-  const fetchAll = useCallback(async () => {
-    if (!orgId) return;
-    const [sRes, stRes, eRes, cRes] = await Promise.all([
-      supabase.from("email_sequences").select("*").eq("org_id", orgId).order("created_at", { ascending: false }),
-      supabase.from("email_sequence_steps").select("*").eq("org_id", orgId).order("step_order"),
-      supabase.from("email_sequence_enrollments").select("*").eq("org_id", orgId),
-      supabase.from("contacts").select("id,first_name,last_name,email").eq("org_id", orgId),
-    ]);
-    setSequences((sRes.data as Sequence[]) || []);
-    setSteps((stRes.data as Step[]) || []);
-    setEnrollments((eRes.data as Enrollment[]) || []);
-    setContacts((cRes.data as Contact[]) || []);
-  }, [orgId]);
-
-  useEffect(() => { fetchAll(); }, [fetchAll]);
-
   const seqSteps = (id: string) => steps.filter((s) => s.sequence_id === id);
   const seqEnrollments = (id: string) => enrollments.filter((e) => e.sequence_id === id);
 
-  const createSequence = async () => {
-    if (!orgId || !formName.trim()) return;
-    await supabase.from("email_sequences").insert({
-      org_id: orgId, name: formName.trim(), description: formDesc || null, created_by: user?.id,
-    } as any);
-    setCreateOpen(false); setFormName(""); setFormDesc("");
-    fetchAll();
-    toast({ title: "Sequência criada" });
+  const createSequence = () => {
+    if (!formName.trim()) return;
+    seqMutation.create.mutate({ name: formName.trim(), description: formDesc || null }, {
+      onSuccess: () => {
+        setCreateOpen(false); setFormName(""); setFormDesc("");
+        toast({ title: "Sequência criada" });
+      },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
-  const toggleActive = async (seq: Sequence) => {
-    await supabase.from("email_sequences").update({ is_active: !seq.is_active } as any).eq("id", seq.id);
-    fetchAll();
+  const toggleActive = (seq: Sequence) => seqMutation.toggleActive.mutate({ id: seq.id, isActive: seq.is_active });
+
+  const deleteSequence = (id: string) =>
+    seqMutation.remove.mutate(id, { onSuccess: () => {
+      if (selectedSeq?.id === id) setSelectedSeq(null);
+      toast({ title: "Sequência excluída" });
+    } });
+
+  const addStep = () => {
+    if (!selectedSeq || !stepSubject.trim()) return;
+    stepMutation.add.mutate({
+      sequenceId: selectedSeq.id, stepOrder: seqSteps(selectedSeq.id).length,
+      delayDays: stepDelay, subject: stepSubject.trim(), bodyHtml: stepBody || null,
+    }, {
+      onSuccess: () => {
+        setAddStepOpen(false); setStepSubject(""); setStepBody(""); setStepDelay(0);
+        toast({ title: "Etapa adicionada" });
+      },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
-  const deleteSequence = async (id: string) => {
-    await supabase.from("email_sequences").delete().eq("id", id);
-    if (selectedSeq?.id === id) setSelectedSeq(null);
-    fetchAll();
-    toast({ title: "Sequência excluída" });
-  };
+  const deleteStep = (id: string) => stepMutation.remove.mutate(id);
 
-  const addStep = async () => {
-    if (!selectedSeq || !orgId || !stepSubject.trim()) return;
-    const existingSteps = seqSteps(selectedSeq.id);
-    await supabase.from("email_sequence_steps").insert({
-      sequence_id: selectedSeq.id, org_id: orgId,
-      step_order: existingSteps.length, delay_days: stepDelay,
-      subject: stepSubject.trim(), body_html: stepBody || null,
-    } as any);
-    setAddStepOpen(false); setStepSubject(""); setStepBody(""); setStepDelay(0);
-    fetchAll();
-    toast({ title: "Etapa adicionada" });
-  };
-
-  const deleteStep = async (id: string) => {
-    await supabase.from("email_sequence_steps").delete().eq("id", id);
-    fetchAll();
-  };
-
-  const enrollContact = async () => {
-    if (!selectedSeq || !orgId || enrollContactId === "none") return;
-    const nextSend = new Date();
-    nextSend.setDate(nextSend.getDate() + (seqSteps(selectedSeq.id)[0]?.delay_days || 0));
-    await supabase.from("email_sequence_enrollments").insert({
-      sequence_id: selectedSeq.id, org_id: orgId, contact_id: enrollContactId,
-      current_step: 0, status: "active", next_send_at: nextSend.toISOString(),
-    } as any);
-    setEnrollOpen(false); setEnrollContactId("none");
-    fetchAll();
-    toast({ title: "Contato inscrito na sequência" });
+  const enrollContact = () => {
+    if (!selectedSeq || enrollContactId === "none") return;
+    enrollmentMutation.enroll.mutate({
+      sequenceId: selectedSeq.id, contactId: enrollContactId,
+      firstStepDelayDays: seqSteps(selectedSeq.id)[0]?.delay_days || 0,
+    }, {
+      onSuccess: () => {
+        setEnrollOpen(false); setEnrollContactId("none");
+        toast({ title: "Contato inscrito na sequência" });
+      },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
   if (!orgId) return <div className="py-20 text-center text-muted-foreground">Crie uma organização primeiro.</div>;

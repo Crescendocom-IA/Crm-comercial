@@ -94,9 +94,10 @@ export function useEmailSequenceMutation() {
   });
 
   const toggleActive = useMutation({
-    mutationFn: async (seq: Sequence) => {
+    // Param estreito (id + estado atual) para não acoplar ao Row completo da tela.
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
       const { error } = await supabase.from("email_sequences")
-        .update({ is_active: !seq.is_active } as any).eq("id", seq.id);
+        .update({ is_active: !isActive } as any).eq("id", id);
       if (error) throw error;
     },
     onSuccess: invalidar,

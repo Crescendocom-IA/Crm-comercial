@@ -322,8 +322,12 @@ export type Database = {
       }
       companies: {
         Row: {
+          cidade: string | null
+          cnpj_cpf: string | null
+          codigo_erp: string | null
           created_at: string | null
           domain: string | null
+          estado: string | null
           id: string
           industry: string | null
           linkedin_url: string | null
@@ -332,12 +336,18 @@ export type Database = {
           owner_id: string | null
           revenue: number | null
           size: string | null
+          sync_source: string | null
+          synced_at: string | null
           updated_at: string | null
           website: string | null
         }
         Insert: {
+          cidade?: string | null
+          cnpj_cpf?: string | null
+          codigo_erp?: string | null
           created_at?: string | null
           domain?: string | null
+          estado?: string | null
           id?: string
           industry?: string | null
           linkedin_url?: string | null
@@ -346,12 +356,18 @@ export type Database = {
           owner_id?: string | null
           revenue?: number | null
           size?: string | null
+          sync_source?: string | null
+          synced_at?: string | null
           updated_at?: string | null
           website?: string | null
         }
         Update: {
+          cidade?: string | null
+          cnpj_cpf?: string | null
+          codigo_erp?: string | null
           created_at?: string | null
           domain?: string | null
+          estado?: string | null
           id?: string
           industry?: string | null
           linkedin_url?: string | null
@@ -360,6 +376,8 @@ export type Database = {
           owner_id?: string | null
           revenue?: number | null
           size?: string | null
+          sync_source?: string | null
+          synced_at?: string | null
           updated_at?: string | null
           website?: string | null
         }
@@ -406,9 +424,13 @@ export type Database = {
       contacts: {
         Row: {
           avatar_url: string | null
+          cidade: string | null
+          cnpj_cpf: string | null
+          codigo_erp: string | null
           company_id: string | null
           created_at: string | null
           email: string | null
+          estado: string | null
           first_name: string
           id: string
           last_name: string | null
@@ -418,14 +440,20 @@ export type Database = {
           owner_id: string | null
           phone: string | null
           status: Database["public"]["Enums"]["contact_status"] | null
+          sync_source: string | null
+          synced_at: string | null
           title: string | null
           updated_at: string | null
         }
         Insert: {
           avatar_url?: string | null
+          cidade?: string | null
+          cnpj_cpf?: string | null
+          codigo_erp?: string | null
           company_id?: string | null
           created_at?: string | null
           email?: string | null
+          estado?: string | null
           first_name: string
           id?: string
           last_name?: string | null
@@ -435,14 +463,20 @@ export type Database = {
           owner_id?: string | null
           phone?: string | null
           status?: Database["public"]["Enums"]["contact_status"] | null
+          sync_source?: string | null
+          synced_at?: string | null
           title?: string | null
           updated_at?: string | null
         }
         Update: {
           avatar_url?: string | null
+          cidade?: string | null
+          cnpj_cpf?: string | null
+          codigo_erp?: string | null
           company_id?: string | null
           created_at?: string | null
           email?: string | null
+          estado?: string | null
           first_name?: string
           id?: string
           last_name?: string | null
@@ -452,6 +486,8 @@ export type Database = {
           owner_id?: string | null
           phone?: string | null
           status?: Database["public"]["Enums"]["contact_status"] | null
+          sync_source?: string | null
+          synced_at?: string | null
           title?: string | null
           updated_at?: string | null
         }
@@ -1036,6 +1072,50 @@ export type Database = {
           },
           {
             foreignKeyName: "emails_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_sync_log: {
+        Row: {
+          codigo_erp: string | null
+          created_at: string | null
+          entity_id: string | null
+          entity_type: string
+          error_message: string | null
+          id: string
+          operation: string
+          org_id: string
+          payload: Json | null
+        }
+        Insert: {
+          codigo_erp?: string | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type: string
+          error_message?: string | null
+          id?: string
+          operation: string
+          org_id: string
+          payload?: Json | null
+        }
+        Update: {
+          codigo_erp?: string | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type?: string
+          error_message?: string | null
+          id?: string
+          operation?: string
+          org_id?: string
+          payload?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_sync_log_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"

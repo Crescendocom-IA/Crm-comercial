@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuditLogsQuery } from "@/hooks/queries/useSecurity";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrg } from "@/hooks/useOrg";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,24 +37,11 @@ export default function SecuritySettings() {
 }
 
 function AuditLogTab({ orgId }: { orgId: string | null }) {
-  const [logs, setLogs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [actionFilter, setActionFilter] = useState("all");
   const [entityFilter, setEntityFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
 
-  const fetchLogs = async () => {
-    if (!orgId) return;
-    setLoading(true);
-    let query = supabase.from("audit_logs").select("*").eq("org_id", orgId).order("created_at", { ascending: false }).limit(200);
-    if (actionFilter !== "all") query = query.eq("action", actionFilter);
-    if (entityFilter !== "all") query = query.eq("entity_type", entityFilter);
-    const { data } = await query;
-    setLogs(data || []);
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchLogs(); }, [orgId, actionFilter, entityFilter]);
+  const { logs, isLoading: loading, refetch } = useAuditLogsQuery({ action: actionFilter, entity: entityFilter });
 
   const actionLabels: Record<string, string> = {
     create: "Criou", update: "Atualizou", delete: "Deletou", login: "Login", logout: "Logout",
@@ -96,7 +84,7 @@ function AuditLogTab({ orgId }: { orgId: string | null }) {
             <SelectItem value="user">Usuários</SelectItem>
           </SelectContent>
         </Select>
-        <Button variant="outline" size="sm" onClick={fetchLogs} aria-label="Recarregar">
+        <Button variant="outline" size="sm" onClick={() => refetch()} aria-label="Recarregar">
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>

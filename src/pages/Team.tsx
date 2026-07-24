@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRole } from "@/hooks/useRole";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  useTeamMembersQuery, useInvitationsQuery, useRolePermissionsQuery, useTeamsQuery,
+  useTeamMutation, useInvitationMutation, useTeamGroupMutation,
+} from "@/hooks/queries/useTeam";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrg } from "@/hooks/useOrg";
 import { Button } from "@/components/ui/button";
@@ -47,18 +50,19 @@ export default function Team() {
   const { orgId } = useOrg();
   const { toast } = useToast();
 
-  const [members, setMembers] = useState<(Profile & { role?: string })[]>([]);
-  const [invitations, setInvitations] = useState<any[]>([]);
+  const { members } = useTeamMembersQuery();
+  const invitations = useInvitationsQuery();
+  const permissions = useRolePermissionsQuery();
+  const { teams, teamMembers } = useTeamsQuery();
+  const { changeRole: changeRoleMut, removeMember: removeMemberMut, togglePermission: togglePermMut, seedPermissions } = useTeamMutation();
+  const { invite, cancel } = useInvitationMutation();
+  const { create: createTeamMut, remove: removeTeamMut, toggleMember } = useTeamGroupMutation();
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("member");
   const [inviting, setInviting] = useState(false);
 
-  // RBAC permissions
-  const [permissions, setPermissions] = useState<any[]>([]);
 
   // Teams
-  const [teams, setTeams] = useState<any[]>([]);
-  const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [newTeamName, setNewTeamName] = useState("");
 
   const currentUserRole = useMemo(() => {
@@ -68,29 +72,6 @@ export default function Team() {
 
   const isAdmin = currentUserRole === "owner" || currentUserRole === "admin";
   const isOwner = currentUserRole === "owner";
-
-  const fetchAll = useCallback(async () => {
-    if (!orgId) return;
-    const [{ data: profs }, { data: rl }, { data: inv }, { data: perms }, { data: tms }, { data: tmem }] = await Promise.all([
-      supabase.from("profiles").select("*").eq("org_id", orgId),
-      supabase.from("user_roles").select("*").eq("org_id", orgId),
-      supabase.from("invitations").select("*").eq("org_id", orgId).is("accepted_at", null),
-      supabase.from("role_permissions").select("*").eq("org_id", orgId),
-      supabase.from("teams").select("*").eq("org_id", orgId),
-      supabase.from("team_members").select("*"),
-    ]);
-    setInvitations(inv || []);
-    setPermissions(perms || []);
-    setTeams(tms || []);
-    setTeamMembers(tmem || []);
-    const merged = (profs || []).map((p) => {
-      const r = (rl || []).find((r: any) => r.user_id === p.id);
-      return { ...p, role: r?.role || "member" };
-    });
-    setMembers(merged);
-  }, [orgId]);
-
-  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   // Seed default permissions if empty
   useEffect(() => {
@@ -106,79 +87,44 @@ export default function Team() {
         defaults.push({ org_id: orgId, role, permission: p.key, allowed });
       }
     }
-    supabase.from("role_permissions").insert(defaults).then(() => fetchAll());
+    seedPermissions.mutate(defaults);
   }, [orgId, permissions.length]);
 
-  const sendInvite = async () => {
-    if (!orgId || !inviteEmail) return;
+  const sendInvite = () => {
+    if (!inviteEmail) return;
     setInviting(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("invite-member", {
-        body: { email: inviteEmail, role: inviteRole, org_id: orgId },
-      });
-      if (res.error || res.data?.error) {
-        toast({ title: "Erro ao convidar", description: res.data?.error || res.error?.message, variant: "destructive" });
-      } else {
-        toast({ title: "Convite enviado!", description: `Magic link enviado para ${inviteEmail}` });
-        setInviteEmail("");
-        fetchAll();
-      }
-    } catch (err: any) {
-      toast({ title: "Erro", description: err.message, variant: "destructive" });
-    } finally {
-      setInviting(false);
-    }
+    invite.mutate({ email: inviteEmail, role: inviteRole }, {
+      onSuccess: () => { toast({ title: "Convite enviado!", description: `Magic link enviado para ${inviteEmail}` }); setInviteEmail(""); },
+      onError: (e: any) => toast({ title: "Erro ao convidar", description: e.message, variant: "destructive" }),
+      onSettled: () => setInviting(false),
+    });
   };
 
-  const changeRole = async (userId: string, newRole: string) => {
-    if (!orgId) return;
+  const changeRole = (userId: string, newRole: string) => {
     if (userId === user?.id) {
       toast({ title: "Você não pode alterar seu próprio papel", variant: "destructive" });
       return;
     }
-    const { error } = await supabase
-      .from("user_roles")
-      .update({ role: newRole } as any)
-      .eq("user_id", userId)
-      .eq("org_id", orgId);
-    if (error) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Papel atualizado" });
-      fetchAll();
-    }
+    changeRoleMut.mutate({ userId, role: newRole }, {
+      onSuccess: () => toast({ title: "Papel atualizado" }),
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
-  const removeMember = async (uid: string) => {
-    if (!orgId) return;
+  const removeMember = (uid: string) => {
     if (uid === user?.id) {
       toast({ title: "Você não pode remover a si mesmo", variant: "destructive" });
       return;
     }
-    await supabase.from("user_roles").delete().eq("user_id", uid).eq("org_id", orgId);
-    await supabase.from("profiles").update({ org_id: null }).eq("id", uid);
-    fetchAll();
-    toast({ title: "Membro removido" });
+    removeMemberMut.mutate(uid, { onSuccess: () => toast({ title: "Membro removido" }) });
   };
 
-  const cancelInvite = async (id: string) => {
-    await supabase.from("invitations").delete().eq("id", id);
-    fetchAll();
-    toast({ title: "Convite cancelado" });
-  };
+  const cancelInvite = (id: string) =>
+    cancel.mutate(id, { onSuccess: () => toast({ title: "Convite cancelado" }) });
 
-  const togglePermission = async (role: string, permission: string, currentlyAllowed: boolean) => {
-    if (!orgId) return;
+  const togglePermission = (role: string, permission: string, currentlyAllowed: boolean) => {
     const existing = permissions.find((p: any) => p.role === role && p.permission === permission);
-    if (existing) {
-      await supabase.from("role_permissions").update({ allowed: !currentlyAllowed }).eq("id", existing.id);
-    } else {
-      await supabase.from("role_permissions").insert({
-        org_id: orgId, role: role as any, permission, allowed: !currentlyAllowed,
-      });
-    }
-    fetchAll();
+    togglePermMut.mutate({ id: existing?.id, role, permission, allowed: !currentlyAllowed });
   };
 
   const getPermissionValue = (role: string, permission: string): boolean => {
@@ -186,28 +132,17 @@ export default function Team() {
     return p ? p.allowed : false;
   };
 
-  const createTeam = async () => {
-    if (!orgId || !newTeamName) return;
-    await supabase.from("teams").insert({ org_id: orgId, name: newTeamName });
-    setNewTeamName("");
-    fetchAll();
-    toast({ title: "Equipe criada" });
+  const createTeam = () => {
+    if (!newTeamName) return;
+    createTeamMut.mutate(newTeamName, { onSuccess: () => { setNewTeamName(""); toast({ title: "Equipe criada" }); } });
   };
 
-  const deleteTeam = async (id: string) => {
-    await supabase.from("teams").delete().eq("id", id);
-    fetchAll();
-    toast({ title: "Equipe excluída" });
-  };
+  const deleteTeam = (id: string) =>
+    removeTeamMut.mutate(id, { onSuccess: () => toast({ title: "Equipe excluída" }) });
 
-  const toggleTeamMember = async (teamId: string, uid: string) => {
-    const exists = teamMembers.find((tm: any) => tm.team_id === teamId && tm.user_id === uid);
-    if (exists) {
-      await supabase.from("team_members").delete().eq("team_id", teamId).eq("user_id", uid);
-    } else {
-      await supabase.from("team_members").insert({ team_id: teamId, user_id: uid });
-    }
-    fetchAll();
+  const toggleTeamMember = (teamId: string, uid: string) => {
+    const exists = teamMembers.some((tm: any) => tm.team_id === teamId && tm.user_id === uid);
+    toggleMember.mutate({ teamId, userId: uid, isMember: exists });
   };
 
   const roleIcon = (role: string) => {

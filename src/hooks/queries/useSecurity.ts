@@ -37,5 +37,5 @@ export function useAuditLogsQuery(filters: AuditLogFilters) {
       return (data || []) as any[];
     },
   });
-  return { logs: query.data ?? [], isLoading: query.isLoading };
+  return { logs: query.data ?? [], isLoading: query.isLoading, refetch: query.refetch };
 }

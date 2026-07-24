@@ -1,9 +1,10 @@
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import { useRole } from "@/hooks/useRole";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  useEmailTemplatesQuery, useEmailTemplateMutation,
+} from "@/hooks/queries/useEmailTemplates";
 import { useOrg } from "@/hooks/useOrg";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,23 +28,15 @@ type Template = {
 
 export default function EmailTemplates() {
   const { orgId } = useOrg();
-  const { user } = useAuth();
   const { toast } = useToast();
 
-  const [templates, setTemplates] = useState<Template[]>([]);
+  const { templates } = useEmailTemplatesQuery();
+  const { save: saveMut, duplicate: duplicateMut, remove } = useEmailTemplateMutation();
   const [pendingDeleteTemplate, setPendingDeleteTemplate] = useState<string | null>(null);
   const { canDelete } = useRole();
   const [search, setSearch] = useState("");
   const [editOpen, setEditOpen] = useState(false);
   const [editTemplate, setEditTemplate] = useState<Partial<Template> | null>(null);
-
-  const fetch = useCallback(async () => {
-    if (!orgId) return;
-    const { data } = await supabase.from("email_templates").select("*").eq("org_id", orgId).order("created_at", { ascending: false });
-    setTemplates((data as Template[]) || []);
-  }, [orgId]);
-
-  useEffect(() => { fetch(); }, [fetch]);
 
   const filtered = templates.filter((t) =>
     !search || t.name.toLowerCase().includes(search.toLowerCase()) || t.subject.toLowerCase().includes(search.toLowerCase())
@@ -54,40 +47,28 @@ export default function EmailTemplates() {
   const openCreate = () => { setEditTemplate({ name: "", subject: "", body_html: "", category: "" }); setEditOpen(true); };
   const openEdit = (t: Template) => { setEditTemplate(t); setEditOpen(true); };
 
-  const save = async () => {
-    if (!orgId || !editTemplate?.name?.trim() || !editTemplate?.subject?.trim()) return;
-    if (editTemplate.id) {
-      await supabase.from("email_templates").update({
+  const save = () => {
+    if (!editTemplate?.name?.trim() || !editTemplate?.subject?.trim()) return;
+    saveMut.mutate({
+      id: editTemplate.id,
+      input: {
         name: editTemplate.name, subject: editTemplate.subject,
-        body_html: editTemplate.body_html, category: editTemplate.category || null,
-      } as any).eq("id", editTemplate.id);
-    } else {
-      await supabase.from("email_templates").insert({
-        org_id: orgId, name: editTemplate.name, subject: editTemplate.subject,
         body_html: editTemplate.body_html || "", category: editTemplate.category || null,
-        created_by: user?.id,
-      } as any);
-    }
-    setEditOpen(false);
-    fetch();
-    toast({ title: editTemplate.id ? "Template atualizado" : "Template criado" });
+      },
+    }, {
+      onSuccess: () => {
+        setEditOpen(false);
+        toast({ title: editTemplate.id ? "Template atualizado" : "Template criado" });
+      },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
-  const deleteTemplate = async (id: string) => {
-    await supabase.from("email_templates").delete().eq("id", id);
-    fetch();
-    toast({ title: "Template excluído" });
-  };
+  const deleteTemplate = (id: string) =>
+    remove.mutate(id, { onSuccess: () => toast({ title: "Template excluído" }) });
 
-  const duplicate = async (t: Template) => {
-    if (!orgId) return;
-    await supabase.from("email_templates").insert({
-      org_id: orgId, name: `${t.name} (cópia)`, subject: t.subject,
-      body_html: t.body_html, category: t.category, created_by: user?.id,
-    } as any);
-    fetch();
-    toast({ title: "Template duplicado" });
-  };
+  const duplicate = (t: Template) =>
+    duplicateMut.mutate(t, { onSuccess: () => toast({ title: "Template duplicado" }) });
 
   if (!orgId) return <div className="py-20 text-center text-muted-foreground">Crie uma organização primeiro.</div>;
 

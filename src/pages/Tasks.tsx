@@ -1,7 +1,12 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useRole } from "@/hooks/useRole";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  useTasksQuery, useActivityMutation,
+} from "@/hooks/queries/useActivities";
+import {
+  useContactOptionsQuery, useDealOptionsQuery, useMembersQuery,
+} from "@/hooks/queries/useOrgOptions";
 import { useOrg } from "@/hooks/useOrg";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -63,12 +68,14 @@ export default function Tasks() {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const [tasks, setTasks] = useState<Activity[]>([]);
+  const { tasks } = useTasksQuery();
+  const contacts = useContactOptionsQuery();
+  const deals = useDealOptionsQuery();
+  const members = useMembersQuery();
+  const { create, update, remove, toggleComplete: toggleCompleteMut } = useActivityMutation();
+
   const [pendingDeleteTask, setPendingDeleteTask] = useState<string | null>(null);
   const { canDelete } = useRole();
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [deals, setDeals] = useState<Deal[]>([]);
-  const [members, setMembers] = useState<Profile[]>([]);
   const [dateFilter, setDateFilter] = useState<DateFilter>("todo");
   const [ownerFilter, setOwnerFilter] = useState<string>("mine");
   const [search, setSearch] = useState("");
@@ -83,33 +90,10 @@ export default function Tasks() {
   const [formDealId, setFormDealId] = useState("none");
   const [formUserId, setFormUserId] = useState("");
 
-  const fetchData = useCallback(async () => {
-    if (!orgId) return;
-    const [tRes, cRes, dRes, mRes] = await Promise.all([
-      supabase.from("activities").select("*").eq("org_id", orgId).eq("type", "task").order("due_date", { ascending: true, nullsFirst: false }),
-      supabase.from("contacts").select("*").eq("org_id", orgId),
-      supabase.from("deals").select("*").eq("org_id", orgId),
-      supabase.from("profiles").select("*").eq("org_id", orgId),
-    ]);
-    setTasks(tRes.data || []);
-    setContacts(cRes.data || []);
-    setDeals(dRes.data || []);
-    setMembers(mRes.data || []);
-  }, [orgId]);
+  const toggleComplete = (task: Activity) => toggleCompleteMut.mutate(task);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-  const toggleComplete = async (task: Activity) => {
-    const completed_at = task.completed_at ? null : new Date().toISOString();
-    await supabase.from("activities").update({ completed_at }).eq("id", task.id);
-    fetchData();
-  };
-
-  const deleteTask = async (id: string) => {
-    await supabase.from("activities").delete().eq("id", id);
-    fetchData();
-    toast({ title: "Tarefa excluída" });
-  };
+  const deleteTask = (id: string) =>
+    remove.mutate(id, { onSuccess: () => toast({ title: "Tarefa excluída" }) });
 
   const getContact = (id: string | null) => id ? contacts.find((c) => c.id === id) : null;
   const getDeal = (id: string | null) => id ? deals.find((d) => d.id === id) : null;
@@ -203,7 +187,7 @@ export default function Tasks() {
     setCreateOpen(true);
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!orgId || !formTitle.trim()) return;
     const payload = {
       org_id: orgId,
@@ -215,16 +199,11 @@ export default function Tasks() {
       deal_id: formDealId !== "none" ? formDealId : null,
       user_id: formUserId || user?.id || null,
     };
+    const aoConcluir = (titulo: string) => () => { setCreateOpen(false); toast({ title: titulo }); };
+    const aoFalhar = (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" });
 
-    if (editTask) {
-      await supabase.from("activities").update(payload).eq("id", editTask.id);
-      toast({ title: "Tarefa atualizada" });
-    } else {
-      await supabase.from("activities").insert(payload);
-      toast({ title: "Tarefa criada" });
-    }
-    setCreateOpen(false);
-    fetchData();
+    if (editTask) update.mutate({ id: editTask.id, patch: payload }, { onSuccess: aoConcluir("Tarefa atualizada"), onError: aoFalhar });
+    else create.mutate(payload, { onSuccess: aoConcluir("Tarefa criada"), onError: aoFalhar });
   };
 
   if (!orgId) return <div className="py-20 text-center text-muted-foreground">Crie uma organização em Configurações primeiro.</div>;

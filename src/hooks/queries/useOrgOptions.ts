@@ -68,6 +68,28 @@ export function useContactOptionsQuery(enabled = true) {
   return query.data ?? [];
 }
 
+/** Negócios em formato enxuto, para selects e para resolver vínculo em Atividades. */
+export type DealOption = {
+  id: string; title: string; contact_id: string | null; company_id: string | null;
+};
+
+export function useDealOptionsQuery(enabled = true) {
+  const { orgId } = useOrg();
+  const query = useQuery({
+    queryKey: ["deals", orgId, "options"] as const,
+    enabled: !!orgId && enabled,
+    staleTime: STALE_TIME.list,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("deals").select("id,title,contact_id,company_id")
+        .eq("org_id", orgId!).order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data || []) as DealOption[];
+    },
+  });
+  return query.data ?? [];
+}
+
 export function useMembersQuery() {
   const { orgId } = useOrg();
   const query = useQuery({

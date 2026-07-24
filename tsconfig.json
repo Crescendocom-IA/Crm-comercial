@@ -1,4 +1,10 @@
 {
+  // Config raiz "solução": só agrega as referências abaixo, não checa arquivo
+  // nenhum por conta própria (files: []). Por isso `tsc --noEmit` aqui sai 0
+  // sempre — ele ignora as referências sem o modo build. Para checar o projeto
+  // de verdade use `npm run typecheck` (tsc -b --noEmit), que segue as
+  // referências. Já deixou passar um `logAudit` sem import; não confie no
+  // comando sem -b.
   "compilerOptions": {
     "allowJs": true,
     "noImplicitAny": false,

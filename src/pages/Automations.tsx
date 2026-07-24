@@ -1,7 +1,11 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
+import {
+  useAutomationsQuery, useAutomationLogsQuery, useAutomationMutation,
+} from "@/hooks/queries/useAutomations";
+import { useStagesQuery, useMembersQuery } from "@/hooks/queries/useOrgOptions";
+import { useEmailTemplatesQuery } from "@/hooks/queries/useEmailTemplates";
 import { useRole } from "@/hooks/useRole";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
-import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -199,18 +203,21 @@ const TEMPLATES: {
 
 // ── Component ──────────────────────────────────────────
 export default function Automations() {
-  const { orgId } = useOrg();
   const { user } = useAuth();
+  const { orgId } = useOrg();
   const { toast } = useToast();
 
-  const [automations, setAutomations] = useState<Automation[]>([]);
+  // Row -> tipo local (trigger/conditions/actions tipados) no boundary da query.
+  const { automations: automationRows } = useAutomationsQuery();
+  const automations = automationRows as unknown as Automation[];
+  const logs = useAutomationLogsQuery() as unknown as AutomationLog[];
+  const stages = useStagesQuery();
+  const templates = useEmailTemplatesQuery().templates;
+  const members = useMembersQuery();
+  const { save, toggleActive: toggleActiveMut, remove, duplicate } = useAutomationMutation();
+
   const [pendingDeleteAuto, setPendingDeleteAuto] = useState<string | null>(null);
   const { canDelete, canManage } = useRole();
-  const [logs, setLogs] = useState<AutomationLog[]>([]);
-  // Opções dos selects que substituíram os campos de UUID digitado à mão.
-  const [stages, setStages] = useState<{ id: string; name: string }[]>([]);
-  const [templates, setTemplates] = useState<{ id: string; name: string }[]>([]);
-  const [members, setMembers] = useState<{ id: string; name: string | null; email: string | null }[]>([]);
   const [tab, setTab] = useState<"list" | "templates" | "history">("list");
 
   // Builder state
@@ -225,24 +232,6 @@ export default function Automations() {
   // Log detail
   const [logDetailOpen, setLogDetailOpen] = useState(false);
   const [selectedLog, setSelectedLog] = useState<AutomationLog | null>(null);
-
-  const fetchAll = useCallback(async () => {
-    if (!orgId) return;
-    const [aRes, lRes, sRes, tRes, mRes] = await Promise.all([
-      supabase.from("automations").select("*").eq("org_id", orgId).order("created_at", { ascending: false }),
-      supabase.from("automation_logs").select("*").eq("org_id", orgId).order("executed_at", { ascending: false }).limit(100),
-      supabase.from("pipeline_stages").select("id,name").eq("org_id", orgId).order("order"),
-      supabase.from("email_templates").select("id,name").eq("org_id", orgId).order("name"),
-      supabase.from("profiles").select("id,name,email").eq("org_id", orgId).order("name"),
-    ]);
-    setAutomations((aRes.data as any as Automation[]) || []);
-    setLogs((lRes.data as any as AutomationLog[]) || []);
-    setStages(sRes.data || []);
-    setTemplates(tRes.data || []);
-    setMembers(mRes.data || []);
-  }, [orgId]);
-
-  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   // ── CRUD ────────
   const openBuilder = (auto?: Automation) => {
@@ -264,57 +253,35 @@ export default function Automations() {
     setBuilderOpen(true);
   };
 
-  const saveAutomation = async () => {
-    if (!orgId || !formName.trim()) return;
+  const saveAutomation = () => {
+    if (!formName.trim()) return;
+    // Nova automação nasce ATIVA (o is_active: true vive na mutation); editar
+    // não mexe no is_active, preservando ligada/desligada.
     const payload = {
-      org_id: orgId,
-      name: formName,
-      description: formDesc || null,
-      trigger: formTrigger as any,
-      conditions: formConditions as any,
-      actions: formActions as any,
-      created_by: user?.id,
+      name: formName, description: formDesc || null,
+      trigger: formTrigger as any, conditions: formConditions as any,
+      actions: formActions as any, created_by: user?.id,
     };
-    if (editId) {
-      // Editar não mexe no is_active: preserva ligada/desligada como estava.
-      await supabase.from("automations").update(payload as any).eq("id", editId);
-    } else {
-      // Nova automação nasce ATIVA. O default da coluna é false, o que fazia
-      // toda automação recém-criada não disparar até alguém ligar o switch —
-      // quem monta a regra espera que ela funcione.
-      await supabase.from("automations").insert({ ...payload, is_active: true } as any);
-    }
-    setBuilderOpen(false);
-    fetchAll();
-    toast({ title: editId ? "Automação atualizada" : "Automação criada e ativada" });
+    save.mutate({ id: editId ?? undefined, payload }, {
+      onSuccess: () => { setBuilderOpen(false); toast({ title: editId ? "Automação atualizada" : "Automação criada e ativada" }); },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
-  const toggleActive = async (id: string, active: boolean) => {
-    await supabase.from("automations").update({ is_active: active } as any).eq("id", id);
-    fetchAll();
-    toast({ title: active ? "Automação ativada" : "Automação desativada" });
-  };
+  const toggleActive = (id: string, active: boolean) =>
+    toggleActiveMut.mutate({ id, active }, {
+      onSuccess: () => toast({ title: active ? "Automação ativada" : "Automação desativada" }),
+    });
 
-  const deleteAutomation = async (id: string) => {
-    await supabase.from("automations").delete().eq("id", id);
-    fetchAll();
-    toast({ title: "Automação excluída" });
-  };
+  const deleteAutomation = (id: string) =>
+    remove.mutate(id, { onSuccess: () => toast({ title: "Automação excluída" }) });
 
-  const duplicateAutomation = async (auto: Automation) => {
-    await supabase.from("automations").insert({
-      org_id: auto.org_id,
-      name: `${auto.name} (cópia)`,
-      description: auto.description,
-      trigger: auto.trigger as any,
-      conditions: auto.conditions as any,
-      actions: auto.actions as any,
-      created_by: user?.id,
-      is_active: false,
-    } as any);
-    fetchAll();
-    toast({ title: "Automação duplicada" });
-  };
+  const duplicateAutomation = (auto: Automation) =>
+    duplicate.mutate({
+      name: `${auto.name} (cópia)`, description: auto.description,
+      trigger: auto.trigger as any, conditions: auto.conditions as any,
+      actions: auto.actions as any, created_by: user?.id,
+    }, { onSuccess: () => toast({ title: "Automação duplicada" }) });
 
   const useTemplate = (tmpl: typeof TEMPLATES[0]) => {
     setEditId(null);

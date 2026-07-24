@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { STALE_TIME } from "./config";
 import type { Database } from "@/integrations/supabase/types";
 
-type Email = Database["public"]["Tables"]["emails"]["Row"];
+export type Email = Database["public"]["Tables"]["emails"]["Row"];
 
 /*
  * A caixa de entrada carrega os emails da org e filtra em memória (aba

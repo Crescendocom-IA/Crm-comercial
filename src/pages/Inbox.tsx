@@ -1,9 +1,9 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import DOMPurify from "dompurify";
-import { supabase } from "@/integrations/supabase/client";
+import { useInboxQuery, useEmailMutation, type Email } from "@/hooks/queries/useEmails";
+import { useContactOptionsQuery, type ContactOption } from "@/hooks/queries/useOrgOptions";
 import { useOrg } from "@/hooks/useOrg";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -25,56 +25,18 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { EmailComposeModal } from "@/components/crm/EmailComposeModal";
 
-type Email = {
-  id: string;
-  org_id: string;
-  user_id: string | null;
-  contact_id: string | null;
-  deal_id: string | null;
-  company_id: string | null;
-  direction: string;
-  subject: string | null;
-  body_html: string | null;
-  from_email: string | null;
-  to_emails: string[];
-  cc_emails: string[];
-  bcc_emails: string[];
-  status: string;
-  open_count: number;
-  click_count: number;
-  last_opened_at: string | null;
-  last_clicked_at: string | null;
-  thread_id: string | null;
-  message_id: string | null;
-  provider: string | null;
-  is_read: boolean;
-  snoozed_until: string | null;
-  is_archived: boolean;
-  sent_at: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-};
-
-type Contact = {
-  id: string;
-  first_name: string;
-  last_name: string | null;
-  email: string | null;
-  avatar_url: string | null;
-  status: string | null;
-  org_id: string;
-};
+type Contact = ContactOption;
 
 type FilterMode = "all" | "unread" | "no_owner" | "needs_reply";
 type TabMode = "inbox" | "sent";
 
 export default function Inbox() {
   const { orgId } = useOrg();
-  const { user } = useAuth();
   const { toast } = useToast();
 
-  const [emails, setEmails] = useState<Email[]>([]);
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const { emails } = useInboxQuery();
+  const contacts = useContactOptionsQuery();
+  const { markRead: markReadMut, archive, snooze, remove, reply, bulkArchive, invalidar } = useEmailMutation();
   const [search, setSearch] = useState("");
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
@@ -82,18 +44,6 @@ export default function Inbox() {
   const [composeOpen, setComposeOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<TabMode>("inbox");
-
-  const fetchData = useCallback(async () => {
-    if (!orgId) return;
-    const [eRes, cRes] = await Promise.all([
-      supabase.from("emails").select("*").eq("org_id", orgId).order("created_at", { ascending: false }),
-      supabase.from("contacts").select("*").eq("org_id", orgId),
-    ]);
-    setEmails((eRes.data as Email[]) || []);
-    setContacts((cRes.data as Contact[]) || []);
-  }, [orgId]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
 
   const contactMap = useMemo(() => {
     const m = new Map<string, Contact>();
@@ -135,60 +85,35 @@ export default function Inbox() {
     return list;
   }, [emails, filterMode, search, contactMap, activeTab]);
 
-  const markRead = async (id: string) => {
-    await supabase.from("emails").update({ is_read: true } as any).eq("id", id);
-    setEmails((prev) => prev.map((e) => e.id === id ? { ...e, is_read: true } : e));
+  const markRead = (id: string) => markReadMut.mutate(id);
+
+  const archiveEmail = (id: string) =>
+    archive.mutate(id, { onSuccess: () => {
+      if (selectedEmail?.id === id) setSelectedEmail(null);
+      toast({ title: "Email arquivado" });
+    } });
+
+  const snoozeEmail = (id: string, hours: number) =>
+    snooze.mutate({ id, hours }, { onSuccess: () => toast({ title: `Snooze por ${hours}h` }) });
+
+  const deleteEmail = (id: string) =>
+    remove.mutate(id, { onSuccess: () => {
+      if (selectedEmail?.id === id) setSelectedEmail(null);
+      toast({ title: "Email excluído" });
+    } });
+
+  const sendReply = () => {
+    if (!selectedEmail || !replyBody.trim()) return;
+    reply.mutate({ email: selectedEmail, body: replyBody }, {
+      onSuccess: () => { setReplyBody(""); toast({ title: "Resposta enviada" }); },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
-  const archiveEmail = async (id: string) => {
-    await supabase.from("emails").update({ is_archived: true } as any).eq("id", id);
-    setEmails((prev) => prev.map((e) => e.id === id ? { ...e, is_archived: true } : e));
-    if (selectedEmail?.id === id) setSelectedEmail(null);
-    toast({ title: "Email arquivado" });
-  };
-
-  const snoozeEmail = async (id: string, hours: number) => {
-    const until = new Date(Date.now() + hours * 3600000).toISOString();
-    await supabase.from("emails").update({ snoozed_until: until, is_read: true } as any).eq("id", id);
-    setEmails((prev) => prev.map((e) => e.id === id ? { ...e, snoozed_until: until, is_read: true } : e));
-    toast({ title: `Snooze por ${hours}h` });
-  };
-
-  const deleteEmail = async (id: string) => {
-    await supabase.from("emails").delete().eq("id", id);
-    setEmails((prev) => prev.filter((e) => e.id !== id));
-    if (selectedEmail?.id === id) setSelectedEmail(null);
-    toast({ title: "Email excluído" });
-  };
-
-  const sendReply = async () => {
-    if (!selectedEmail || !orgId || !replyBody.trim()) return;
-    await supabase.from("emails").insert({
-      org_id: orgId,
-      user_id: user?.id,
-      contact_id: selectedEmail.contact_id,
-      deal_id: selectedEmail.deal_id,
-      direction: "outbound",
-      subject: `Re: ${selectedEmail.subject || ""}`,
-      body_html: replyBody,
-      from_email: user?.email,
-      to_emails: [selectedEmail.from_email || ""],
-      status: "sent",
-      provider: "manual",
-      sent_at: new Date().toISOString(),
-      thread_id: selectedEmail.thread_id || selectedEmail.id,
-    } as any);
-    setReplyBody("");
-    fetchData();
-    toast({ title: "Resposta enviada" });
-  };
-
-  const batchArchive = async () => {
-    const ids = Array.from(selectedIds);
-    for (const id of ids) await supabase.from("emails").update({ is_archived: true } as any).eq("id", id);
-    setSelectedIds(new Set());
-    fetchData();
-    toast({ title: `${ids.length} emails arquivados` });
+  const batchArchive = () => {
+    bulkArchive.mutate(Array.from(selectedIds), {
+      onSuccess: (n) => { setSelectedIds(new Set()); toast({ title: `${n} emails arquivados` }); },
+    });
   };
 
   const timeAgo = (d: string | null) => {
@@ -219,7 +144,7 @@ export default function Inbox() {
               {unreadCount > 0 && <Badge variant="destructive" className="text-xs px-1.5">{unreadCount}</Badge>}
             </div>
             <div className="flex gap-1">
-              <Button variant="ghost" size="sm" onClick={fetchData}><RefreshCw className="h-3.5 w-3.5" /></Button>
+              <Button variant="ghost" size="sm" onClick={invalidar}><RefreshCw className="h-3.5 w-3.5" /></Button>
               <Button size="sm" onClick={() => setComposeOpen(true)}><Send className="mr-1.5 h-3.5 w-3.5" />Compor</Button>
             </div>
           </div>
@@ -425,7 +350,7 @@ export default function Inbox() {
         </div>
       )}
 
-      <EmailComposeModal open={composeOpen} onOpenChange={setComposeOpen} onSent={fetchData} />
+      <EmailComposeModal open={composeOpen} onOpenChange={setComposeOpen} onSent={invalidar} />
     </div>
   );
 }

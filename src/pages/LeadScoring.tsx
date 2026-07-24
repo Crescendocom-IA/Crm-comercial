@@ -1,10 +1,14 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
+import {
+  useLeadScoringRulesQuery, useScoredContactsQuery, useSegmentsQuery,
+  useLeadScoreHistoryQuery, useLeadScoringRuleMutation, useScoreAdjustMutation,
+  useSegmentMutation,
+} from "@/hooks/queries/useLeadScoring";
+import { useMembersQuery } from "@/hooks/queries/useOrgOptions";
 import { useRole } from "@/hooks/useRole";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { useDebounce } from "@/hooks/useDebounce";
-import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -105,18 +109,20 @@ function RulePointsInput({ initial, onCommit }: { initial: number; onCommit: (po
 
 export default function LeadScoring() {
   const { orgId } = useOrg();
-  const { user } = useAuth();
   const { toast } = useToast();
 
   const [tab, setTab] = useState<Tab>("scoring");
   const [pendingDeleteRule, setPendingDeleteRule] = useState<string | null>(null);
   const { canDelete } = useRole();
   const [pendingDeleteSegment, setPendingDeleteSegment] = useState<string | null>(null);
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [rules, setRules] = useState<ScoringRule[]>([]);
-  const [segments, setSegments] = useState<Segment[]>([]);
-  const [history, setHistory] = useState<ScoreHistory[]>([]);
-  const [members, setMembers] = useState<Profile[]>([]);
+  const contacts = useScoredContactsQuery() as Contact[];
+  const { rules } = useLeadScoringRulesQuery();
+  const segments = useSegmentsQuery() as Segment[];
+  const history = useLeadScoreHistoryQuery() as ScoreHistory[];
+  const members = useMembersQuery() as Profile[];
+  const { save: saveRuleMut, toggle: toggleRuleMut, updatePoints, remove: removeRuleMut, seed } = useLeadScoringRuleMutation();
+  const adjustScore = useScoreAdjustMutation();
+  const { save: saveSegmentMut, remove: removeSegmentMut } = useSegmentMutation();
   const [search, setSearch] = useState("");
 
   // Segment form
@@ -143,54 +149,24 @@ export default function LeadScoring() {
   // History filter
   const [historyContactId, setHistoryContactId] = useState("all");
 
-  const fetchAll = useCallback(async () => {
-    if (!orgId) return;
-    const [cRes, rRes, sRes, hRes, mRes] = await Promise.all([
-      supabase.from("contacts").select("id,first_name,last_name,email,status,lead_score,org_id,created_at,owner_id").eq("org_id", orgId).order("lead_score", { ascending: false }),
-      supabase.from("lead_scoring_rules").select("*").eq("org_id", orgId).order("points", { ascending: false }),
-      supabase.from("segments").select("*").eq("org_id", orgId).order("created_at", { ascending: false }),
-      supabase.from("lead_score_history").select("*").eq("org_id", orgId).order("created_at", { ascending: false }).limit(200),
-      supabase.from("profiles").select("id,name,email").eq("org_id", orgId),
-    ]);
-    setContacts((cRes.data as Contact[]) || []);
-    setRules((rRes.data as ScoringRule[]) || []);
-    setSegments((sRes.data as Segment[]) || []);
-    setHistory((hRes.data as ScoreHistory[]) || []);
-    setMembers((mRes.data as Profile[]) || []);
-  }, [orgId]);
-
-  useEffect(() => { fetchAll(); }, [fetchAll]);
-
-  // Initialize default rules if none
+  /*
+   * Semeia as regras padrão uma vez, quando a org ainda não tem nenhuma. O ref
+   * evita o disparo duplo entre o insert e o refetch da lista.
+   */
+  const seededRef = useRef(false);
   useEffect(() => {
-    if (orgId && rules.length === 0 && contacts.length >= 0) {
-      // Only seed once
-      const seed = async () => {
-        const existing = await supabase.from("lead_scoring_rules").select("id").eq("org_id", orgId).limit(1);
-        if ((existing.data || []).length > 0) return;
-        await supabase.from("lead_scoring_rules").insert(
-          DEFAULT_RULES.map((r) => ({ ...r, org_id: orgId })) as any
-        );
-        fetchAll();
-      };
-      seed();
-    }
+    if (!orgId || seededRef.current || rules.length > 0) return;
+    seededRef.current = true;
+    seed.mutate(DEFAULT_RULES.map((r) => ({ ...r, org_id: orgId })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId, rules.length]);
 
-  const toggleRule = async (id: string, active: boolean) => {
-    await supabase.from("lead_scoring_rules").update({ is_active: active } as any).eq("id", id);
-    fetchAll();
-  };
+  const toggleRule = (id: string, active: boolean) => toggleRuleMut.mutate({ id, active });
 
-  const updateRulePoints = async (id: string, points: number) => {
-    await supabase.from("lead_scoring_rules").update({ points } as any).eq("id", id);
-    fetchAll();
-  };
+  // Chamado pelo RulePointsInput já debounced: um UPDATE por pausa, não por tecla.
+  const updateRulePoints = (id: string, points: number) => updatePoints.mutate({ id, points });
 
-  const deleteRule = async (id: string) => {
-    await supabase.from("lead_scoring_rules").delete().eq("id", id);
-    fetchAll();
-  };
+  const deleteRule = (id: string) => removeRuleMut.mutate(id);
 
   const openNewRule = () => {
     setEditRuleId(null);
@@ -216,60 +192,43 @@ export default function LeadScoring() {
     setRuleFormOpen(true);
   };
 
-  const saveRule = async () => {
-    if (!orgId || !ruleLabel.trim()) return;
+  const saveRule = () => {
+    if (!ruleLabel.trim()) return;
     const eventType = ruleEventType === "custom" ? (ruleCustomEvent.trim() || "custom") : ruleEventType;
-    if (editRuleId) {
-      await supabase.from("lead_scoring_rules").update({ label: ruleLabel.trim(), event_type: eventType, points: rulePoints } as any).eq("id", editRuleId);
-      toast({ title: "Regra atualizada" });
-    } else {
-      await supabase.from("lead_scoring_rules").insert({ org_id: orgId, label: ruleLabel.trim(), event_type: eventType, points: rulePoints } as any);
-      toast({ title: "Regra criada" });
-    }
-    setRuleFormOpen(false);
-    fetchAll();
+    saveRuleMut.mutate({ id: editRuleId ?? undefined, label: ruleLabel.trim(), eventType, points: rulePoints }, {
+      onSuccess: () => { setRuleFormOpen(false); toast({ title: editRuleId ? "Regra atualizada" : "Regra criada" }); },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
   // Manual score adjustment
-  const submitAdjust = async () => {
-    if (!orgId || !adjustContactId || !adjustReason.trim()) return;
+  const submitAdjust = () => {
+    if (!adjustContactId || !adjustReason.trim()) return;
     const contact = contacts.find((c) => c.id === adjustContactId);
     if (!contact) return;
     const newScore = Math.max(0, Math.min(100, (contact.lead_score || 0) + adjustPoints));
-    await supabase.from("contacts").update({ lead_score: newScore } as any).eq("id", adjustContactId);
-    await supabase.from("lead_score_history").insert({
-      org_id: orgId, contact_id: adjustContactId, points: adjustPoints,
-      reason: adjustReason, event_type: "manual",
-    } as any);
-    setAdjustOpen(false);
-    fetchAll();
-    toast({ title: `Score ajustado em ${adjustPoints > 0 ? "+" : ""}${adjustPoints}` });
+    adjustScore.mutate({ contactId: adjustContactId, newScore, delta: adjustPoints, reason: adjustReason }, {
+      onSuccess: () => { setAdjustOpen(false); toast({ title: `Score ajustado em ${adjustPoints > 0 ? "+" : ""}${adjustPoints}` }); },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
   // Segments
-  const saveSegment = async () => {
-    if (!orgId || !segName.trim()) return;
+  const saveSegment = () => {
+    if (!segName.trim()) return;
     const filters = {
       minScore: segFilters.minScore ? Number(segFilters.minScore) : undefined,
       maxScore: segFilters.maxScore ? Number(segFilters.maxScore) : undefined,
       status: segFilters.status !== "all" ? segFilters.status : undefined,
     };
-    if (editSegId) {
-      await supabase.from("segments").update({ name: segName, description: segDesc || null, filters } as any).eq("id", editSegId);
-    } else {
-      await supabase.from("segments").insert({ org_id: orgId, name: segName, description: segDesc || null, filters, created_by: user?.id } as any);
-    }
-    setSegFormOpen(false);
-    setEditSegId(null);
-    fetchAll();
-    toast({ title: editSegId ? "Segmento atualizado" : "Segmento criado" });
+    saveSegmentMut.mutate({ id: editSegId ?? undefined, name: segName, description: segDesc || null, filters }, {
+      onSuccess: () => { setSegFormOpen(false); setEditSegId(null); toast({ title: editSegId ? "Segmento atualizado" : "Segmento criado" }); },
+      onError: (e: any) => toast({ title: "Erro", description: e.message, variant: "destructive" }),
+    });
   };
 
-  const deleteSegment = async (id: string) => {
-    await supabase.from("segments").delete().eq("id", id);
-    fetchAll();
-    toast({ title: "Segmento excluído" });
-  };
+  const deleteSegment = (id: string) =>
+    removeSegmentMut.mutate(id, { onSuccess: () => toast({ title: "Segmento excluído" }) });
 
   const getSegmentContacts = (seg: Segment) => {
     const f = seg.filters as any;

@@ -48,7 +48,7 @@ export function useCompanyOptionsQuery() {
 /** Contatos em formato enxuto, para o multi-select de vínculo com empresa. */
 export type ContactOption = {
   id: string; first_name: string; last_name: string | null;
-  email: string | null; company_id: string | null;
+  email: string | null; phone: string | null; company_id: string | null;
 };
 
 export function useContactOptionsQuery(enabled = true) {
@@ -59,7 +59,7 @@ export function useContactOptionsQuery(enabled = true) {
     staleTime: STALE_TIME.list,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("contacts").select("id,first_name,last_name,email,company_id")
+        .from("contacts").select("id,first_name,last_name,email,phone,company_id")
         .eq("org_id", orgId!).order("first_name");
       if (error) throw error;
       return (data || []) as ContactOption[];

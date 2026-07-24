@@ -1,9 +1,14 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRole } from "@/hooks/useRole";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { useSearchParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { applyScoreEvent } from "@/lib/scoring";
+import {
+  useActivitiesQuery, useActivityMutation,
+} from "@/hooks/queries/useActivities";
+import {
+  useContactOptionsQuery, useCompanyOptionsQuery, useDealOptionsQuery, useMembersQuery,
+  type ContactOption, type DealOption,
+} from "@/hooks/queries/useOrgOptions";
 import { useOrg } from "@/hooks/useOrg";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -89,16 +94,17 @@ function getWeekRange(offset: number) {
 
 export default function Activities() {
   const { orgId } = useOrg();
-  const { user } = useAuth();
   const { toast } = useToast();
 
-  const [activities, setActivities] = useState<Activity[]>([]);
+  const { activities } = useActivitiesQuery();
+  const contacts = useContactOptionsQuery();
+  const companies = useCompanyOptionsQuery();
+  const deals = useDealOptionsQuery();
+  const members = useMembersQuery();
+  const { remove, toggleComplete: toggleCompleteMut } = useActivityMutation();
+
   const [pendingDeleteActivity, setPendingDeleteActivity] = useState<string | null>(null);
   const { canDelete } = useRole();
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [deals, setDeals] = useState<Deal[]>([]);
-  const [members, setMembers] = useState<Profile[]>([]);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<DateFilter>("todo");
   const [ownerFilter, setOwnerFilter] = useState<string>("all");
@@ -122,35 +128,10 @@ export default function Activities() {
     return { year: d.getFullYear(), month: d.getMonth() };
   });
 
-  const fetchData = useCallback(async () => {
-    if (!orgId) return;
-    const [aRes, cRes, coRes, dRes, mRes] = await Promise.all([
-      supabase.from("activities").select("*").eq("org_id", orgId).order("due_date", { ascending: true, nullsFirst: false }),
-      supabase.from("contacts").select("*").eq("org_id", orgId),
-      supabase.from("companies").select("*").eq("org_id", orgId),
-      supabase.from("deals").select("*").eq("org_id", orgId),
-      supabase.from("profiles").select("*").eq("org_id", orgId),
-    ]);
-    setActivities(aRes.data || []);
-    setContacts(cRes.data || []);
-    setCompanies(coRes.data || []);
-    setDeals(dRes.data || []);
-    setMembers(mRes.data || []);
-  }, [orgId]);
+  const toggleComplete = (activity: Activity) => toggleCompleteMut.mutate(activity);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-  const toggleComplete = async (activity: Activity) => {
-    const completed_at = activity.completed_at ? null : new Date().toISOString();
-    await supabase.from("activities").update({ completed_at }).eq("id", activity.id);
-    fetchData();
-  };
-
-  const deleteActivity = async (id: string) => {
-    await supabase.from("activities").delete().eq("id", id);
-    fetchData();
-    toast({ title: "Atividade excluída" });
-  };
+  const deleteActivity = (id: string) =>
+    remove.mutate(id, { onSuccess: () => toast({ title: "Atividade excluída" }) });
 
   const getContact = (id: string | null) => id ? contacts.find((c) => c.id === id) : null;
   const getCompany = (id: string | null) => id ? companies.find((c) => c.id === id) : null;
@@ -555,7 +536,6 @@ export default function Activities() {
         companies={companies}
         deals={deals}
         members={members}
-        onSaved={fetchData}
       />
 
       <ConfirmDeleteDialog
@@ -573,17 +553,17 @@ interface ModalProps {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   activity: Activity | null;
-  contacts: Contact[];
+  contacts: ContactOption[];
   companies: Company[];
-  deals: Deal[];
+  deals: DealOption[];
   members: Profile[];
-  onSaved: () => void;
 }
 
-function ActivityCreateEditModal({ open, onOpenChange, activity, contacts, companies, deals, members, onSaved }: ModalProps) {
+function ActivityCreateEditModal({ open, onOpenChange, activity, contacts, companies, deals, members }: ModalProps) {
   const { orgId } = useOrg();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { create, update } = useActivityMutation();
   const isEdit = !!activity;
 
   const [type, setType] = useState<ActivityType>("task");
@@ -630,8 +610,9 @@ function ActivityCreateEditModal({ open, onOpenChange, activity, contacts, compa
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!orgId || !title.trim()) return;
+    // O lead scoring de meeting/call na criação vive na mutation.
     const payload = {
       org_id: orgId,
       type,
@@ -643,21 +624,15 @@ function ActivityCreateEditModal({ open, onOpenChange, activity, contacts, compa
       company_id: resolvedCompanyId,
       user_id: assignee !== "none" ? assignee : user?.id,
     };
+    const aoConcluir = () => {
+      onOpenChange(false);
+      toast({ title: isEdit ? "Atividade atualizada" : "Atividade criada" });
+    };
+    const aoFalhar = (e: any) =>
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
 
-    const { error } = isEdit
-      ? await supabase.from("activities").update(payload).eq("id", activity!.id)
-      : await supabase.from("activities").insert(payload);
-
-    if (error) { toast({ title: "Erro", description: error.message, variant: "destructive" }); return; }
-    // Lead scoring: só ao CRIAR (não em edições, para não pontuar duas vezes) e
-    // quando a atividade tem um contato. meeting/call são eventos de engajamento.
-    if (!isEdit && resolvedContactId) {
-      const scoreEvent = type === "meeting" ? "meeting_done" : type === "call" ? "call_done" : null;
-      if (scoreEvent) applyScoreEvent(orgId, resolvedContactId, scoreEvent);
-    }
-    onOpenChange(false);
-    onSaved();
-    toast({ title: isEdit ? "Atividade atualizada" : "Atividade criada" });
+    if (isEdit) update.mutate({ id: activity!.id, patch: payload }, { onSuccess: aoConcluir, onError: aoFalhar });
+    else create.mutate(payload, { onSuccess: aoConcluir, onError: aoFalhar });
   };
 
   const typeHints: Record<ActivityType, string> = {

@@ -36,21 +36,24 @@ export function evalCondition(
 }
 
 /**
- * Avalia a lista de condições contra o payload do trigger.
+ * Avalia a lista de condições contra o payload do trigger, honrando o conector
+ * `logic` (AND/OR) de cada condição, associativo à esquerda.
  *
- * COMPORTAMENTO ATUAL: AND puro — o conector `logic` (AND/OR) de cada condição é
- * IGNORADO. O builder oferece "E/OU", mas o executor trata tudo como E. Uma
- * automação com OU se comporta como E, silenciosamente. (Ver automations.test.)
+ * Antes, o executor IGNORAVA o `logic` e tratava tudo como AND — uma automação
+ * com "OU" no builder se comportava como "E", silenciosamente. Bug revelado por
+ * automations.test ("OR: uma basta") e corrigido aqui.
  */
 export function evaluateConditions(
   conditions: AutomationCondition[] | null | undefined,
   payload: Record<string, any> | null | undefined,
 ): boolean {
   if (!conditions || conditions.length === 0) return true;
-  for (const cond of conditions) {
-    if (!evalCondition(cond, payload)) return false;
+  let result = evalCondition(conditions[0], payload);
+  for (let i = 1; i < conditions.length; i++) {
+    const atual = evalCondition(conditions[i], payload);
+    result = conditions[i].logic === "OR" ? result || atual : result && atual;
   }
-  return true;
+  return result;
 }
 
 export interface ActionOutcome {

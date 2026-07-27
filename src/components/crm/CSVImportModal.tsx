@@ -32,6 +32,8 @@ const contactFields = [
   { key: "title", label: "Cargo" },
   { key: "status", label: "Status" },
   { key: "linkedin_url", label: "LinkedIn" },
+  { key: "cnpj_cpf", label: "CNPJ/CPF" },
+  { key: "codigo_erp", label: "Código ERP" },
   { key: "__skip", label: "— Ignorar —" },
 ];
 
@@ -43,8 +45,36 @@ const companyFields = [
   { key: "revenue", label: "Receita" },
   { key: "website", label: "Website" },
   { key: "linkedin_url", label: "LinkedIn" },
+  { key: "cnpj_cpf", label: "CNPJ/CPF" },
+  { key: "codigo_erp", label: "Código ERP" },
   { key: "__skip", label: "— Ignorar —" },
 ];
+
+/*
+ * Sinônimos de cabeçalho para o auto-map. Cobre PT, os exports do HubSpot
+ * ("First Name", "Last Name", "Email") e do Pipedrive ("Person - Name",
+ * "Organization - Name") — os formatos que a UI de Integrações anuncia. Um
+ * cabeçalho casa por igualdade OU por inclusão (ex.: "email address" contém
+ * "email"), então termos curtos e distintos evitam falso-positivo.
+ */
+const HEADER_SYNONYMS: Record<string, string[]> = {
+  first_name: ["nome", "primeiro nome", "first name", "firstname", "person - name", "contato - nome", "full name"],
+  last_name: ["sobrenome", "last name", "lastname", "surname"],
+  email: ["email", "e-mail", "email address", "endereco de email"],
+  phone: ["telefone", "phone", "phone number", "celular", "mobile", "whatsapp"],
+  title: ["cargo", "job title", "position", "titulo"],
+  name: ["empresa", "company", "company name", "organization - name", "organizacao", "razao social", "nome da empresa"],
+  domain: ["dominio", "domain"],
+  website: ["website", "site", "web site"],
+  industry: ["industria", "industry", "setor", "segmento"],
+  cnpj_cpf: ["cnpj", "cpf", "cnpj/cpf", "cnpj_cpf", "documento", "tax id"],
+  codigo_erp: ["codigo erp", "codigo_erp", "cod erp", "id erp", "erp id", "codigo do erp"],
+};
+
+const stripAccents = (s: string) =>
+  s.normalize("NFD").replace(/[̀-ͯ]/g, ""); // casa "organização" com "organizacao"
+const normHeader = (h: string) =>
+  stripAccents(h.trim().toLowerCase()).replace(/["']/g, "").replace(/\s+/g, " ");
 
 export function CSVImportModal({ open, onOpenChange, onImported, entityType }: CSVImportModalProps) {
   const { orgId } = useOrg();
@@ -73,18 +103,17 @@ export function CSVImportModal({ open, onOpenChange, onImported, entityType }: C
         const headers = rows[0].map((h) => (h ?? "").trim());
         setCsvHeaders(headers);
         setCsvRows(rows.slice(1));
-        // Auto-map by header name
+        // Auto-map por nome de cabeçalho: casa por rótulo/chave exatos ou por
+        // sinônimo (igualdade ou inclusão), cobrindo HubSpot e Pipedrive.
         const autoMap: Record<number, string> = {};
         headers.forEach((header, i) => {
-          const lower = header.toLowerCase();
-          const match = fields.find((f) =>
-            f.key !== "__skip" && (f.label.toLowerCase() === lower || f.key === lower ||
-              (f.key === "first_name" && (lower.includes("nome") || lower.includes("first"))) ||
-              (f.key === "last_name" && (lower.includes("sobrenome") || lower.includes("last"))) ||
-              (f.key === "email" && lower.includes("email")) ||
-              (f.key === "phone" && (lower.includes("telefone") || lower.includes("phone"))) ||
-              (f.key === "name" && lower.includes("empresa")))
-          );
+          const h = normHeader(header);
+          const match = fields.find((f) => {
+            if (f.key === "__skip") return false;
+            if (normHeader(f.label) === h || f.key === h) return true;
+            const syns = HEADER_SYNONYMS[f.key] || [];
+            return syns.some((syn) => h === syn || h.includes(syn));
+          });
           autoMap[i] = match?.key || "__skip";
         });
         setMapping(autoMap);
@@ -98,31 +127,126 @@ export function CSVImportModal({ open, onOpenChange, onImported, entityType }: C
     if (!orgId) return;
     setImporting(true);
     try {
-      const records = csvRows.map((row) => {
-        const record: Record<string, any> = { org_id: orgId, owner_id: user?.id };
+      // 1. Monta os registros só com os campos mapeados (célula vazia → null).
+      const clean = (v: any) => { const s = (v ?? "").toString().trim(); return s === "" ? null : s; };
+      const mapped = csvRows.map((row) => {
+        const rec: Record<string, any> = {};
         Object.entries(mapping).forEach(([colIdx, fieldKey]) => {
-          if (fieldKey !== "__skip") {
-            record[fieldKey] = row[Number(colIdx)] || null;
-          }
+          if (fieldKey !== "__skip") rec[fieldKey] = clean(row[Number(colIdx)]);
         });
-        return record;
+        return rec;
       });
 
-      // Filter out records without required fields
-      const valid = entityType === "contacts"
-        ? records.filter((r) => r.first_name)
-        : records.filter((r) => r.name);
+      // 2. Descarta linhas sem o campo obrigatório (nunca importa lixo).
+      const requiredKey = entityType === "contacts" ? "first_name" : "name";
+      const withRequired = mapped.filter((r) => r[requiredKey]);
+      const skippedNoRequired = mapped.length - withRequired.length;
 
-      if (valid.length === 0) {
-        toast({ title: "Nenhum registro válido", variant: "destructive" });
+      if (withRequired.length === 0) {
+        toast({
+          title: "Nenhum registro válido",
+          description: `Toda linha precisa de ${entityType === "contacts" ? "Nome" : "Nome da empresa"}.`,
+          variant: "destructive",
+        });
         setImporting(false);
         return;
       }
 
-      const { error } = await supabase.from(entityType).insert(valid as any);
-      if (error) { toast({ title: "Erro na importação", description: error.message, variant: "destructive" }); setImporting(false); return; }
+      // 3. Chave de dedupe por registro.
+      //    Contato: email > codigo_erp. Empresa: cnpj_cpf > nome normalizado.
+      const normEmail = (v: any) => (v ?? "").toString().trim().toLowerCase();
+      const normName = (v: any) => stripAccents((v ?? "").toString().trim().toLowerCase()).replace(/\s+/g, " ");
+      const onlyDigits = (v: any) => (v ?? "").toString().replace(/\D/g, "");
+      const keyOf = (r: Record<string, any>): { field: "email" | "codigo_erp" | "cnpj_cpf" | "name"; val: string } | null => {
+        if (entityType === "contacts") {
+          if (r.email) return { field: "email", val: normEmail(r.email) };
+          if (r.codigo_erp) return { field: "codigo_erp", val: String(r.codigo_erp).trim() };
+          return null; // sem chave: inserido, nunca descartado
+        }
+        if (r.cnpj_cpf && onlyDigits(r.cnpj_cpf)) return { field: "cnpj_cpf", val: onlyDigits(r.cnpj_cpf) };
+        return { field: "name", val: normName(r.name) };
+      };
 
-      toast({ title: `${valid.length} registros importados` });
+      // 4. Índice dos registros já existentes na org, por cada chave possível.
+      const existing = {
+        email: new Map<string, string>(),
+        codigo_erp: new Map<string, string>(),
+        cnpj_cpf: new Map<string, string>(),
+        name: new Map<string, string>(),
+      };
+      if (entityType === "contacts") {
+        const { data, error } = await supabase.from("contacts")
+          .select("id,email,codigo_erp").eq("org_id", orgId);
+        if (error) { toast({ title: "Erro ao ler contatos existentes", description: error.message, variant: "destructive" }); setImporting(false); return; }
+        (data || []).forEach((c: any) => {
+          if (c.email) existing.email.set(normEmail(c.email), c.id);
+          if (c.codigo_erp) existing.codigo_erp.set(String(c.codigo_erp).trim(), c.id);
+        });
+      } else {
+        const { data, error } = await supabase.from("companies")
+          .select("id,name,cnpj_cpf").eq("org_id", orgId);
+        if (error) { toast({ title: "Erro ao ler empresas existentes", description: error.message, variant: "destructive" }); setImporting(false); return; }
+        (data || []).forEach((c: any) => {
+          if (c.cnpj_cpf && onlyDigits(c.cnpj_cpf)) existing.cnpj_cpf.set(onlyDigits(c.cnpj_cpf), c.id);
+          if (c.name) existing.name.set(normName(c.name), c.id);
+        });
+      }
+
+      // 5. Particiona: novos × atualizações, deduplicando também dentro do arquivo.
+      const toInsert: Record<string, any>[] = [];
+      const toUpdate: Record<string, any>[] = [];
+      const batchKeys = new Set<string>();
+      let insertedNoKey = 0;
+      let skippedDupInFile = 0;
+
+      for (const r of withRequired) {
+        const key = keyOf(r);
+        if (!key) {
+          toInsert.push({ ...r, org_id: orgId, owner_id: user?.id });
+          insertedNoKey++;
+          continue;
+        }
+        const dedupeKey = `${key.field}:${key.val}`;
+        if (batchKeys.has(dedupeKey)) { skippedDupInFile++; continue; }
+        batchKeys.add(dedupeKey);
+
+        const existingId = existing[key.field].get(key.val);
+        if (existingId) {
+          // Só os campos mapeados + as colunas NOT NULL exigidas pelo upsert;
+          // owner_id fica de fora para não roubar a titularidade do registro.
+          toUpdate.push({ id: existingId, org_id: orgId, ...r });
+        } else {
+          toInsert.push({ ...r, org_id: orgId, owner_id: user?.id });
+        }
+      }
+
+      // 6. Executa. Update por PK (id) num único upsert; insert em lote.
+      let inserted = 0;
+      let updated = 0;
+      if (toUpdate.length) {
+        const { error } = await supabase.from(entityType).upsert(toUpdate as any, { onConflict: "id" });
+        if (error) { toast({ title: "Erro ao atualizar existentes", description: error.message, variant: "destructive" }); setImporting(false); return; }
+        updated = toUpdate.length;
+      }
+      if (toInsert.length) {
+        const { error } = await supabase.from(entityType).insert(toInsert as any);
+        if (error) { toast({ title: "Erro ao inserir novos", description: error.message, variant: "destructive" }); setImporting(false); return; }
+        inserted = toInsert.length;
+      }
+
+      // 7. Resumo honesto: novos / atualizados / ignorados, com o detalhe.
+      const skipped = skippedNoRequired + skippedDupInFile;
+      const resumo = [`${inserted} novos`, `${updated} atualizados`];
+      if (skipped > 0) resumo.push(`${skipped} ignorados`);
+      const detalhe: string[] = [];
+      if (insertedNoKey > 0) detalhe.push(`${insertedNoKey} sem chave (podem duplicar se reimportados)`);
+      if (skippedDupInFile > 0) detalhe.push(`${skippedDupInFile} duplicados no arquivo`);
+      if (skippedNoRequired > 0) detalhe.push(`${skippedNoRequired} sem campo obrigatório`);
+      toast({
+        title: "Importação concluída",
+        description: resumo.join(", ") + (detalhe.length ? ` · ${detalhe.join("; ")}` : ""),
+      });
+
       onOpenChange(false);
       onImported();
       resetState();

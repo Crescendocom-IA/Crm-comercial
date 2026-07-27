@@ -33,7 +33,7 @@ import {
 } from "@/components/ui/table";
 import {
   Plus, Trash2, GripVertical, UserPlus, Shield, Moon, Sun, Monitor,
-  Bell, CreditCard, Crown, Users, Palette, X,
+  Bell, CreditCard, Users, Palette, X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -872,36 +872,36 @@ function AppearanceTab() {
 }
 
 // ── Billing Tab ──
-function BillingTab({ orgId }: { orgId: string | null }) {
-  const { data: org } = useOrganizationQuery();
+/*
+ * Não há faturamento: sem checkout, Stripe ou cobrança. A aba mostrava faturas
+ * hardcoded, um botão de upgrade sem ação e um grid de planos (Free/Pro/
+ * Enterprise, este com SSO/SAML/white-label) sem nenhum código por trás — um
+ * card de plano com preço mas sem forma de assinar ainda promete compra. Tudo
+ * isso saiu. Sobram os medidores de uso, que são reais, e uma nota honesta.
+ */
+const FREE_CONTACTS_LIMIT = 500;
+
+function BillingTab(_props: { orgId: string | null }) {
   const counts = useOrgUsageQuery();
 
-  const plans = [
-    { name: "Free", price: "R$ 0", features: ["500 contatos", "2 pipelines", "1 usuário", "Relatórios básicos"], limit: { contacts: 500, users: 1 }, current: org?.plan === "free" || !org?.plan },
-    { name: "Pro", price: "R$ 149/mês", features: ["10.000 contatos", "Pipelines ilimitados", "10 usuários", "AI Copilot", "Automações", "API REST"], limit: { contacts: 10000, users: 10 }, current: org?.plan === "pro" },
-    { name: "Enterprise", price: "Sob consulta", features: ["Contatos ilimitados", "Usuários ilimitados", "SSO / SAML", "SLA dedicado", "White-label", "Suporte prioritário"], limit: { contacts: Infinity, users: Infinity }, current: org?.plan === "enterprise" },
-  ];
-
-  const invoices = [
-    { date: "01/03/2026", amount: "R$ 149,00", status: "Pago", plan: "Pro" },
-    { date: "01/02/2026", amount: "R$ 149,00", status: "Pago", plan: "Pro" },
-    { date: "01/01/2026", amount: "R$ 149,00", status: "Pago", plan: "Pro" },
+  const usage: { label: string; count: number; limit: number | string }[] = [
+    { label: "Contatos", count: counts.contacts, limit: FREE_CONTACTS_LIMIT },
+    { label: "Negócios", count: counts.deals, limit: "∞" },
+    { label: "Empresas", count: counts.companies, limit: "∞" },
   ];
 
   return (
     <div className="space-y-4">
-      {/* Usage */}
       <Card>
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-1.5"><CreditCard className="h-4 w-4" />Uso Atual</CardTitle>
+          <CardDescription className="text-xs">
+            Esta organização está em uso interno (plano gratuito). Não há cobrança nem faturamento ativo.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-4">
-            {[
-              { label: "Contatos", count: counts.contacts, limit: plans.find((p) => p.current)?.limit.contacts || 500 },
-              { label: "Negócios", count: counts.deals, limit: "∞" },
-              { label: "Empresas", count: counts.companies, limit: "∞" },
-            ].map((item) => (
+            {usage.map((item) => (
               <div key={item.label} className="text-center">
                 <p className="text-lg font-bold">{item.count}</p>
                 <p className="text-xs text-muted-foreground">{item.label} {typeof item.limit === "number" ? `/ ${item.limit.toLocaleString()}` : ""}</p>
@@ -913,65 +913,6 @@ function BillingTab({ orgId }: { orgId: string | null }) {
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Plans */}
-      <div className="grid gap-4 md:grid-cols-3">
-        {plans.map((plan) => (
-          <Card key={plan.name} className={plan.current ? "border-primary" : ""}>
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                {plan.name === "Enterprise" && <Crown className="h-4 w-4 text-warning" />}
-                <CardTitle className="text-sm">{plan.name}</CardTitle>
-                {plan.current && <Badge className="text-xs">Atual</Badge>}
-              </div>
-              <p className="text-lg font-bold">{plan.price}</p>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-1.5">
-                {plan.features.map((f) => (
-                  <li key={f} className="text-xs text-muted-foreground flex items-center gap-1.5">
-                    <span className="text-success">✓</span>{f}
-                  </li>
-                ))}
-              </ul>
-              {!plan.current && (
-                <Button variant="outline" size="sm" className="w-full mt-4 h-8 text-xs">
-                  {plan.name === "Enterprise" ? "Falar com Vendas" : "Fazer Upgrade"}
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Invoices */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Histórico de Faturas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-xs">Data</TableHead>
-                <TableHead className="text-xs">Plano</TableHead>
-                <TableHead className="text-xs">Valor</TableHead>
-                <TableHead className="text-xs">Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {invoices.map((inv, i) => (
-                <TableRow key={i}>
-                  <TableCell className="text-xs">{inv.date}</TableCell>
-                  <TableCell className="text-xs">{inv.plan}</TableCell>
-                  <TableCell className="text-xs">{inv.amount}</TableCell>
-                  <TableCell><Badge variant="outline" className="text-xs text-success">{inv.status}</Badge></TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
         </CardContent>
       </Card>
     </div>

@@ -906,12 +906,13 @@ function ImportExportTab({ orgId, userId }: { orgId: string | null; userId?: str
           <div className="rounded-md bg-muted p-4 space-y-2">
             <p className="text-xs font-medium">Formatos suportados:</p>
             <ul className="text-xs text-muted-foreground space-y-1">
-              <li>• <strong>CSV genérico</strong> — mapeamento de colunas manual</li>
-              <li>• <strong>HubSpot Export</strong> — detecta automaticamente colunas "First Name", "Last Name", "Email"</li>
-              <li>• <strong>Pipedrive Export</strong> — detecta "Person - Name", "Organization - Name"</li>
+              <li>• <strong>CSV genérico</strong> — mapeamento de colunas manual, ajustável antes de importar</li>
+              <li>• <strong>HubSpot / Pipedrive</strong> — reconhece cabeçalhos comuns (First Name, Last Name, Email, Person - Name, Organization - Name)</li>
             </ul>
             <p className="text-xs text-muted-foreground mt-2">
-              A importação inclui preview, mapeamento e detecção de duplicatas por email.
+              A importação tem preview e mapeamento. Registros iguais são <strong>atualizados</strong>,
+              não duplicados: contatos casam por email (ou código ERP), empresas por CNPJ (ou nome).
+              Sem chave, o registro é inserido — e pode duplicar se reimportado.
             </p>
           </div>
         </CardContent>

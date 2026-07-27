@@ -77,7 +77,7 @@ export function EmailStep({ orgId, userEmail, setCanContinue, setStepData }: Onb
       <div>
         <h3 className="text-xl font-bold">Configure o envio de emails</h3>
         <p className="text-sm text-muted-foreground mt-1">
-          Necessário para enviar cadências e emails de automação. A sincronização da caixa de entrada (Gmail/Outlook) é configurada em Configurações.
+          Conecte o Resend para enviar emails de cadências e automações a partir do seu próprio domínio.
         </p>
       </div>
 

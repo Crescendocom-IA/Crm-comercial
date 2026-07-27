@@ -228,12 +228,12 @@ export default function Inbox() {
                         {activeTab === "inbox" && email.direction === "inbound" && (
                           <Badge variant="outline" className="text-xs px-1 py-0">Recebido</Badge>
                         )}
-                        {email.open_count > 0 && (
+                        {(email.open_count ?? 0) > 0 && (
                           <span className="text-xs text-muted-foreground flex items-center gap-0.5">
                             <Eye className="h-2.5 w-2.5" />{email.open_count}x
                           </span>
                         )}
-                        {email.click_count > 0 && (
+                        {(email.click_count ?? 0) > 0 && (
                           <span className="text-xs text-muted-foreground flex items-center gap-0.5">
                             <MousePointerClick className="h-2.5 w-2.5" />{email.click_count}x
                           </span>
@@ -289,15 +289,15 @@ export default function Inbox() {
                 <span>→</span>
                 <span>Para: {(selectedEmail.to_emails as string[])?.join(", ")}</span>
               </div>
-              {(selectedEmail.open_count > 0 || selectedEmail.click_count > 0) && (
+              {((selectedEmail.open_count ?? 0) > 0 || (selectedEmail.click_count ?? 0) > 0) && (
                 <div className="flex items-center gap-3 mt-2">
-                  {selectedEmail.open_count > 0 && (
+                  {(selectedEmail.open_count ?? 0) > 0 && (
                     <Badge variant="secondary" className="text-xs">
                       <Eye className="mr-1 h-2.5 w-2.5" />Aberto {selectedEmail.open_count}x
                       {selectedEmail.last_opened_at && ` · ${timeAgo(selectedEmail.last_opened_at)}`}
                     </Badge>
                   )}
-                  {selectedEmail.click_count > 0 && (
+                  {(selectedEmail.click_count ?? 0) > 0 && (
                     <Badge variant="secondary" className="text-xs">
                       <MousePointerClick className="mr-1 h-2.5 w-2.5" />Clicou {selectedEmail.click_count}x
                     </Badge>

@@ -5,6 +5,7 @@ import {
   useEmailSequencesQuery, useSequenceStepsQuery, useSequenceEnrollmentsQuery,
   useEmailSequenceMutation, useSequenceStepMutation, useSequenceEnrollmentMutation,
 } from "@/hooks/queries/useEmailSequences";
+import type { Database } from "@/integrations/supabase/types";
 import { useContactOptionsQuery } from "@/hooks/queries/useOrgOptions";
 import { useOrg } from "@/hooks/useOrg";
 import { Button } from "@/components/ui/button";
@@ -30,10 +31,9 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-type Sequence = {
-  id: string; org_id: string; name: string; description: string | null;
-  is_active: boolean; created_by: string | null; created_at: string | null;
-};
+// Row gerado do Supabase: is_active/created_* podem ser null, ao contrário do
+// tipo local anterior (mais estrito que a realidade do banco).
+type Sequence = Database["public"]["Tables"]["email_sequences"]["Row"];
 type Step = {
   id: string; sequence_id: string; org_id: string; step_order: number;
   delay_days: number; template_id: string | null; subject: string | null;
@@ -96,7 +96,7 @@ export default function EmailSequences() {
     });
   };
 
-  const toggleActive = (seq: Sequence) => seqMutation.toggleActive.mutate({ id: seq.id, isActive: seq.is_active });
+  const toggleActive = (seq: Sequence) => seqMutation.toggleActive.mutate({ id: seq.id, isActive: !!seq.is_active });
 
   const deleteSequence = (id: string) =>
     seqMutation.remove.mutate(id, { onSuccess: () => {
@@ -272,7 +272,7 @@ export default function EmailSequences() {
                       <div>
                         <p className="text-sm font-medium">{contact ? `${contact.first_name} ${contact.last_name || ""}` : "Desconhecido"}</p>
                         <p className="text-xs text-muted-foreground">
-                          Etapa {en.current_step + 1}/{seqSteps(selectedSeq.id).length}
+                          Etapa {(en.current_step ?? 0) + 1}/{seqSteps(selectedSeq.id).length}
                         </p>
                       </div>
                       <Badge className={`text-xs ${statusColors[en.status] || ""}`}>

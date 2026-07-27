@@ -4,6 +4,7 @@ import {
   useLeadScoreHistoryQuery, useLeadScoringRuleMutation, useScoreAdjustMutation,
   useSegmentMutation,
 } from "@/hooks/queries/useLeadScoring";
+import type { Database } from "@/integrations/supabase/types";
 import { useMembersQuery } from "@/hooks/queries/useOrgOptions";
 import { useRole } from "@/hooks/useRole";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
@@ -44,10 +45,8 @@ type Segment = {
   id: string; org_id: string; name: string; description: string | null;
   filters: any; created_by: string | null; created_at: string | null;
 };
-type ScoringRule = {
-  id: string; org_id: string; event_type: string; label: string;
-  points: number; is_active: boolean;
-};
+// Row gerado do Supabase (is_active/created_at podem ser null).
+type ScoringRule = Database["public"]["Tables"]["lead_scoring_rules"]["Row"];
 type ScoreHistory = {
   id: string; contact_id: string; points: number; reason: string;
   event_type: string | null; created_at: string | null;
@@ -311,7 +310,7 @@ export default function LeadScoring() {
               {rules.map((r) => (
                 <div key={r.id} className={`flex items-center justify-between rounded-md border border-border p-2 ${!r.is_active ? "opacity-50" : ""}`}>
                   <div className="flex items-center gap-2 min-w-0">
-                    <Switch checked={r.is_active} onCheckedChange={(v) => toggleRule(r.id, v)} className="scale-75" />
+                    <Switch checked={!!r.is_active} onCheckedChange={(v) => toggleRule(r.id, v)} className="scale-75" />
                     <div className="min-w-0">
                       <p className="text-xs font-medium truncate">{r.label}</p>
                       <p className="text-xs text-muted-foreground">{r.event_type}</p>

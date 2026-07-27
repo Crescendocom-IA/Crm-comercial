@@ -1,6 +1,14 @@
 import { supabase } from "@/integrations/supabase/client";
 
 /**
+ * Aplica um delta ao score e mantém no intervalo 0–100 — a mesma regra do ajuste
+ * manual. Puro e testável em isolado (soma, subtração e os limites).
+ */
+export function clampScore(current: number | null | undefined, delta: number): number {
+  return Math.max(0, Math.min(100, (current ?? 0) + delta));
+}
+
+/**
  * Aplica pontos de lead scoring a um contato quando um evento de engajamento
  * acontece. Busca a regra ATIVA da org com o `event_type` correspondente, soma
  * seus pontos ao `contacts.lead_score` (clamp 0-100, igual ao ajuste manual) e
@@ -41,7 +49,7 @@ export function applyScoreEvent(
         .maybeSingle();
       if (!contact) return;
 
-      const newScore = Math.max(0, Math.min(100, (contact.lead_score ?? 0) + rule.points));
+      const newScore = clampScore(contact.lead_score, rule.points);
       await supabase.from("contacts").update({ lead_score: newScore }).eq("id", contactId);
       await supabase.from("lead_score_history").insert({
         org_id: orgId,

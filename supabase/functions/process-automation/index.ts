@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { evaluateConditions, computeLogStatus } from "../_shared/automations.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -76,33 +77,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Evaluate conditions (simplified)
-    const conditions = auto.conditions || [];
-    let conditionsMet = true;
-    for (const cond of conditions) {
-      const fieldVal = trigger_payload?.[cond.field];
-      switch (cond.operator) {
-        case "equals":
-          if (String(fieldVal) !== String(cond.value)) conditionsMet = false;
-          break;
-        case "not_equals":
-          if (String(fieldVal) === String(cond.value)) conditionsMet = false;
-          break;
-        case "greater_than":
-          if (Number(fieldVal) <= Number(cond.value)) conditionsMet = false;
-          break;
-        case "less_than":
-          if (Number(fieldVal) >= Number(cond.value)) conditionsMet = false;
-          break;
-        case "contains":
-          if (!String(fieldVal).includes(String(cond.value))) conditionsMet = false;
-          break;
-        case "not_contains":
-          if (String(fieldVal).includes(String(cond.value))) conditionsMet = false;
-          break;
-      }
-      if (!conditionsMet) break;
-    }
+    // Avalia as condições (lógica pura em ../_shared/automations.ts).
+    const conditionsMet = evaluateConditions(auto.conditions, trigger_payload);
 
     if (!conditionsMet) {
       await supabase.from("automation_logs").insert({
@@ -138,9 +114,8 @@ Deno.serve(async (req) => {
     }
 
     const hasErrors = actionsResult.some((r) => r.status === "error");
-    // Só no-ops (nenhuma ação de fato executada) → o log é "skipped", não "success".
-    const allSkipped = actionsResult.length > 0 && actionsResult.every((r) => r.status === "skipped");
-    const logStatus = hasErrors ? "partial_error" : allSkipped ? "skipped" : "success";
+    // Status do log (pura, em ../_shared/automations.ts): partial_error / skipped / success.
+    const logStatus = computeLogStatus(actionsResult);
     const duration = Date.now() - start;
 
     // Update automation stats

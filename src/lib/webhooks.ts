@@ -1,6 +1,17 @@
 import { supabase } from "@/integrations/supabase/client";
 
 /**
+ * Filtra as automações cujo trigger casa com o evento. Puro e testável em
+ * isolado — o coração do dispatcher, separado do fetch e do invoke.
+ */
+export function matchAutomations<T extends { trigger: unknown }>(
+  autos: T[],
+  triggerType: string,
+): T[] {
+  return autos.filter((a) => (a.trigger as { type?: string } | null)?.type === triggerType);
+}
+
+/**
  * Fire an outbound webhook event. Fire-and-forget: never throws, never blocks UI.
  * Reads active destinations from `webhooks` and `integration_configs` (zapier/n8n/make)
  * on the server and POSTs the payload to each matching URL.
@@ -43,7 +54,7 @@ export function fireAutomations(
         .eq("org_id", orgId)
         .eq("is_active", true);
       if (error || !autos?.length) return;
-      const matching = autos.filter((a) => (a.trigger as any)?.type === triggerType);
+      const matching = matchAutomations(autos, triggerType);
       await Promise.all(
         matching.map((a) =>
           supabase.functions

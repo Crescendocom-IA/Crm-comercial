@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { toOpenAIStream, sseHeaders } from "../_shared/streaming.ts";
+import { prazo, passado } from "../_shared/date-format.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,7 +28,8 @@ const texto = (v: unknown): string => {
 };
 
 /*
- * Toda data vai para o contexto com o cálculo JÁ FEITO.
+ * Toda data vai para o contexto com o cálculo JÁ FEITO (prazo/passado vivem em
+ * ../_shared/date-format.ts, testados em isolado).
  *
  * Num teste real o modelo leu "fechamento: 2026-07-10" com a data de hoje
  * disponível e escreveu "está próxima" — quando já estava 13 dias vencida.
@@ -35,41 +37,6 @@ const texto = (v: unknown): string => {
  * avisar, e o erro soa plausível: o vendedor não confere. Se o número vem
  * pronto, não há o que errar.
  */
-
-/** Diferença em dias inteiros, ignorando hora — datas do CRM são dia cheio. */
-function diffDias(a: Date, b: Date): number {
-  const ua = Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate());
-  const ub = Date.UTC(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate());
-  return Math.round((ua - ub) / 86_400_000);
-}
-
-function parse(iso: string | null | undefined): Date | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-/** Data-alvo (prazo): "2026-07-10 (VENCIDA há 13 dias)". */
-function prazo(iso: string | null | undefined): string {
-  const d = parse(iso);
-  if (!d) return "não informado";
-  const dia = d.toISOString().slice(0, 10);
-  const n = diffDias(d, new Date());
-  if (n > 0) return `${dia} (faltam ${n} dia${n === 1 ? "" : "s"})`;
-  if (n === 0) return `${dia} (hoje)`;
-  return `${dia} (VENCIDA há ${-n} dia${-n === 1 ? "" : "s"})`;
-}
-
-/** Evento passado: "2026-06-08 (há 45 dias)". */
-function passado(iso: string | null | undefined): string {
-  const d = parse(iso);
-  if (!d) return "não informado";
-  const dia = d.toISOString().slice(0, 10);
-  const n = diffDias(new Date(), d);
-  if (n === 0) return `${dia} (hoje)`;
-  if (n === 1) return `${dia} (ontem)`;
-  return `${dia} (há ${n} dias)`;
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });

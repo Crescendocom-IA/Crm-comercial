@@ -123,7 +123,14 @@ Deno.serve(async (req) => {
     for (const action of auto.actions || []) {
       try {
         const result = await executeAction(supabase, org_id, action, trigger_payload);
-        actionsResult.push({ type: action.type, status: "ok", result });
+        // Ações não implementadas devolvem { __skipped }. Registrá-las como
+        // "skipped" (e não "ok") impede que uma automação só de no-ops apareça
+        // como "Sucesso" no histórico — mascarando que nada aconteceu.
+        if (result && (result as any).__skipped) {
+          actionsResult.push({ type: action.type, status: "skipped", message: (result as any).message });
+        } else {
+          actionsResult.push({ type: action.type, status: "ok", result });
+        }
       } catch (err: any) {
         actionsResult.push({ type: action.type, status: "error", error: err.message });
         // Continue executing remaining actions
@@ -131,6 +138,9 @@ Deno.serve(async (req) => {
     }
 
     const hasErrors = actionsResult.some((r) => r.status === "error");
+    // Só no-ops (nenhuma ação de fato executada) → o log é "skipped", não "success".
+    const allSkipped = actionsResult.length > 0 && actionsResult.every((r) => r.status === "skipped");
+    const logStatus = hasErrors ? "partial_error" : allSkipped ? "skipped" : "success";
     const duration = Date.now() - start;
 
     // Update automation stats
@@ -147,7 +157,7 @@ Deno.serve(async (req) => {
     await supabase.from("automation_logs").insert({
       org_id,
       automation_id,
-      status: hasErrors ? "partial_error" : "success",
+      status: logStatus,
       trigger_payload,
       actions_result: actionsResult,
       duration_ms: duration,
@@ -162,7 +172,7 @@ Deno.serve(async (req) => {
       console.log(`Automation ${automation_id} failed, retry ${retry_count + 1}/3`);
     }
 
-    return new Response(JSON.stringify({ status: hasErrors ? "partial_error" : "success", actions: actionsResult, duration_ms: duration }), {
+    return new Response(JSON.stringify({ status: logStatus, actions: actionsResult, duration_ms: duration }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err: any) {
@@ -238,15 +248,26 @@ async function executeAction(supabase: any, orgId: string, action: any, payload:
 
     case "move_deal_stage": {
       if (!payload?.deal_id) throw new Error("No deal_id in payload");
-      // Find stage by name
-      const { data: stages } = await supabase
-        .from("pipeline_stages")
-        .select("id,name")
-        .eq("org_id", orgId)
-        .ilike("name", `%${cfg.to_stage}%`)
-        .limit(1);
-      const stageId = stages?.[0]?.id;
-      if (!stageId) throw new Error(`Stage '${cfg.to_stage}' not found`);
+      /*
+       * Casa por stage_id (UUID). O builder passou a gravar o id, e a migration
+       * converteu as configs antigas. cfg.to_stage (nome) só sobrevive quando a
+       * conversão não achou o estágio — aí caímos no casamento por nome como
+       * fallback (exato antes de ilike), preservando as automações legadas.
+       */
+      let stageId: string | undefined = cfg.stage_id;
+      if (!stageId && cfg.to_stage) {
+        const { data: exact } = await supabase
+          .from("pipeline_stages").select("id")
+          .eq("org_id", orgId).eq("name", cfg.to_stage).limit(1);
+        stageId = exact?.[0]?.id;
+        if (!stageId) {
+          const { data: fuzzy } = await supabase
+            .from("pipeline_stages").select("id")
+            .eq("org_id", orgId).ilike("name", `%${cfg.to_stage}%`).limit(1);
+          stageId = fuzzy?.[0]?.id;
+        }
+      }
+      if (!stageId) throw new Error(`Stage '${cfg.stage_id || cfg.to_stage}' not found`);
       const { error } = await supabase.from("deals").update({ stage_id: stageId }).eq("id", payload.deal_id);
       if (error) throw new Error(`move_deal_stage: ${error.message}`);
       return { moved_to: stageId };
@@ -279,10 +300,16 @@ async function executeAction(supabase: any, orgId: string, action: any, payload:
         if (error) throw new Error(`add_tag create: ${error.message}`);
         existing = created;
       }
+      // upsert com DO NOTHING: reexecutar a automação sobre o mesmo registro não
+      // quebra mais no insert duplicado (a PK composta já barraria com erro).
       if (payload?.deal_id) {
-        await supabase.from("deal_tags").insert({ deal_id: payload.deal_id, tag_id: existing.id });
+        const { error } = await supabase.from("deal_tags")
+          .upsert({ deal_id: payload.deal_id, tag_id: existing.id }, { onConflict: "deal_id,tag_id", ignoreDuplicates: true });
+        if (error) throw new Error(`add_tag link: ${error.message}`);
       } else if (payload?.contact_id) {
-        await supabase.from("contact_tags").insert({ contact_id: payload.contact_id, tag_id: existing.id });
+        const { error } = await supabase.from("contact_tags")
+          .upsert({ contact_id: payload.contact_id, tag_id: existing.id }, { onConflict: "contact_id,tag_id", ignoreDuplicates: true });
+        if (error) throw new Error(`add_tag link: ${error.message}`);
       }
       return { tag_added: cfg.tag_name };
     }
@@ -299,14 +326,13 @@ async function executeAction(supabase: any, orgId: string, action: any, payload:
     }
 
     case "wait": {
-      // In a real system, this would schedule the next action
-      // For now, just log the delay
-      return { delay_days: cfg.days || 1, note: "Delay logged; real scheduling requires pg_cron" };
+      // Não agenda nada; as ações seguintes já rodaram nesta mesma passada.
+      // Marcado como skipped para não simular um delay que não existe.
+      return { __skipped: true, message: "wait não implementado (requer agendador); as ações seguintes rodaram na hora", delay_days: cfg.days || 1 };
     }
 
     case "notify_user":
-      // Placeholder: in production, use push/email/slack
-      return { notified: true, message: cfg.message };
+      return { __skipped: true, message: "notify_user não implementado (requer canal de notificação: push, email ou Slack)", intended: cfg.message };
 
     case "send_whatsapp": {
       // Determine phone number
@@ -396,12 +422,12 @@ async function executeAction(supabase: any, orgId: string, action: any, payload:
     }
 
     case "send_email_template":
-      return { template_id: cfg.template_id, note: "Email sending requires email integration" };
+      return { __skipped: true, message: "send_email_template não implementado (requer integração de email)", template_id: cfg.template_id };
 
     case "remove_tag":
-      return { tag_removed: cfg.tag_name, note: "Remove tag not fully implemented" };
+      return { __skipped: true, message: "remove_tag não implementado", tag_name: cfg.tag_name };
 
     default:
-      return { note: `Action type '${action.type}' not implemented` };
+      return { __skipped: true, message: `Ação '${action.type}' não implementada` };
   }
 }

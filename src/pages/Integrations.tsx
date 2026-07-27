@@ -415,7 +415,7 @@ function WebhooksTab({ orgId }: { orgId: string | null }) {
                     </div>
                     <p className="text-xs text-muted-foreground truncate">{wh.url}</p>
                     <div className="flex gap-1 mt-1">
-                      {wh.events?.map((e) => (
+                      {wh.events?.map((e: string) => (
                         <Badge key={e} variant="outline" className="text-xs">{e}</Badge>
                       ))}
                     </div>

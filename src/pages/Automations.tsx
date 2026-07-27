@@ -33,7 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Plus, Zap, Play, Pause, Trash2, MoreHorizontal, ArrowRight, Clock,
   CheckCircle2, XCircle, AlertTriangle, Copy, ChevronDown, ChevronUp,
-  Workflow, History, LayoutTemplate, Settings2, GripVertical, X,
+  Workflow, History, LayoutTemplate, Settings2, GripVertical, X, MinusCircle,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────
@@ -134,6 +134,31 @@ const UNAVAILABLE_ACTIONS: Partial<Record<ActionType, string>> = {
   wait: "Disponível em breve — requer agendamento; hoje as ações seguintes rodariam na hora",
 };
 
+/*
+ * Triggers que o dispatcher (fireAutomations) nunca dispara: só os eventos vivos
+ * passam por lá — contact.created, deal.stage_changed, deal.won, deal.lost. Os
+ * demais (temporais e afins) dependem de um agendador que ainda não existe.
+ * Usado só para marcar/desabilitar templates que dependem deles — o builder
+ * segue oferecendo todos (edição de automações legadas).
+ */
+const UNAVAILABLE_TRIGGERS: Partial<Record<TriggerType, string>> = {
+  "date.relative": "Requer agendador",
+  "score.threshold": "Requer recálculo de score agendado",
+  "activity.created": "Requer gatilho de atividade",
+  "field.changed": "Requer captura de mudança de campo",
+  "webhook.received": "Requer recepção de webhook",
+  "contact.updated": "Ainda não disparado pelo app",
+};
+
+// Aparência de cada status de log. "skipped" cobre tanto condições não atendidas
+// quanto ações no-op; "partial_error" é execução com pelo menos um erro.
+const LOG_STATUS_META: Record<string, { label: string; className: string; icon: typeof CheckCircle2 }> = {
+  success: { label: "Sucesso", className: "bg-success/10 text-success border-success/30", icon: CheckCircle2 },
+  skipped: { label: "Ignorada", className: "bg-muted text-muted-foreground border-border", icon: MinusCircle },
+  partial_error: { label: "Erro parcial", className: "bg-warning/10 text-warning border-warning/30", icon: AlertTriangle },
+  error: { label: "Erro", className: "bg-destructive/10 text-destructive border-destructive/30", icon: XCircle },
+};
+
 const CONDITION_OPERATORS = [
   { value: "equals", label: "igual a" },
   { value: "not_equals", label: "diferente de" },
@@ -201,6 +226,21 @@ const TEMPLATES: {
   },
 ];
 
+/*
+ * Motivos pelos quais um template não roda hoje: trigger sem agendador ou ação
+ * no-op. Um template com qualquer bloqueio fica visível (preserva a descoberta)
+ * porém desabilitado — aplicar algo que não dispara/executa só frustra.
+ */
+function templateBlockers(tmpl: typeof TEMPLATES[number]): string[] {
+  const reasons: string[] = [];
+  const tReason = UNAVAILABLE_TRIGGERS[tmpl.trigger.type];
+  if (tReason) reasons.push(tReason);
+  for (const a of tmpl.actions) {
+    if (UNAVAILABLE_ACTIONS[a.type]) reasons.push(`Ação "${ACTION_LABELS[a.type]?.label}" indisponível`);
+  }
+  return [...new Set(reasons)];
+}
+
 // ── Component ──────────────────────────────────────────
 export default function Automations() {
   const { user } = useAuth();
@@ -219,6 +259,23 @@ export default function Automations() {
   const [pendingDeleteAuto, setPendingDeleteAuto] = useState<string | null>(null);
   const { canDelete, canManage } = useRole();
   const [tab, setTab] = useState<"list" | "templates" | "history">("list");
+  const [logFilter, setLogFilter] = useState<"all" | "success" | "skipped" | "error">("all");
+
+  // "error" agrupa erro total e parcial; "skipped" cobre condição não atendida
+  // e ações no-op — o operador distingue "deu certo" de "não fez nada".
+  const filteredLogs = useMemo(() => logs.filter((l) => {
+    if (logFilter === "all") return true;
+    if (logFilter === "error") return l.status === "error" || l.status === "partial_error";
+    if (logFilter === "skipped") return l.status === "skipped";
+    return l.status === "success";
+  }), [logs, logFilter]);
+
+  const renderLogStatus = (status: string) => {
+    const meta = LOG_STATUS_META[status] ??
+      { label: status || "—", className: "bg-muted text-muted-foreground border-border", icon: MinusCircle };
+    const Icon = meta.icon;
+    return <Badge className={`text-xs ${meta.className}`}><Icon className="mr-0.5 h-2.5 w-2.5" />{meta.label}</Badge>;
+  };
 
   // Builder state
   const [builderOpen, setBuilderOpen] = useState(false);
@@ -284,6 +341,8 @@ export default function Automations() {
     }, { onSuccess: () => toast({ title: "Automação duplicada" }) });
 
   const useTemplate = (tmpl: typeof TEMPLATES[0]) => {
+    // Bloqueado (trigger sem agendador ou ação no-op): não abre o builder.
+    if (templateBlockers(tmpl).length > 0) return;
     setEditId(null);
     setFormName(tmpl.name);
     setFormDesc(tmpl.description);
@@ -473,11 +532,12 @@ export default function Automations() {
         </div>
       );
       case "move_deal_stage": return (
-        /* Nome, não id — mesmo motivo do trigger: o executor casa com ilike name. */
-        <Select value={cfg.to_stage || ""} onValueChange={(v) => upd("to_stage", v)}>
+        /* id, não nome: o executor casa por stage_id (UUID). Renomear o estágio
+           não quebra mais a automação, e nomes parecidos deixam de se confundir. */
+        <Select value={cfg.stage_id || ""} onValueChange={(v) => upd("stage_id", v)}>
           <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Selecionar stage" /></SelectTrigger>
           <SelectContent>
-            {stages.map((s) => <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>)}
+            {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
           </SelectContent>
         </Select>
       );
@@ -652,70 +712,101 @@ export default function Automations() {
       {/* TEMPLATES TAB */}
       {tab === "templates" && (
         <div className="grid gap-3 sm:grid-cols-2">
-          {TEMPLATES.map((tmpl, i) => (
-            <Card key={i} className="hover:border-primary/30 transition-colors cursor-pointer" onClick={() => useTemplate(tmpl)}>
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-lg">
-                    {TRIGGER_LABELS[tmpl.trigger.type]?.icon}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">{tmpl.name}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{tmpl.description}</p>
-                    <div className="flex flex-wrap items-center gap-1 mt-2">
-                      <Badge variant="outline" className="text-xs">{TRIGGER_LABELS[tmpl.trigger.type]?.label}</Badge>
-                      <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                      {tmpl.actions.map((a, j) => (
-                        <Badge key={j} variant="outline" className="text-xs">{ACTION_LABELS[a.type]?.label}</Badge>
-                      ))}
+          {TEMPLATES.map((tmpl, i) => {
+            const blockers = templateBlockers(tmpl);
+            const blocked = blockers.length > 0;
+            return (
+              <Card
+                key={i}
+                aria-disabled={blocked}
+                className={`transition-colors ${blocked ? "opacity-60 cursor-not-allowed" : "hover:border-primary/30 cursor-pointer"}`}
+                onClick={() => { if (!blocked) useTemplate(tmpl); }}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-lg">
+                      {TRIGGER_LABELS[tmpl.trigger.type]?.icon}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium">{tmpl.name}</p>
+                        {blocked && (
+                          <Badge variant="outline" className="text-xs gap-1 border-warning/40 text-warning">
+                            <Clock className="h-2.5 w-2.5" />Requer agendador (em breve)
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">{tmpl.description}</p>
+                      <div className="flex flex-wrap items-center gap-1 mt-2">
+                        <Badge variant="outline" className="text-xs">{TRIGGER_LABELS[tmpl.trigger.type]?.label}</Badge>
+                        <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                        {tmpl.actions.map((a, j) => (
+                          <Badge key={j} variant="outline" className="text-xs">{ACTION_LABELS[a.type]?.label}</Badge>
+                        ))}
+                      </div>
+                      {blocked && (
+                        <p className="text-xs text-warning mt-2">{blockers.join(" · ")}. Não pode ser aplicado ainda.</p>
+                      )}
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
       {/* HISTORY TAB */}
       {tab === "history" && (
-        <div className="rounded-md border border-border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Automação</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-center">Duração</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {logs.map((log) => {
-                const auto = automations.find((a) => a.id === log.automation_id);
-                return (
-                  <TableRow key={log.id} className="cursor-pointer hover:bg-muted/50" onClick={() => { setSelectedLog(log); setLogDetailOpen(true); }}>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {log.executed_at ? new Date(log.executed_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
-                    </TableCell>
-                    <TableCell className="text-sm font-medium">{auto?.name || "—"}</TableCell>
-                    <TableCell>
-                      {log.status === "success" ? (
-                        <Badge className="text-xs bg-success/10 text-success border-success/30"><CheckCircle2 className="mr-0.5 h-2.5 w-2.5" />Sucesso</Badge>
-                      ) : (
-                        <Badge variant="destructive" className="text-xs"><XCircle className="mr-0.5 h-2.5 w-2.5" />Erro</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center text-xs text-muted-foreground">{log.duration_ms ? `${log.duration_ms}ms` : "—"}</TableCell>
-                    <TableCell><ArrowRight className="h-3.5 w-3.5 text-muted-foreground" /></TableCell>
-                  </TableRow>
-                );
-              })}
-              {logs.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="py-12 text-center text-muted-foreground">Nenhuma execução registrada</TableCell></TableRow>
-              )}
-            </TableBody>
-          </Table>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              {filteredLogs.length} de {logs.length} execuções
+            </p>
+            <Select value={logFilter} onValueChange={(v) => setLogFilter(v as typeof logFilter)}>
+              <SelectTrigger className="h-8 w-44 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os status</SelectItem>
+                <SelectItem value="success">Sucesso</SelectItem>
+                <SelectItem value="skipped">Ignorada (sem efeito)</SelectItem>
+                <SelectItem value="error">Erro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="rounded-md border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Automação</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-center">Duração</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredLogs.map((log) => {
+                  const auto = automations.find((a) => a.id === log.automation_id);
+                  return (
+                    <TableRow key={log.id} className="cursor-pointer hover:bg-muted/50" onClick={() => { setSelectedLog(log); setLogDetailOpen(true); }}>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {log.executed_at ? new Date(log.executed_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "—"}
+                      </TableCell>
+                      <TableCell className="text-sm font-medium">{auto?.name || "—"}</TableCell>
+                      <TableCell>{renderLogStatus(log.status)}</TableCell>
+                      <TableCell className="text-center text-xs text-muted-foreground">{log.duration_ms ? `${log.duration_ms}ms` : "—"}</TableCell>
+                      <TableCell><ArrowRight className="h-3.5 w-3.5 text-muted-foreground" /></TableCell>
+                    </TableRow>
+                  );
+                })}
+                {filteredLogs.length === 0 && (
+                  <TableRow><TableCell colSpan={5} className="py-12 text-center text-muted-foreground">
+                    {logs.length === 0 ? "Nenhuma execução registrada" : "Nenhuma execução com este status"}
+                  </TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
 
@@ -883,11 +974,7 @@ export default function Automations() {
             <div className="space-y-3 mt-2">
               <div className="flex items-center gap-2">
                 <Label className="text-xs">Status:</Label>
-                {selectedLog.status === "success" ? (
-                  <Badge className="text-xs bg-success/10 text-success border-success/30">Sucesso</Badge>
-                ) : (
-                  <Badge variant="destructive" className="text-xs">Erro</Badge>
-                )}
+                {renderLogStatus(selectedLog.status)}
                 {selectedLog.duration_ms && <span className="text-xs text-muted-foreground">{selectedLog.duration_ms}ms</span>}
               </div>
               {selectedLog.error_message && (

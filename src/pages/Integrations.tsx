@@ -158,15 +158,16 @@ function IntegrationsTab({ orgId, userId }: { orgId: string | null; userId?: str
 
   const integrations = [
     {
+      // Os toggles de resumo diário / notificar ganho / notificar perdido eram
+      // write-only: salvavam em integration_configs mas nenhuma função agendada
+      // os lia para postar no Slack. Removidos. Sobra o que de fato funciona:
+      // conectar o workspace e enviar uma mensagem de teste ao canal.
       provider: "slack", name: "Slack", icon: MessageSquare,
-      description: "Notificações de negócios e resumo diário no canal",
+      description: "Conecte seu workspace e envie uma mensagem de teste ao canal",
       connectAction: handleSlackConnect,
       connectLoading: slackConnecting,
       fields: [
-        { key: "channel", label: "Canal de notificações", placeholder: "#vendas" },
-        { key: "daily_summary", label: "Resumo diário às 9h", type: "switch" },
-        { key: "notify_won", label: "Notificar negócio ganho", type: "switch" },
-        { key: "notify_lost", label: "Notificar negócio perdido", type: "switch" },
+        { key: "channel", label: "Canal", placeholder: "#vendas" },
       ],
     },
     {
@@ -239,15 +240,8 @@ function IntegrationsTab({ orgId, userId }: { orgId: string | null; userId?: str
             {integrations.find((i) => i.provider === editProvider)?.fields.map((field) => (
               <div key={field.key} className="space-y-1">
                 <Label className="text-xs">{field.label}</Label>
-                {field.type === "switch" ? (
-                  <div className="flex items-center gap-2">
-                    <Switch checked={!!editConfig[field.key]} onCheckedChange={(v) => setEditConfig({ ...editConfig, [field.key]: v })} />
-                    <span className="text-xs text-muted-foreground">{editConfig[field.key] ? "Sim" : "Não"}</span>
-                  </div>
-                ) : (
-                  <Input value={editConfig[field.key] || ""} onChange={(e) => setEditConfig({ ...editConfig, [field.key]: e.target.value })}
-                    placeholder={field.placeholder} className="h-8 text-xs" />
-                )}
+                <Input value={editConfig[field.key] || ""} onChange={(e) => setEditConfig({ ...editConfig, [field.key]: e.target.value })}
+                  placeholder={field.placeholder} className="h-8 text-xs" />
               </div>
             ))}
           </div>

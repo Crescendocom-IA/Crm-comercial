@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   useOrganizationQuery, useOrganizationMutation, usePipelineMutation, useStageMutation,
   useLossReasonsQuery, useLossReasonMutation, useCustomFieldsQuery, useCustomFieldsMutation,
-  useNotificationPrefsQuery, useNotificationPrefsMutation, useOrgUsageQuery,
+  useOrgUsageQuery,
 } from "@/hooks/queries/useSettings";
 import { usePipelinesQuery, useStagesQuery } from "@/hooks/queries/useOrgOptions";
 import {
@@ -786,82 +786,25 @@ function MembersTab({ orgId, userId }: { orgId: string | null; userId?: string }
 }
 
 // ── Notifications Tab ──
-function NotificationsTab({ orgId, userId }: { orgId: string | null; userId?: string }) {
-  const { toast } = useToast();
-  const [prefs, setPrefs] = useState({
-    daily_summary: true, daily_summary_hour: 9,
-    notify_deal_won: true, notify_deal_lost: true,
-    notify_task_overdue: true, notify_mention: true, notify_assignment: true,
-    email_daily_summary: true, email_deal_won: false, email_task_overdue: false,
-  });
-  const [loaded, setLoaded] = useState(false);
-
-  const { data: savedPrefs } = useNotificationPrefsQuery(userId);
-  const savePrefs = useNotificationPrefsMutation(userId);
-
-  useEffect(() => {
-    if (savedPrefs) setPrefs(savedPrefs);
-    setLoaded(true);
-  }, [savedPrefs]);
-
-  const save = () =>
-    savePrefs.mutate(prefs, {
-      onSuccess: () => toast({ title: "Preferências salvas" }),
-      onError: () => toast({ title: "Erro", variant: "destructive" }),
-    });
-
-  const Toggle = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
-    <div className="flex items-center justify-between py-1.5">
-      <span className="text-xs">{label}</span>
-      <Switch checked={checked} onCheckedChange={onChange} />
-    </div>
-  );
-
+/*
+ * As preferências de notificação eram write-only: 10 toggles salvavam em
+ * notification_preferences, mas nenhum motor lê a tabela — não há sender de
+ * resumo diário nem notificação de deal. Em vez de coletar preferências que
+ * não fazem nada, a aba anuncia honestamente que o recurso está em construção.
+ * A coluna no banco fica; não vale migração por causa disto.
+ */
+function NotificationsTab(_props: { orgId: string | null; userId?: string }) {
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm flex items-center gap-1.5"><Bell className="h-4 w-4" />Notificações In-App</CardTitle>
-          <CardDescription className="text-xs">Quais eventos geram notificação no CRM</CardDescription>
-        </CardHeader>
-        <CardContent className="divide-y divide-border">
-          <Toggle label="Negócio ganho" checked={prefs.notify_deal_won} onChange={(v) => setPrefs({ ...prefs, notify_deal_won: v })} />
-          <Toggle label="Negócio perdido" checked={prefs.notify_deal_lost} onChange={(v) => setPrefs({ ...prefs, notify_deal_lost: v })} />
-          <Toggle label="Tarefa vencida" checked={prefs.notify_task_overdue} onChange={(v) => setPrefs({ ...prefs, notify_task_overdue: v })} />
-          <Toggle label="Menção (@)" checked={prefs.notify_mention} onChange={(v) => setPrefs({ ...prefs, notify_mention: v })} />
-          <Toggle label="Atribuição de registro" checked={prefs.notify_assignment} onChange={(v) => setPrefs({ ...prefs, notify_assignment: v })} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Notificações por Email</CardTitle>
-          <CardDescription className="text-xs">Quais emails você deseja receber</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="divide-y divide-border">
-            <Toggle label="Resumo diário" checked={prefs.email_daily_summary} onChange={(v) => setPrefs({ ...prefs, email_daily_summary: v })} />
-            <Toggle label="Negócio ganho" checked={prefs.email_deal_won} onChange={(v) => setPrefs({ ...prefs, email_deal_won: v })} />
-            <Toggle label="Tarefa vencida" checked={prefs.email_task_overdue} onChange={(v) => setPrefs({ ...prefs, email_task_overdue: v })} />
-          </div>
-          {prefs.email_daily_summary && (
-            <div className="flex items-center gap-2">
-              <Label className="text-xs">Horário do resumo:</Label>
-              <Select value={String(prefs.daily_summary_hour)} onValueChange={(v) => setPrefs({ ...prefs, daily_summary_hour: parseInt(v) })}>
-                <SelectTrigger className="h-8 text-xs w-24"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 24 }, (_, i) => (
-                    <SelectItem key={i} value={String(i)}>{String(i).padStart(2, "0")}:00</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Button size="sm" className="h-8 text-xs" onClick={save}>Salvar Preferências</Button>
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm flex items-center gap-1.5"><Bell className="h-4 w-4" />Notificações</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground">
+          As notificações estão em desenvolvimento. Você será avisado quando esta funcionalidade estiver disponível.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 

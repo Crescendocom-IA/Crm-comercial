@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { requireCreds } from "./helpers";
+import { requireCreds, apiComoUsuario } from "./helpers";
 import { writeFileSync, mkdtempSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -56,5 +56,45 @@ test.describe("Import de CSV", () => {
     await page.goto("/contacts");
     await page.getByPlaceholder(/buscar/i).first().fill(`Ana${marker}`);
     await expect(page.getByText(`Ana${marker}`).first()).toBeVisible({ timeout: 10_000 });
+  });
+
+  /*
+   * Reimportar o MESMO arquivo não pode duplicar: a dedupe casa por email e faz
+   * update em vez de insert. Importa duas vezes o mesmo contato e confirma, via
+   * API, que existe exatamente 1 linha com aquele email.
+   */
+  test("reimportar o mesmo arquivo não duplica (casa por email)", async ({ page }) => {
+    requireCreds();
+
+    const marker = Date.now();
+    const email = `reimport${marker}@e2e.test`;
+    const csv = "first_name,email\n" + `Reimp${marker},${email}\n`;
+    const dir = mkdtempSync(join(tmpdir(), "e2e-csv-re-"));
+    const csvPath = join(dir, "reimport.csv");
+    writeFileSync(csvPath, csv, "utf8");
+
+    const importarUmaVez = async () => {
+      await page.goto("/contacts?action=import");
+      await page.setInputFiles('input[type="file"]', csvPath);
+      // Auto-map já reconhece os cabeçalhos first_name e email — segue ao preview.
+      await expect(page.getByText(/mapeie as colunas/i)).toBeVisible({ timeout: 10_000 });
+      await page.getByRole("button", { name: /^preview$/i }).click();
+      await page.getByRole("button", { name: /importar/i }).click();
+      // O modal fecha ao concluir; é o sinal estável de fim (o toast some rápido).
+      await expect(page.getByRole("dialog")).toBeHidden({ timeout: 10_000 });
+    };
+
+    await importarUmaVez(); // 1ª: insere
+    await importarUmaVez(); // 2ª: atualiza, não duplica
+
+    const { client, orgId } = await apiComoUsuario();
+    try {
+      const { data, error } = await client
+        .from("contacts").select("id").eq("org_id", orgId).eq("email", email);
+      expect(error).toBeNull();
+      expect(data?.length).toBe(1);
+    } finally {
+      await client.from("contacts").delete().eq("org_id", orgId).eq("email", email);
+    }
   });
 });

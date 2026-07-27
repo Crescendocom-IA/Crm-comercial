@@ -482,7 +482,7 @@ function SalesReport({ deals, stages, members, companies, allDeals, periodRange 
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="name" tick={{ fontSize: 9 }} stroke="hsl(var(--muted-foreground))" />
                 <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" domain={[0, 100]} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v}%`} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(v) => `${v}%`} />
                 <Bar dataKey="rate" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -498,7 +498,7 @@ function SalesReport({ deals, stages, members, companies, allDeals, periodRange 
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis type="number" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
                 <YAxis dataKey="name" type="category" width={80} tick={{ fontSize: 9 }} stroke="hsl(var(--muted-foreground))" />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => `${v} dias`} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(v) => `${v} dias`} />
                 <Bar dataKey="days" fill="hsl(var(--warning))" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -840,7 +840,7 @@ function ForecastReport({ deals, stages, members, ownerFilter, pipelineFilter }:
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
               <XAxis dataKey="month" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
               <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => fmt(v)} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(v) => fmt(Number(v))} />
               <Bar dataKey="Pessimista" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
               <Bar dataKey="Realista" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
               <Bar dataKey="Otimista" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} />

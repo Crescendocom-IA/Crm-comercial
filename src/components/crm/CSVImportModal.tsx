@@ -239,7 +239,9 @@ export function CSVImportModal({ open, onOpenChange, onImported, entityType }: C
       const resumo = [`${inserted} novos`, `${updated} atualizados`];
       if (skipped > 0) resumo.push(`${skipped} ignorados`);
       const detalhe: string[] = [];
-      if (insertedNoKey > 0) detalhe.push(`${insertedNoKey} sem chave (podem duplicar se reimportados)`);
+      // Sem chave = inseridos como novos (nunca descartados); o texto deixa claro
+      // que entraram, e só avisa que podem duplicar num reimport futuro.
+      if (insertedNoKey > 0) detalhe.push(`${insertedNoKey} inseridos sem chave de dedupe (sem email/CNPJ — podem duplicar se reimportados)`);
       if (skippedDupInFile > 0) detalhe.push(`${skippedDupInFile} duplicados no arquivo`);
       if (skippedNoRequired > 0) detalhe.push(`${skippedNoRequired} sem campo obrigatório`);
       toast({

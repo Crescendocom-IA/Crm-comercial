@@ -94,3 +94,27 @@ escolha de configuração, não dívida catalogada aqui.)
 A Categoria 1 é a única com bug de comportamento; a Categoria 2 é ruído de tipo
 de uma única causa. Enquanto o catálogo não for zerado, `npm run typecheck`
 continua saindo diferente de 0 — o que é o esperado: agora ele conta a verdade.
+
+---
+
+## Pendência — type-check das edge functions (Deno)
+
+`npm run typecheck` (`tsc -b`) cobre só o app; as edge functions em
+`supabase/functions/**` são Deno e ficam **fora** das referências do build, então
+não passam por nenhum type-check automático hoje.
+
+Aberto em 2026-07-27, ao corrigir `process-automation` (move_deal_stage por id,
+add_tag idempotente, stubs como skipped): o ambiente não tinha o Deno instalado,
+então as mudanças não puderam ser verificadas com `deno check`. Os acessos foram
+deixados seguros à mão (`(result as any)`), mas isso não substitui o checador.
+
+- **Pendência:** rodar `deno check` nas edge functions modificadas quando o Deno
+  estiver disponível. Mínimo, a que mudou por último:
+  ```bash
+  deno check supabase/functions/process-automation/index.ts
+  ```
+  Ideal: checar todas de uma vez e, melhor ainda, adicionar um passo de
+  `deno check supabase/functions/**/index.ts` ao CI, para o type-check das
+  functions deixar de depender de lembrança.
+- **Impacto:** um erro de tipo numa edge function passa batido até o runtime no
+  Supabase — a mesma classe de risco da Categoria 1, num alvo que o `tsc` não vê.

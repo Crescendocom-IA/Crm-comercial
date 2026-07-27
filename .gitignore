@@ -15,6 +15,9 @@ dist-ssr
 # Cache incremental do tsc -b (npm run typecheck)
 *.tsbuildinfo
 
+# Relatório de cobertura do vitest (npm run test:coverage)
+coverage/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

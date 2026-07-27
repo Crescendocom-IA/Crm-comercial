@@ -2,29 +2,16 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Check, X, Hash } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { OnboardingStepProps } from "./types";
-
-const NOTIFICATION_OPTIONS = [
-  { key: "deal_won", label: "Deal ganho 🎉", default: true },
-  { key: "deal_lost", label: "Deal perdido", default: true },
-  { key: "daily_summary", label: "Resumo diário do pipeline", default: true },
-  { key: "deal_stale", label: "Deal parado há 14 dias", default: false },
-  { key: "lead_hot", label: "Lead score atingiu 70+", default: false },
-  { key: "urgent_task", label: "Nova tarefa urgente", default: false },
-];
 
 export function SlackStep({ orgId, setCanContinue, setStepData }: OnboardingStepProps) {
   const { toast } = useToast();
   const [workspaceName, setWorkspaceName] = useState<string | null>(null);
   const [channels, setChannels] = useState<{ id: string; name: string }[]>([]);
   const [selectedChannel, setSelectedChannel] = useState("");
-  const [notifications, setNotifications] = useState<Record<string, boolean>>(
-    Object.fromEntries(NOTIFICATION_OPTIONS.map(o => [o.key, o.default]))
-  );
   const [connectLoading, setConnectLoading] = useState(false);
   const [testLoading, setTestLoading] = useState(false);
   const [testSent, setTestSent] = useState(false);
@@ -53,7 +40,6 @@ export function SlackStep({ orgId, setCanContinue, setStepData }: OnboardingStep
 
         setWorkspaceName(workspace);
         setSelectedChannel(config.channel || "");
-        setNotifications((prev) => ({ ...prev, ...(config.notifications || {}) }));
         setAlreadyConfigured(true);
         setTestSent(true);
         setCanContinue(true);
@@ -98,7 +84,7 @@ export function SlackStep({ orgId, setCanContinue, setStepData }: OnboardingStep
       });
       if (fnError) throw fnError;
       if (data?.ok) {
-        const config = { workspace: workspaceName, channel: selectedChannel, notifications };
+        const cfg = { workspace: workspaceName, channel: selectedChannel };
         const { data: existing } = await supabase
           .from("integration_configs")
           .select("id")
@@ -115,12 +101,12 @@ export function SlackStep({ orgId, setCanContinue, setStepData }: OnboardingStep
         if (existing) {
           await supabase
             .from("integration_configs")
-            .update({ config: config as any, is_active: true } as any)
+            .update({ config: cfg as any, is_active: true } as any)
             .eq("id", existing.id);
         } else {
           await supabase
             .from("integration_configs")
-            .insert({ org_id: orgId, provider: "slack", is_active: true, config: config as any } as any);
+            .insert({ org_id: orgId, provider: "slack", is_active: true, config: cfg as any } as any);
         }
       } else {
         toast({ title: "Erro", description: data?.error || "Falha ao enviar", variant: "destructive" });
@@ -134,9 +120,9 @@ export function SlackStep({ orgId, setCanContinue, setStepData }: OnboardingStep
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-xl font-bold">Receba alertas no Slack</h3>
+        <h3 className="text-xl font-bold">Conecte o Slack</h3>
         <p className="text-sm text-muted-foreground mt-1">
-          Notificações de deals ganhos, resumo diário do pipeline e alertas de negócios em risco direto no seu canal.
+          Conecte seu workspace e envie uma mensagem de teste ao canal. As notificações automáticas de vendas ainda não estão ativas.
         </p>
       </div>
 
@@ -146,9 +132,8 @@ export function SlackStep({ orgId, setCanContinue, setStepData }: OnboardingStep
             <p className="text-sm font-medium">Como funciona:</p>
             <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
               <li>Clique em "Conectar Slack" abaixo</li>
-              <li>O FlowCRM se conecta automaticamente ao seu workspace</li>
-              <li>Escolha o canal para receber notificações</li>
-              <li>Pronto! Você receberá alertas de vendas em tempo real</li>
+              <li>O FlowCRM se conecta ao seu workspace</li>
+              <li>Escolha um canal e envie uma mensagem de teste</li>
             </ol>
           </div>
           <Button className="w-full" onClick={handleConnect} disabled={connectLoading}>
@@ -164,23 +149,8 @@ export function SlackStep({ orgId, setCanContinue, setStepData }: OnboardingStep
             <Check className="h-4 w-4" /> Workspace conectado: <strong>{workspaceName}</strong>
           </div>
 
-          <div className="space-y-3">
-            <p className="text-sm font-medium">O que notificar?</p>
-            <div className="grid grid-cols-2 gap-2">
-              {NOTIFICATION_OPTIONS.map((opt) => (
-                <label key={opt.key} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <Checkbox
-                    checked={notifications[opt.key]}
-                    onCheckedChange={(v) => setNotifications({ ...notifications, [opt.key]: !!v })}
-                  />
-                  {opt.label}
-                </label>
-              ))}
-            </div>
-          </div>
-
           <div className="space-y-2">
-            <Label>Canal de notificações</Label>
+            <Label>Canal</Label>
             <Select value={selectedChannel} onValueChange={setSelectedChannel}>
               <SelectTrigger><SelectValue placeholder="Selecione um canal..." /></SelectTrigger>
               <SelectContent>

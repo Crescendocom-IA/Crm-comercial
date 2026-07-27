@@ -77,9 +77,9 @@ ErpIntegrationTab.tsx(137,14): TS2352 Conversion ... to 'SyncLog[]' may be a mis
 
 ## Categoria 3 — Uso de `any` que precisa refino (0)
 
-Nenhum erro desta categoria no levantamento atual. (`noImplicitAny` está
-desligado em ambos os tsconfig, então `any` implícito não vira erro; isto é uma
-escolha de configuração, não dívida catalogada aqui.)
+Nenhum erro desta categoria no levantamento de 2026-07-24. **Atualização
+(2026-07-27): `strict` foi ligado** — ver a seção "TypeScript strict — LIGADO"
+abaixo. `noImplicitAny` e `strictNullChecks` deixaram de estar desligados.
 
 ---
 
@@ -94,6 +94,38 @@ escolha de configuração, não dívida catalogada aqui.)
 A Categoria 1 é a única com bug de comportamento; a Categoria 2 é ruído de tipo
 de uma única causa. Enquanto o catálogo não for zerado, `npm run typecheck`
 continua saindo diferente de 0 — o que é o esperado: agora ele conta a verdade.
+
+---
+
+## TypeScript strict — LIGADO (Fatia 1, 2026-07-27)
+
+`tsconfig.app.json` passou de `strict: false` para **`strict: true` pleno**.
+A auditoria contou **18 erros**, corrigidos numa sessão, por flag:
+
+| Flag | Erros | Como foi resolvido |
+|------|-------|--------------------|
+| `noImplicitAny` | 4 | `@types/canvas-confetti` (2 imports sem tipo); `e: string` num map de jsonb; tipo no mock de `matchMedia` |
+| `strictNullChecks` | 11 | `?? 0` em contadores/step; tipos locais alinhados ao `Row` gerado (EmailSequences, LeadScoring) |
+| `strictFunctionTypes` | 4 | Formatters do recharts: deixar o TS inferir o `ValueType` da lib + `Number(v)` |
+
+Resultado: **`npm run typecheck` = 0 com `strict: true`**. `strict` pleno **não**
+adicionou erros de `strictPropertyInitialization`, `noImplicitThis` nem
+`useUnknownInCatchVariables` (os `catch` já eram `catch (e: any)`).
+
+**Bugs encontrados: nenhum de runtime.** Os 7 "possibly null" de Inbox/
+EmailSequences pareciam bug de NaN nos contadores, mas **não eram**: em JS `null`
+coage para 0 nesses contextos (`null > 0` é `false`, `null + 1` é `1`, nunca
+NaN). O `?? 0` tornou a intenção explícita e satisfez o strict, sem mudar
+comportamento. Os 4 do recharts são fricção de tipos da lib, não bug.
+
+### Fatia 2 (pendente) — `as any` de escrita → tipos gerados
+
+O strict **não toca** os `as any`: o cast suprime o check. Há **155 `as any` em
+`src/`** (40 arquivos), dos quais **55 são payloads de escrita Supabase**
+(`insert`/`update`/`upsert`, 19 arquivos, liderados por `useLeadScoring`,
+`useIntegrations`, `OnboardingModal`, `useEmails`). Substituí-los pelos tipos
+gerados (`Database['public']['Tables'][…]['Insert' | 'Update']`) é o que fecha o
+"coluna errada compila em silêncio" — trabalho próprio, reservado para a Fatia 2.
 
 ---
 

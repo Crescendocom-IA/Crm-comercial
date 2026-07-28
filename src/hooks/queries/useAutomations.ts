@@ -88,7 +88,7 @@ export function useAutomationMutation() {
    */
   const toggleActive = useMutation({
     mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      const { error } = await supabase.from("automations").update({ is_active: active } as any).eq("id", id);
+      const { error } = await supabase.from("automations").update({ is_active: active }).eq("id", id);
       if (error) throw error;
     },
     onMutate: ({ id, active }) => patchAutomation(qc, orgId, id, { is_active: active }),

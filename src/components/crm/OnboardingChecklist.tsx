@@ -124,7 +124,7 @@ export function OnboardingChecklist() {
 
   const handleDismiss = async () => {
     if (!user?.id) return;
-    await supabase.from("onboarding_progress").update({ dismissed_at: new Date().toISOString(), completed: true } as any).eq("user_id", user.id);
+    await supabase.from("onboarding_progress").update({ dismissed_at: new Date().toISOString(), completed: true }).eq("user_id", user.id);
     setData((prev) => prev ? { ...prev, dismissed_at: new Date().toISOString(), completed: true } : prev);
   };
 

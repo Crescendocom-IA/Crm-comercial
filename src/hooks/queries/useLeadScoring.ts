@@ -122,7 +122,7 @@ export function useLeadScoringRuleMutation() {
   const toggle = useMutation({
     mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
       const { error } = await supabase.from("lead_scoring_rules")
-        .update({ is_active: active } as any).eq("id", id);
+        .update({ is_active: active }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: invalidar,
@@ -132,7 +132,7 @@ export function useLeadScoringRuleMutation() {
   const updatePoints = useMutation({
     mutationFn: async ({ id, points }: { id: string; points: number }) => {
       const { error } = await supabase.from("lead_scoring_rules")
-        .update({ points } as any).eq("id", id);
+        .update({ points }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: invalidar,
@@ -166,7 +166,7 @@ export function useScoreAdjustMutation() {
     mutationFn: async ({ contactId, newScore, delta, reason }: {
       contactId: string; newScore: number; delta: number; reason: string;
     }) => {
-      const up = await supabase.from("contacts").update({ lead_score: newScore } as any).eq("id", contactId);
+      const up = await supabase.from("contacts").update({ lead_score: newScore }).eq("id", contactId);
       if (up.error) throw up.error;
       const hist = await supabase.from("lead_score_history").insert({
         org_id: orgId!, contact_id: contactId, points: delta, reason,

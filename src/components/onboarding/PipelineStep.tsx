@@ -98,7 +98,7 @@ export function PipelineStep({ orgId, setCanContinue, onNext, setStepData, stepD
     setLoading(true);
     try {
       const currency = stepData.currency || "BRL";
-      await supabase.from("pipelines").update({ is_default: false } as any).eq("org_id", orgId);
+      await supabase.from("pipelines").update({ is_default: false }).eq("org_id", orgId);
       const { data: pipeline, error } = await supabase
         .from("pipelines")
         .insert({ name: TEMPLATES[selected].label, org_id: orgId, is_default: true, currency })

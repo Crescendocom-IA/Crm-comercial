@@ -58,7 +58,7 @@ export function useEmailMutation() {
   /** Marca como lido. Otimista e sem refetch — roda a cada abertura de email. */
   const markRead = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("emails").update({ is_read: true } as any).eq("id", id);
+      const { error } = await supabase.from("emails").update({ is_read: true }).eq("id", id);
       if (error) throw error;
     },
     onMutate: (id) => patchEmail(qc, orgId, id, { is_read: true }),
@@ -66,7 +66,7 @@ export function useEmailMutation() {
 
   const archive = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("emails").update({ is_archived: true } as any).eq("id", id);
+      const { error } = await supabase.from("emails").update({ is_archived: true }).eq("id", id);
       if (error) throw error;
     },
     // A lista esconde arquivados; patch em vez de remover mantém o dado se algo
@@ -77,7 +77,7 @@ export function useEmailMutation() {
   const snooze = useMutation({
     mutationFn: async ({ id, hours }: { id: string; hours: number }) => {
       const until = new Date(Date.now() + hours * 3600000).toISOString();
-      const { error } = await supabase.from("emails").update({ snoozed_until: until, is_read: true } as any).eq("id", id);
+      const { error } = await supabase.from("emails").update({ snoozed_until: until, is_read: true }).eq("id", id);
       if (error) throw error;
       return until;
     },
@@ -110,7 +110,7 @@ export function useEmailMutation() {
   /** Arquiva vários de uma vez — o único caminho em lote da tela. */
   const bulkArchive = useMutation({
     mutationFn: async (ids: string[]) => {
-      await Promise.all(ids.map((id) => supabase.from("emails").update({ is_archived: true } as any).eq("id", id)));
+      await Promise.all(ids.map((id) => supabase.from("emails").update({ is_archived: true }).eq("id", id)));
       return ids.length;
     },
     onSuccess: invalidar,

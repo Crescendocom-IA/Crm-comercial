@@ -97,7 +97,7 @@ export function useEmailSequenceMutation() {
     // Param estreito (id + estado atual) para não acoplar ao Row completo da tela.
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
       const { error } = await supabase.from("email_sequences")
-        .update({ is_active: !isActive } as any).eq("id", id);
+        .update({ is_active: !isActive }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: invalidar,

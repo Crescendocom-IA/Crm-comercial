@@ -112,7 +112,7 @@ export function OnboardingChecklist() {
       }
 
       if (Object.keys(updates).length > 0) {
-        await supabase.from("onboarding_progress").update(updates as any).eq("user_id", user.id);
+        await supabase.from("onboarding_progress").update(updates).eq("user_id", user.id);
         setData((prev) => prev ? { ...prev, ...updates } : prev);
       }
     };

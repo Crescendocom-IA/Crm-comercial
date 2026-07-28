@@ -211,7 +211,7 @@ export function useCompanyMutation() {
 
   const update = useMutation({
     mutationFn: async ({ company, patch }: { company: Company; patch: Partial<Company> }) => {
-      const { error } = await supabase.from("companies").update(patch as any).eq("id", company.id);
+      const { error } = await supabase.from("companies").update(patch).eq("id", company.id);
       if (error) throw error;
       void logAudit({
         orgId: company.org_id, action: "update", entityType: "company", entityId: company.id,

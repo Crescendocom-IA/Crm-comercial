@@ -375,7 +375,7 @@ export function useDealMutation(stages: { id: string; name: string }[] = []) {
   const update = useMutation({
     mutationFn: async ({ deal, patch }: { deal: Deal; patch: Partial<Deal> }) => {
       const { data, error } = await supabase
-        .from("deals").update(patch as any).eq("id", deal.id).select().single();
+        .from("deals").update(patch).eq("id", deal.id).select().single();
       if (error) throw error;
 
       void logAudit({
@@ -404,7 +404,7 @@ export function useDealMutation(stages: { id: string; name: string }[] = []) {
         ? { status } as Partial<Deal>
         : { status, loss_reason: lossReason ?? null } as Partial<Deal>;
       const { data, error } = await supabase
-        .from("deals").update(patch as any).eq("id", deal.id).select().single();
+        .from("deals").update(patch).eq("id", deal.id).select().single();
       if (error) throw error;
 
       // Antes da migração, marcar um negócio como ganho ou perdido pela tela de

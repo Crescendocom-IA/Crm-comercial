@@ -40,7 +40,7 @@ export function useOrganizationMutation() {
 
   const update = useMutation({
     mutationFn: async (patch: Partial<Organization>) => {
-      const { error } = await supabase.from("organizations").update(patch as any).eq("id", orgId!);
+      const { error } = await supabase.from("organizations").update(patch).eq("id", orgId!);
       if (error) throw error;
     },
     onSuccess: invalidar,

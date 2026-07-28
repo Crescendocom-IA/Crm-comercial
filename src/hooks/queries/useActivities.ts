@@ -104,7 +104,7 @@ export function useActivityMutation() {
 
   const update = useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: Partial<ActivityInsert> }) => {
-      const { error } = await supabase.from("activities").update(patch as any).eq("id", id);
+      const { error } = await supabase.from("activities").update(patch).eq("id", id);
       if (error) throw error;
     },
     onSuccess: invalidar,

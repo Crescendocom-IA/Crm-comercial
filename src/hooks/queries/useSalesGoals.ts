@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { STALE_TIME } from "./config";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, TablesInsert } from "@/integrations/supabase/types";
 
 type SalesGoal = Database["public"]["Tables"]["sales_goals"]["Row"];
 
@@ -86,12 +86,12 @@ export function useSalesGoalMutation() {
   const invalidar = () => qc.invalidateQueries({ queryKey: salesGoalKeys.all(orgId) });
 
   const save = useMutation({
-    mutationFn: async ({ id, payload }: { id?: string; payload: Record<string, unknown> }) => {
+    mutationFn: async ({ id, payload }: { id?: string; payload: Omit<TablesInsert<"sales_goals">, "org_id"> }) => {
       if (id) {
-        const { error } = await supabase.from("sales_goals").update(payload as any).eq("id", id);
+        const { error } = await supabase.from("sales_goals").update(payload).eq("id", id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("sales_goals").insert({ ...payload, org_id: orgId! } as any);
+        const { error } = await supabase.from("sales_goals").insert({ ...payload, org_id: orgId! });
         if (error) throw error;
       }
     },

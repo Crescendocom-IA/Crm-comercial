@@ -287,7 +287,7 @@ export function useContactMutation() {
 
   const update = useMutation({
     mutationFn: async ({ contact, patch }: { contact: Contact; patch: Partial<Contact> }) => {
-      const { error } = await supabase.from("contacts").update(patch as any).eq("id", contact.id);
+      const { error } = await supabase.from("contacts").update(patch).eq("id", contact.id);
       if (error) throw error;
       // Só os campos editáveis vão para o log: o diff da timeline compara
       // old/new e ignora o que não mudou.

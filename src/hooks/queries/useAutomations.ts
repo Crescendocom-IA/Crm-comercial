@@ -2,9 +2,11 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tansta
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { STALE_TIME } from "./config";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, TablesInsert } from "@/integrations/supabase/types";
 
 export type Automation = Database["public"]["Tables"]["automations"]["Row"];
+// O caller passa tudo menos org_id/is_active — a mutation os adiciona.
+type AutomationInsert = Omit<TablesInsert<"automations">, "org_id" | "is_active">;
 type AutomationLog = Database["public"]["Tables"]["automation_logs"]["Row"];
 
 /*
@@ -66,13 +68,13 @@ export function useAutomationMutation() {
   const invalidar = () => qc.invalidateQueries({ queryKey: automationKeys.all(orgId) });
 
   const save = useMutation({
-    mutationFn: async ({ id, payload }: { id?: string; payload: Record<string, unknown> }) => {
+    mutationFn: async ({ id, payload }: { id?: string; payload: AutomationInsert }) => {
       if (id) {
         // Editar não mexe no is_active: preserva ligada/desligada como estava.
-        const { error } = await supabase.from("automations").update(payload as any).eq("id", id);
+        const { error } = await supabase.from("automations").update(payload).eq("id", id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("automations").insert({ ...payload, org_id: orgId!, is_active: true } as any);
+        const { error } = await supabase.from("automations").insert({ ...payload, org_id: orgId!, is_active: true });
         if (error) throw error;
       }
     },
@@ -101,8 +103,8 @@ export function useAutomationMutation() {
   });
 
   const duplicate = useMutation({
-    mutationFn: async (payload: Record<string, unknown>) => {
-      const { error } = await supabase.from("automations").insert({ ...payload, org_id: orgId!, is_active: false } as any);
+    mutationFn: async (payload: AutomationInsert) => {
+      const { error } = await supabase.from("automations").insert({ ...payload, org_id: orgId!, is_active: false });
       if (error) throw error;
     },
     onSuccess: invalidar,

@@ -120,12 +120,35 @@ comportamento. Os 4 do recharts são fricção de tipos da lib, não bug.
 
 ### Fatia 2 (pendente) — `as any` de escrita → tipos gerados
 
-O strict **não toca** os `as any`: o cast suprime o check. Há **155 `as any` em
-`src/`** (40 arquivos), dos quais **55 são payloads de escrita Supabase**
-(`insert`/`update`/`upsert`, 19 arquivos, liderados por `useLeadScoring`,
-`useIntegrations`, `OnboardingModal`, `useEmails`). Substituí-los pelos tipos
-gerados (`Database['public']['Tables'][…]['Insert' | 'Update']`) é o que fecha o
-"coluna errada compila em silêncio" — trabalho próprio, reservado para a Fatia 2.
+O strict **não toca** os `as any`: o cast suprime o check. Havia **55 `as any`
+de escrita Supabase** (`insert`/`update`/`upsert`, 19 arquivos). **RESOLVIDO na
+Fatia 2 (2026-07-28)** — ver abaixo.
+
+### Fatia 2 — `as any` de escrita → tipos gerados (RESOLVIDA, 2026-07-28)
+
+Os 55 `as any` de escrita foram substituídos pelos tipos gerados; **2
+sobreviveram** por motivo real. Padrões usados:
+
+| Padrão | Solução |
+|--------|---------|
+| `patch: Partial<Row>` | `.update(patch)` direto — `Partial<Row>` é atribuível a `TablesUpdate` |
+| `payload: Record<string, unknown>` (spread + org_id) | param `Omit<TablesInsert<T>, "org_id" \| "is_active">` |
+| campo único (`{ is_read: true }`) | literal direto — o `TablesUpdate` valida o nome do campo |
+| jsonb (`config`, `filters`, `settings`) | param tipado como `Json` |
+| enum `app_role` (vindo de `<Select>` como string) | **cast pontual** `as Enums<"app_role">` — não `as any` |
+| `Record<string, any>` numa var (OnboardingModal.progressData) | remover a anotação, deixar o literal inferido |
+
+**Sobreviventes (2), com `// eslint-disable-next-line`:** `CSVImportModal`
+`upsert`/`insert` — payload dinâmico do mapeamento de CSV (colunas escolhidas em
+runtime) e `entityType` união de tabelas; não há tipo estático possível.
+
+**Bugs de coluna encontrados: nenhum** — todos os payloads já batiam com o
+schema. O valor da Fatia foi remover a *possibilidade* de "coluna errada compila
+em silêncio": agora um insert/update com nome de coluna ou tipo errado quebra o
+`npm run typecheck`.
+
+**Fora do escopo (ficam):** os `as any` de **leitura** (`.select(...) as any`,
+ex.: `useIntegrations` 28/80/129) — a Fatia 2 tratou só escrita.
 
 ---
 

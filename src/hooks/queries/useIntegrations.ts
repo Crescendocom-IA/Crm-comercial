@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { STALE_TIME } from "./config";
+import type { Json, TablesInsert } from "@/integrations/supabase/types";
 
 /*
  * Integrações: configs por provider (Slack, ERP, Resend...), webhooks e chaves
@@ -41,15 +42,15 @@ export function useIntegrationMutation() {
   /** Cria ou atualiza a config de um provider (upsert manual por existência). */
   const saveConfig = useMutation({
     mutationFn: async ({ id, provider, config, connectedBy }: {
-      id?: string; provider: string; config: unknown; connectedBy?: string;
+      id?: string; provider: string; config: Json; connectedBy?: string;
     }) => {
       if (id) {
-        const { error } = await (supabase.from("integration_configs")
-          .update({ config, is_active: true } as any).eq("id", id) as any);
+        const { error } = await supabase.from("integration_configs")
+          .update({ config, is_active: true }).eq("id", id);
         if (error) throw error;
       } else {
-        const { error } = await (supabase.from("integration_configs")
-          .insert({ org_id: orgId!, provider, config, connected_by: connectedBy } as any) as any);
+        const { error } = await supabase.from("integration_configs")
+          .insert({ org_id: orgId!, provider, config, connected_by: connectedBy });
         if (error) throw error;
       }
     },
@@ -58,8 +59,8 @@ export function useIntegrationMutation() {
 
   const toggle = useMutation({
     mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      const { error } = await (supabase.from("integration_configs")
-        .update({ is_active: active } as any).eq("id", id) as any);
+      const { error } = await supabase.from("integration_configs")
+        .update({ is_active: active }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: invalidar,
@@ -91,8 +92,8 @@ export function useWebhookMutation() {
   const invalidar = () => qc.invalidateQueries({ queryKey: integrationKeys.webhooks(orgId) });
 
   const create = useMutation({
-    mutationFn: async (payload: Record<string, unknown>) => {
-      const { error } = await (supabase.from("webhooks").insert({ ...payload, org_id: orgId! } as any) as any);
+    mutationFn: async (payload: Omit<TablesInsert<"webhooks">, "org_id">) => {
+      const { error } = await supabase.from("webhooks").insert({ ...payload, org_id: orgId! });
       if (error) throw error;
     },
     onSuccess: invalidar,
@@ -108,7 +109,7 @@ export function useWebhookMutation() {
 
   const toggle = useMutation({
     mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      const { error } = await (supabase.from("webhooks").update({ is_active: active } as any).eq("id", id) as any);
+      const { error } = await supabase.from("webhooks").update({ is_active: active }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: invalidar,
@@ -140,8 +141,8 @@ export function useApiKeyMutation() {
   const invalidar = () => qc.invalidateQueries({ queryKey: integrationKeys.apiKeys(orgId) });
 
   const create = useMutation({
-    mutationFn: async (payload: Record<string, unknown>) => {
-      const { error } = await (supabase.from("api_keys").insert({ ...payload, org_id: orgId! } as any) as any);
+    mutationFn: async (payload: Omit<TablesInsert<"api_keys">, "org_id">) => {
+      const { error } = await supabase.from("api_keys").insert({ ...payload, org_id: orgId! });
       if (error) throw error;
     },
     onSuccess: invalidar,
@@ -150,7 +151,7 @@ export function useApiKeyMutation() {
   /** Revoga sem apagar: mantém o histórico da chave, só desativa. */
   const revoke = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase.from("api_keys").update({ is_active: false } as any).eq("id", id) as any);
+      const { error } = await supabase.from("api_keys").update({ is_active: false }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: invalidar,

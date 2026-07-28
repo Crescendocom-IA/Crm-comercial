@@ -224,11 +224,16 @@ export function CSVImportModal({ open, onOpenChange, onImported, entityType }: C
       let inserted = 0;
       let updated = 0;
       if (toUpdate.length) {
+        // Payload dinâmico: as colunas vêm do mapeamento de CSV escolhido em
+        // runtime, e entityType é união de tabelas — não há tipo estático.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await supabase.from(entityType).upsert(toUpdate as any, { onConflict: "id" });
         if (error) { toast({ title: "Erro ao atualizar existentes", description: error.message, variant: "destructive" }); setImporting(false); return; }
         updated = toUpdate.length;
       }
       if (toInsert.length) {
+        // Idem: colunas dinâmicas do mapeamento de CSV, sem tipo estático.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await supabase.from(entityType).insert(toInsert as any);
         if (error) { toast({ title: "Erro ao inserir novos", description: error.message, variant: "destructive" }); setImporting(false); return; }
         inserted = toInsert.length;

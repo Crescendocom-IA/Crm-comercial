@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { useAuth } from "@/contexts/AuthContext";
 import { STALE_TIME } from "./config";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, Json } from "@/integrations/supabase/types";
 
 type ScoringRule = Database["public"]["Tables"]["lead_scoring_rules"]["Row"];
 
@@ -108,11 +108,11 @@ export function useLeadScoringRuleMutation() {
     }) => {
       if (id) {
         const { error } = await supabase.from("lead_scoring_rules")
-          .update({ label, event_type: eventType, points } as any).eq("id", id);
+          .update({ label, event_type: eventType, points }).eq("id", id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("lead_scoring_rules")
-          .insert({ org_id: orgId!, label, event_type: eventType, points } as any);
+          .insert({ org_id: orgId!, label, event_type: eventType, points });
         if (error) throw error;
       }
     },
@@ -190,15 +190,15 @@ export function useSegmentMutation() {
 
   const save = useMutation({
     mutationFn: async ({ id, name, description, filters }: {
-      id?: string; name: string; description: string | null; filters: unknown;
+      id?: string; name: string; description: string | null; filters: Json;
     }) => {
       if (id) {
         const { error } = await supabase.from("segments")
-          .update({ name, description, filters } as any).eq("id", id);
+          .update({ name, description, filters }).eq("id", id);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("segments")
-          .insert({ org_id: orgId!, name, description, filters, created_by: user?.id } as any);
+          .insert({ org_id: orgId!, name, description, filters, created_by: user?.id });
         if (error) throw error;
       }
     },

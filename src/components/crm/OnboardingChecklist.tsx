@@ -57,7 +57,7 @@ export function OnboardingChecklist() {
     if (!row) {
       // Create initial row
       const { data: created } = await supabase.from("onboarding_progress")
-        .insert({ user_id: user.id, org_id: orgId } as any)
+        .insert({ user_id: user.id, org_id: orgId })
         .select()
         .single();
       setData(created as any);

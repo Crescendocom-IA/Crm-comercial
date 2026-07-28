@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { STALE_TIME } from "./config";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database, Enums } from "@/integrations/supabase/types";
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type TeamMember = Profile & { role: string };
@@ -120,7 +120,9 @@ export function useTeamMutation() {
   const changeRole = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
       const { error } = await supabase.from("user_roles")
-        .update({ role } as any).eq("user_id", userId).eq("org_id", orgId!);
+        // role vem de um Select (string); a coluna é o enum app_role. Cast
+        // pontual: o valor é sempre um role válido, o TS só não estreita.
+        .update({ role: role as Enums<"app_role"> }).eq("user_id", userId).eq("org_id", orgId!);
       if (error) throw error;
     },
     onSuccess: invalidar,
@@ -144,7 +146,7 @@ export function useTeamMutation() {
         if (error) throw error;
       } else {
         const { error } = await supabase.from("role_permissions")
-          .insert({ org_id: orgId!, role: role as any, permission, allowed });
+          .insert({ org_id: orgId!, role: role as Enums<"app_role">, permission, allowed });
         if (error) throw error;
       }
     },
@@ -173,7 +175,7 @@ export function useTeamGroupMutation() {
 
   const create = useMutation({
     mutationFn: async (name: string) => {
-      const { error } = await supabase.from("teams").insert({ org_id: orgId!, name } as any);
+      const { error } = await supabase.from("teams").insert({ org_id: orgId!, name });
       if (error) throw error;
     },
     onSuccess: invalidar,
@@ -193,7 +195,7 @@ export function useTeamGroupMutation() {
         const { error } = await supabase.from("team_members").delete().eq("team_id", teamId).eq("user_id", userId);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from("team_members").insert({ team_id: teamId, user_id: userId } as any);
+        const { error } = await supabase.from("team_members").insert({ team_id: teamId, user_id: userId });
         if (error) throw error;
       }
     },

@@ -149,7 +149,7 @@ export function useLossReasonMutation() {
 
   const add = useMutation({
     mutationFn: async (label: string) => {
-      const { error } = await (supabase.from("loss_reasons").insert({ org_id: orgId!, label } as any) as any);
+      const { error } = await supabase.from("loss_reasons").insert({ org_id: orgId!, label });
       if (error) throw error;
     },
     onSuccess: invalidar,

@@ -101,12 +101,12 @@ export function SlackStep({ orgId, setCanContinue, setStepData }: OnboardingStep
         if (existing) {
           await supabase
             .from("integration_configs")
-            .update({ config: cfg as any, is_active: true } as any)
+            .update({ config: cfg, is_active: true })
             .eq("id", existing.id);
         } else {
           await supabase
             .from("integration_configs")
-            .insert({ org_id: orgId, provider: "slack", is_active: true, config: cfg as any } as any);
+            .insert({ org_id: orgId, provider: "slack", is_active: true, config: cfg });
         }
       } else {
         toast({ title: "Erro", description: data?.error || "Falha ao enviar", variant: "destructive" });

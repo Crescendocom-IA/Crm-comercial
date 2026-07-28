@@ -88,7 +88,7 @@ export function OnboardingModal() {
       setCurrentStep((prev) => (prev === 0 ? resumeStep : prev));
 
       if ((p.onboarding_step ?? 1) < resumeStep + 1) {
-        await supabase.from("profiles").update({ onboarding_step: resumeStep + 1 } as any).eq("id", user.id);
+        await supabase.from("profiles").update({ onboarding_step: resumeStep + 1 }).eq("id", user.id);
       }
     })();
   }, [user, profile]);
@@ -118,7 +118,7 @@ export function OnboardingModal() {
 
   const saveProgress = useCallback(async (step: number) => {
     if (!user) return;
-    await supabase.from("profiles").update({ onboarding_step: step + 1 } as any).eq("id", user.id);
+    await supabase.from("profiles").update({ onboarding_step: step + 1 }).eq("id", user.id);
   }, [user]);
 
   const advancingRef = useRef(false);
@@ -135,7 +135,7 @@ export function OnboardingModal() {
       // Save progress to profile (non-blocking, using setTimeout to avoid re-fetch loop)
       if (user) {
         setTimeout(() => {
-          supabase.from("profiles").update({ onboarding_step: next + 1 } as any).eq("id", user.id);
+          supabase.from("profiles").update({ onboarding_step: next + 1 }).eq("id", user.id);
         }, 0);
       }
       setTimeout(() => { advancingRef.current = false; }, 300);
@@ -160,11 +160,11 @@ export function OnboardingModal() {
     });
 
     // Mark onboarding as completed in profile
-    await supabase.from("profiles").update({ onboarding_completed: true, onboarding_step: STEPS.length } as any).eq("id", user.id);
+    await supabase.from("profiles").update({ onboarding_completed: true, onboarding_step: STEPS.length }).eq("id", user.id);
 
     // Update onboarding_progress table for full tracking
     if (orgId) {
-      const progressData: Record<string, any> = {
+      const progressData = {
         user_id: user.id,
         org_id: orgId,
         completed: true,
@@ -180,7 +180,7 @@ export function OnboardingModal() {
       if (existing) {
         await supabase.from("onboarding_progress").update(progressData).eq("id", existing.id);
       } else {
-        await supabase.from("onboarding_progress").insert(progressData as any);
+        await supabase.from("onboarding_progress").insert(progressData);
       }
     }
 
@@ -203,7 +203,7 @@ export function OnboardingModal() {
    */
   const handleSkipOnboarding = useCallback(async () => {
     if (!user) return;
-    await supabase.from("profiles").update({ onboarding_completed: true } as any).eq("id", user.id);
+    await supabase.from("profiles").update({ onboarding_completed: true }).eq("id", user.id);
     // O efeito de abertura observa profile.onboarding_completed — sem atualizar
     // o contexto, o modal voltaria a abrir.
     await refreshProfile();

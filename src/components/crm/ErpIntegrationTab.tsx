@@ -109,11 +109,11 @@ export function ErpIntegrationTab() {
     const { token, hash } = await generateToken();
     if (configId) {
       await supabase.from("integration_configs")
-        .update({ config: { token_hash: hash }, is_active: true } as any)
+        .update({ config: { token_hash: hash }, is_active: true })
         .eq("id", configId);
     } else {
       await supabase.from("integration_configs")
-        .insert({ org_id: orgId, provider: "erp", config: { token_hash: hash }, is_active: true, connected_by: user?.id } as any);
+        .insert({ org_id: orgId, provider: "erp", config: { token_hash: hash }, is_active: true, connected_by: user?.id });
     }
     setPlainToken(token);
     toast({ title: "Token gerado", description: "Copie agora — ele não será exibido de novo." });
@@ -123,7 +123,7 @@ export function ErpIntegrationTab() {
   const handleToggle = async (next: boolean) => {
     if (!configId) return;
     setIsActive(next);
-    await supabase.from("integration_configs").update({ is_active: next } as any).eq("id", configId);
+    await supabase.from("integration_configs").update({ is_active: next }).eq("id", configId);
   };
 
   const openLog = async () => {

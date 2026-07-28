@@ -80,7 +80,7 @@ export function CompanyStep({ orgId, userId, setCanContinue, onNext, setOrgId, s
       const settings = { segment, team_size: teamSize, default_currency: currency };
 
       if (orgId) {
-        await supabase.from("organizations").update({ name: name.trim(), settings } as any).eq("id", orgId);
+        await supabase.from("organizations").update({ name: name.trim(), settings }).eq("id", orgId);
       } else {
         const { data: newOrgId, error } = await supabase.rpc("create_organization_for_user" as any, {
           p_user_id: userId,
@@ -91,7 +91,7 @@ export function CompanyStep({ orgId, userId, setCanContinue, onNext, setOrgId, s
         if (error || !newOrgId) throw error || new Error("Falha ao criar empresa");
         setOrgId(newOrgId as string);
       }
-      await supabase.from("profiles").update({ timezone } as any).eq("id", userId);
+      await supabase.from("profiles").update({ timezone }).eq("id", userId);
       await refreshProfile();
       setStepData("orgName", name.trim());
       setStepData("currency", currency);

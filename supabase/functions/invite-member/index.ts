@@ -65,26 +65,45 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Send magic link invite
-    const { data: inviteData, error: inviteError } =
-      await serviceClient.auth.admin.inviteUserByEmail(email, {
-        data: { org_id, role: role || "member" },
-      });
+    const inviteRole = role || "member";
 
-    if (inviteError) {
-      return new Response(JSON.stringify({ error: inviteError.message }), {
+    // Admin convida member/admin; só o owner pode criar outro owner.
+    if (inviteRole === "owner" && callerRole.role !== "owner") {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // O convite é gravado ANTES de criar o usuário: inviteUserByEmail insere em
+    // auth.users na hora, o trigger handle_new_user roda nesse instante e só
+    // aceita entrar na org se o registro em invitations já existir.
+    const { data: invitation, error: invitationError } = await serviceClient
+      .from("invitations")
+      .insert({ org_id, email, role: inviteRole, invited_by: callerId })
+      .select("id")
+      .single();
+
+    if (invitationError) {
+      return new Response(JSON.stringify({ error: invitationError.message }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Record invitation
-    await serviceClient.from("invitations").insert({
-      org_id,
-      email,
-      role: role || "member",
-      invited_by: callerId,
-    });
+    // Send magic link invite
+    const { data: inviteData, error: inviteError } =
+      await serviceClient.auth.admin.inviteUserByEmail(email, {
+        data: { org_id, role: inviteRole },
+      });
+
+    if (inviteError) {
+      await serviceClient.from("invitations").delete().eq("id", invitation.id);
+      return new Response(JSON.stringify({ error: inviteError.message }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     return new Response(JSON.stringify({ success: true, user: inviteData.user }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

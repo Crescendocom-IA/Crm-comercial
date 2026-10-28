@@ -130,8 +130,9 @@ export function useTeamMutation() {
 
   const removeMember = useMutation({
     mutationFn: async (userId: string) => {
-      await supabase.from("user_roles").delete().eq("user_id", userId).eq("org_id", orgId!);
-      const { error } = await supabase.from("profiles").update({ org_id: null }).eq("id", userId);
+      // RPC porque o RLS de profiles só deixa cada um editar o próprio: zerar o
+      // org_id do removido direto do cliente não fazia nada, e ele mantinha acesso.
+      const { error } = await supabase.rpc("remove_org_member", { p_user_id: userId });
       if (error) throw error;
     },
     onSuccess: invalidar,

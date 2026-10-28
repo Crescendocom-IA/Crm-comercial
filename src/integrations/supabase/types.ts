@@ -2466,6 +2466,24 @@ export type Database = {
         }
         Returns: string
       }
+      deal_funnel: {
+        Args: {
+          p_from?: string
+          p_owner_id?: string
+          p_pipeline_id: string
+          p_to?: string
+        }
+        Returns: {
+          reached_count: number
+          reached_value: number
+          stage_color: string
+          stage_id: string
+          stage_name: string
+          stage_order: number
+          won_count: number
+          won_value: number
+        }[]
+      }
       get_user_org_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
@@ -2477,6 +2495,10 @@ export type Database = {
       }
       initialize_org_owner: {
         Args: { p_org_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      remove_org_member: {
+        Args: { p_user_id: string }
         Returns: undefined
       }
       user_belongs_to_org: {

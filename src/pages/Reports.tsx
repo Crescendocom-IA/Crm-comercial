@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
-import { useReportsData, useDealProbabilityMutation } from "@/hooks/queries/useReports";
+import { useReportsData, useDealProbabilityMutation, useDealFunnel } from "@/hooks/queries/useReports";
+import { SalesFunnelChart } from "@/components/crm/SalesFunnelChart";
 import { useSegmentsQuery, useSegmentMutation } from "@/hooks/queries/useLeadScoring";
 import { useNavigate } from "react-router-dom";
 import { EmptyState } from "@/components/crm/EmptyState";
@@ -254,7 +255,10 @@ export default function Reports() {
 
         {/* ═══════════════════════ TAB 1: VENDAS ═══════════════════════ */}
         <TabsContent value="sales">
-          <SalesReport deals={filteredDeals} stages={stages} members={members} companies={companies} allDeals={deals} periodRange={periodRange} />
+          <SalesReport
+            deals={filteredDeals} stages={stages} members={members} companies={companies} allDeals={deals}
+            periodRange={periodRange} pipelines={pipelines} pipelineFilter={pipelineFilter} ownerFilter={ownerFilter}
+          />
         </TabsContent>
 
         {/* ═══════════════════════ TAB 2: ATIVIDADES ═══════════════════ */}
@@ -284,9 +288,10 @@ export default function Reports() {
 // ══════════════════════════════════════════════
 // TAB 1: Sales Report
 // ══════════════════════════════════════════════
-function SalesReport({ deals, stages, members, companies, allDeals, periodRange }: {
+function SalesReport({ deals, stages, members, companies, allDeals, periodRange, pipelines, pipelineFilter, ownerFilter }: {
   deals: Deal[]; stages: Stage[]; members: Profile[]; companies: Company[]; allDeals: Deal[];
   periodRange: { start: Date | null; end: Date | null };
+  pipelines: Pipeline[]; pipelineFilter: string; ownerFilter: string;
 }) {
   const [groupBy, setGroupBy] = useState<"stage" | "owner" | "company" | "month">("stage");
 
@@ -373,12 +378,30 @@ function SalesReport({ deals, stages, members, companies, allDeals, periodRange 
     [members, deals]
   );
 
-  // Conversion between stages
-  const stageConversion = useMemo(() => stages.map((s, i) => {
-    const count = deals.filter((d) => d.stage_id === s.id).length;
-    const prevCount = i > 0 ? deals.filter((d) => d.stage_id === stages[i - 1].id).length : count;
-    return { name: s.name, rate: i === 0 ? 100 : pct(count, prevCount) };
-  }), [stages, deals]);
+  /*
+   * Conversão entre etapas: quantos negócios criados no período CHEGARAM a
+   * cada etapa (histórico em deal_stage_history). O cálculo antigo dividia a
+   * contagem ATUAL de etapas vizinhas e passava de 100%. Conversão só existe
+   * dentro de um pipeline: usa o do filtro ou, em "Todos", o padrão.
+   */
+  const funnelPipeline =
+    pipelines.find((p) => p.id === pipelineFilter) ?? pipelines.find((p) => p.is_default) ?? pipelines[0] ?? null;
+  // periodRange.end é o último dia (00:00); a função espera fim exclusivo.
+  const funnelTo = periodRange.end
+    ? new Date(periodRange.end.getFullYear(), periodRange.end.getMonth(), periodRange.end.getDate() + 1)
+    : null;
+  const { data: funnelRows = [] } = useDealFunnel({
+    pipelineId: funnelPipeline?.id ?? null,
+    from: periodRange.start,
+    to: funnelTo,
+    ownerId: ownerFilter !== "all" ? ownerFilter : null,
+  });
+  const conversionFunnel = funnelRows.map((r, i) => ({
+    name: r.stage_name,
+    count: Number(r.reached_count),
+    value: Number(r.reached_value),
+    color: r.stage_color || CHART_COLORS[i % CHART_COLORS.length],
+  }));
 
   // Avg time per stage
   const avgTimePerStage = useMemo(() => stages.map((s) => {
@@ -454,38 +477,18 @@ function SalesReport({ deals, stages, members, companies, allDeals, periodRange 
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm">Pipeline por Estágio</CardTitle></CardHeader>
           <CardContent>
-            <div className="space-y-1.5">
-              {funnelData.map((s) => {
-                const max = Math.max(...funnelData.map((f) => f.value), 1);
-                return (
-                  <div key={s.name}>
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span className="text-xs font-medium">{s.name}</span>
-                      <span className="text-xs text-muted-foreground">{s.count} · {fmt(s.value)}</span>
-                    </div>
-                    <div className="h-4 rounded bg-muted overflow-hidden">
-                      <div className="h-full rounded" style={{ width: `${Math.max((s.value / max) * 100, 2)}%`, backgroundColor: s.color }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <SalesFunnelChart stages={funnelData} height={200} />
           </CardContent>
         </Card>
 
-        {/* Conversion rates */}
+        {/* Conversion funnel */}
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Taxa de Conversão por Estágio</CardTitle></CardHeader>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Funil de Conversão{funnelPipeline ? ` · ${funnelPipeline.name}` : ""}</CardTitle>
+            <p className="text-xs text-muted-foreground">Negócios criados no período que chegaram a cada etapa; % = passagem da etapa anterior.</p>
+          </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={stageConversion}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" tick={{ fontSize: 9 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" domain={[0, 100]} />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v) => `${v}%`} />
-                <Bar dataKey="rate" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <SalesFunnelChart stages={conversionFunnel} showConversion height={200} />
           </CardContent>
         </Card>
 

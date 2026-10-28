@@ -116,7 +116,10 @@ export default function Team() {
       toast({ title: "Você não pode remover a si mesmo", variant: "destructive" });
       return;
     }
-    removeMemberMut.mutate(uid, { onSuccess: () => toast({ title: "Membro removido" }) });
+    removeMemberMut.mutate(uid, {
+      onSuccess: () => toast({ title: "Membro removido" }),
+      onError: (e: Error) => toast({ title: "Erro ao remover membro", description: e.message, variant: "destructive" }),
+    });
   };
 
   const cancelInvite = (id: string) =>

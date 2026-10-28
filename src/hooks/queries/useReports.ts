@@ -82,3 +82,37 @@ export function useDealProbabilityMutation() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["deals", orgId] }),
   });
 }
+
+/**
+ * Funil de conversão de um pipeline (função deal_funnel): quantos negócios
+ * criados no período CHEGARAM a cada etapa. Fica sob ['deals', ...] para que
+ * qualquer mutação de negócio (que invalida esse prefixo) o atualize.
+ *
+ * `to` é exclusivo. Sem pipeline não há funil — etapas de pipelines diferentes
+ * não formam uma sequência.
+ */
+export function useDealFunnel(params: {
+  pipelineId: string | null;
+  from: Date | null;
+  to: Date | null;
+  ownerId: string | null;
+}) {
+  const { orgId } = useOrg();
+  const { pipelineId, from, to, ownerId } = params;
+
+  return useQuery({
+    queryKey: ["deals", orgId, "funnel", pipelineId, from?.toISOString() ?? null, to?.toISOString() ?? null, ownerId] as const,
+    enabled: !!orgId && !!pipelineId,
+    staleTime: STALE_TIME.list,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("deal_funnel", {
+        p_pipeline_id: pipelineId!,
+        p_from: from?.toISOString(),
+        p_to: to?.toISOString(),
+        p_owner_id: ownerId ?? undefined,
+      });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+}

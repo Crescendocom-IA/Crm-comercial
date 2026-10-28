@@ -22,6 +22,7 @@ import {
   CalendarDays, Award, BarChart3,
 } from "lucide-react";
 import { DashboardAIChat } from "@/components/crm/DashboardAIChat";
+import { SalesFunnelChart } from "@/components/crm/SalesFunnelChart";
 
 // ── Helpers ──────────────────────────────────
 const fmt = (v: number) =>
@@ -299,35 +300,7 @@ export default function Dashboard() {
             </div>
           </CardHeader>
           <CardContent>
-            {funnelData.length > 0 ? (
-              <div className="space-y-2">
-                {funnelData.map((s, i) => {
-                  const maxVal = Math.max(...funnelData.map((f) => f.value), 1);
-                  return (
-                    <div key={s.name}>
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-xs font-medium">{s.name}</span>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>{s.count} negócios</span>
-                          <span className="font-medium text-foreground">{fmt(s.value)}</span>
-                        </div>
-                      </div>
-                      <div className="h-5 rounded bg-muted overflow-hidden">
-                        <div
-                          className="h-full rounded transition-all flex items-center justify-end pr-1"
-                          style={{
-                            width: `${Math.max((s.value / maxVal) * 100, 3)}%`,
-                            backgroundColor: s.color,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="flex h-[200px] items-center justify-center text-muted-foreground text-sm">Nenhum dado</div>
-            )}
+            <SalesFunnelChart stages={funnelData} height={220} />
           </CardContent>
         </Card>
 

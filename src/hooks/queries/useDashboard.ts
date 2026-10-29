@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/lib/fetchAll";
 import { useOrg } from "@/hooks/useOrg";
 import { useStagesQuery, useMembersQuery, usePipelinesQuery } from "./useOrgOptions";
 import { STALE_TIME } from "./config";
@@ -425,11 +426,9 @@ export function useAtRiskData(enabled: boolean) {
     queryKey: ["contacts", orgId, "at-risk"] as const,
     enabled: !!orgId && enabled,
     staleTime: STALE_TIME.counts,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("contacts").select("*").eq("org_id", orgId!);
-      if (error) throw error;
-      return data || [];
-    },
+    // Paginado (corte de 1.000 do PostgREST).
+    queryFn: () => fetchAll((from, to) =>
+      supabase.from("contacts").select("*").eq("org_id", orgId!).order("id").range(from, to)),
   });
   const activities = useQuery({
     queryKey: ["activities", orgId, "at-risk"] as const,

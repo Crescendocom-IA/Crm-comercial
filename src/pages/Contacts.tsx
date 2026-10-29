@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useContactsQuery, useContactsLastActivityQuery, useContactMutation,
   useContactBulkMutation, applyContactFilters, applyContactSort, CONTACTS_PAGE_SIZE,
   type ContactFilters, type ContactSortKey, type ContactSortDir,
 } from "@/hooks/queries/useContacts";
-import { useCompanyOptionsQuery, useMembersQuery } from "@/hooks/queries/useOrgOptions";
+import { useCompanyOptionsQuery, useMembersQuery, companySelectOptions } from "@/hooks/queries/useOrgOptions";
+import { SearchableSelect } from "@/components/crm/SearchableSelect";
 import { useRole } from "@/hooks/useRole";
 import { ErpBadge } from "@/components/crm/ErpBadge";
 import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
@@ -14,6 +15,7 @@ import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
+import { fetchAll } from "@/lib/fetchAll";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -118,6 +120,7 @@ export default function Contacts() {
 
   const { data: contacts, count: totalCount, isLoading: loading } = useContactsQuery(queryParams);
   const companies = useCompanyOptionsQuery();
+  const companyOptions = useMemo(() => companySelectOptions(companies), [companies]);
   const members = useMembersQuery();
   const lastActivityMap = useContactsLastActivityQuery(contacts.map((c) => c.id));
 
@@ -242,13 +245,16 @@ export default function Contacts() {
      * lista em memória exportaria só as 50 linhas visíveis — silenciosamente.
      */
     if (!orgId) return;
-    let q = supabase.from("contacts").select("*").eq("org_id", orgId);
-    q = applyContactSort(applyContactFilters(q, debouncedSearch, filters), sortKey, sortDir);
-    const { data } = await q;
-    const source = data || [];
+    // Paginado: o PostgREST corta em 1.000 e o export saía incompleto sem aviso.
+    const source = await fetchAll((from, to) =>
+      applyContactSort(applyContactFilters(supabase.from("contacts").select("*").eq("org_id", orgId), debouncedSearch, filters), sortKey, sortDir)
+        .order("id").range(from, to));
+    // Mapa em vez de .find por linha: com 11 mil contatos × 12 mil empresas o
+    // find viraria centenas de milhões de comparações.
+    const companyName = new Map(companies.map((co) => [co.id, co.name]));
 
     const rows = source.map((c) => {
-      const comp = companies.find((co) => co.id === (c as any).company_id);
+      const comp = { name: companyName.get((c as any).company_id) };
       return {
         Nome: c.first_name, Sobrenome: c.last_name || "", Email: c.email || "",
         Telefone: cleanPhone(c.phone), Cargo: c.title || "", Empresa: comp?.name || "", Status: c.status || "",
@@ -371,13 +377,14 @@ export default function Contacts() {
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Empresa</Label>
-            <Select value={filters.companyId || "all"} onValueChange={(v) => setFilters({ ...filters, companyId: v === "all" ? undefined : v })}>
-              <SelectTrigger className="w-40 h-8 text-xs"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas</SelectItem>
-                {companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              className="w-48 h-8 text-xs"
+              value={filters.companyId || "all"}
+              onChange={(v) => setFilters({ ...filters, companyId: v === "all" ? undefined : v })}
+              fixed={[{ value: "all", label: "Todas" }]}
+              options={companyOptions}
+              searchPlaceholder="Buscar empresa…"
+            />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Criado de</Label>

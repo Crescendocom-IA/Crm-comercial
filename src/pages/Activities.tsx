@@ -1,3 +1,4 @@
+import type { CompanyOption } from "@/hooks/queries/useOrgOptions";
 import { useEffect, useState, useMemo } from "react";
 import { useRole } from "@/hooks/useRole";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
@@ -7,8 +8,9 @@ import {
 } from "@/hooks/queries/useActivities";
 import {
   useContactOptionsQuery, useCompanyOptionsQuery, useDealOptionsQuery, useMembersQuery,
-  type ContactOption, type DealOption,
+  type ContactOption, type DealOption, contactSelectOptions,
 } from "@/hooks/queries/useOrgOptions";
+import { SearchableSelect } from "@/components/crm/SearchableSelect";
 import { useOrg } from "@/hooks/useOrg";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -554,7 +556,7 @@ interface ModalProps {
   onOpenChange: (o: boolean) => void;
   activity: Activity | null;
   contacts: ContactOption[];
-  companies: Company[];
+  companies: CompanyOption[];
   deals: DealOption[];
   members: Profile[];
 }
@@ -709,19 +711,21 @@ function ActivityCreateEditModal({ open, onOpenChange, activity, contacts, compa
 
           <div className="space-y-1">
             <Label className="text-xs">Contato</Label>
-            <Select
-              value={resolvedContactId || "none"}
-              onValueChange={(v) => setContactId(v)}
-              disabled={dealId !== "none" && !!selectedDeal?.contact_id}
-            >
-              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nenhum</SelectItem>
-                {availableContacts.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.first_name} {c.last_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {dealId !== "none" && !!selectedDeal?.contact_id ? (
+              // Contato travado pelo negócio: só exibe, como o Select desabilitado fazia.
+              <div className="flex h-9 items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground">
+                {selectedContact ? `${selectedContact.first_name} ${selectedContact.last_name ?? ""}` : "—"}
+              </div>
+            ) : (
+              <SearchableSelect
+                className="h-9 text-sm"
+                value={resolvedContactId || "none"}
+                onChange={(v) => setContactId(v)}
+                fixed={[{ value: "none", label: "Nenhum" }]}
+                options={contactSelectOptions(availableContacts)}
+                searchPlaceholder="Buscar contato…"
+              />
+            )}
             {dealId !== "none" && selectedDeal?.contact_id && (
               <p className="text-xs text-muted-foreground">Preenchido automaticamente pelo negócio</p>
             )}

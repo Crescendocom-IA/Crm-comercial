@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/lib/fetchAll";
 import { useOrg } from "@/hooks/useOrg";
 import { useStagesQuery, usePipelinesQuery, useMembersQuery, useCompanyOptionsQuery } from "./useOrgOptions";
 import { STALE_TIME } from "./config";
@@ -21,11 +22,9 @@ export function useReportsData() {
     queryKey: ["deals", orgId, "reports"] as const,
     enabled: !!orgId,
     staleTime: STALE_TIME.list,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("deals").select("*").eq("org_id", orgId!);
-      if (error) throw error;
-      return (data || []) as any[];
-    },
+    // Paginado: o PostgREST corta em 1.000 linhas sem avisar.
+    queryFn: async () => (await fetchAll((from, to) =>
+      supabase.from("deals").select("*").eq("org_id", orgId!).order("id").range(from, to))) as any[],
   });
 
   const activities = useQuery({
@@ -44,12 +43,9 @@ export function useReportsData() {
     queryKey: ["contacts", orgId, "reports"] as const,
     enabled: !!orgId,
     staleTime: STALE_TIME.list,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("contacts")
-        .select("id,first_name,last_name,status,lead_score,created_at,owner_id").eq("org_id", orgId!);
-      if (error) throw error;
-      return (data || []) as any[];
-    },
+    queryFn: async () => (await fetchAll((from, to) => supabase.from("contacts")
+      .select("id,first_name,last_name,status,lead_score,created_at,owner_id").eq("org_id", orgId!)
+      .order("id").range(from, to))) as any[],
   });
 
   const stages = useStagesQuery();

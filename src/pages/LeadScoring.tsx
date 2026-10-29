@@ -5,7 +5,8 @@ import {
   useSegmentMutation,
 } from "@/hooks/queries/useLeadScoring";
 import type { Database } from "@/integrations/supabase/types";
-import { useMembersQuery } from "@/hooks/queries/useOrgOptions";
+import { useMembersQuery, contactSelectOptions } from "@/hooks/queries/useOrgOptions";
+import { SearchableSelect } from "@/components/crm/SearchableSelect";
 import { useRole } from "@/hooks/useRole";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -115,6 +116,11 @@ export default function LeadScoring() {
   const { canDelete } = useRole();
   const [pendingDeleteSegment, setPendingDeleteSegment] = useState<string | null>(null);
   const contacts = useScoredContactsQuery() as Contact[];
+  const contactOpts = useMemo(() => contactSelectOptions(contacts), [contacts]);
+  const adjustOpts = useMemo(
+    () => contacts.map((c) => ({ value: c.id, label: `${c.first_name} ${c.last_name ?? ""}`.trim(), hint: `${c.lead_score || 0} pts` })),
+    [contacts],
+  );
   const { rules } = useLeadScoringRulesQuery();
   const segments = useSegmentsQuery() as Segment[];
   const history = useLeadScoreHistoryQuery() as ScoreHistory[];
@@ -491,15 +497,14 @@ export default function LeadScoring() {
           <div className="flex gap-3 items-end">
             <div className="space-y-1">
               <Label className="text-xs">Contato</Label>
-              <Select value={historyContactId} onValueChange={setHistoryContactId}>
-                <SelectTrigger className="w-52 h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos</SelectItem>
-                  {contacts.slice(0, 100).map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.first_name} {c.last_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                className="w-56 h-8 text-xs"
+                value={historyContactId}
+                onChange={setHistoryContactId}
+                fixed={[{ value: "all", label: "Todos" }]}
+                options={contactOpts}
+                searchPlaceholder="Buscar contato…"
+              />
             </div>
           </div>
           <div className="rounded-md border border-border">
@@ -552,12 +557,13 @@ export default function LeadScoring() {
           <div className="space-y-3 mt-2">
             <div className="space-y-1">
               <Label className="text-xs">Contato</Label>
-              <Select value={adjustContactId} onValueChange={setAdjustContactId}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
-                <SelectContent>
-                  {contacts.map((c) => <SelectItem key={c.id} value={c.id}>{c.first_name} {c.last_name} ({c.lead_score || 0} pts)</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                className="h-9 text-sm"
+                value={adjustContactId}
+                onChange={setAdjustContactId}
+                options={adjustOpts}
+                searchPlaceholder="Buscar contato…"
+              />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Pontos (positivo ou negativo)</Label>

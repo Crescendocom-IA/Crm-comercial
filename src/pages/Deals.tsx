@@ -7,7 +7,9 @@ import {
 import {
   usePipelinesQuery, useStagesQuery, useMembersQuery,
   useCompanyOptionsQuery, useContactOptionsQuery,
+  contactSelectOptions, companySelectOptions,
 } from "@/hooks/queries/useOrgOptions";
+import { SearchableSelect } from "@/components/crm/SearchableSelect";
 import { TableSkeleton, CardSkeleton } from "@/components/crm/TableSkeleton";
 import { EmptyState } from "@/components/crm/EmptyState";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -91,6 +93,8 @@ export default function Deals() {
   const members = useMembersQuery();
   const contacts = useContactOptionsQuery();
   const companies = useCompanyOptionsQuery();
+  const contactOpts = useMemo(() => contactSelectOptions(contacts), [contacts]);
+  const companyOpts = useMemo(() => companySelectOptions(companies), [companies]);
 
   /*
    * Só a busca é debouncada, não o objeto `filters` inteiro: atrasar o objeto
@@ -529,23 +533,23 @@ export default function Deals() {
             </div>
             <div className="space-y-2">
               <Label>Contato</Label>
-              <Select value={form.contact_id || "none"} onValueChange={(v) => setForm({ ...form, contact_id: v === "none" ? null : v })}>
-                <SelectTrigger><SelectValue placeholder="Selecionar contato" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum</SelectItem>
-                  {contacts.map((c) => <SelectItem key={c.id} value={c.id}>{c.first_name} {c.last_name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                value={form.contact_id || "none"}
+                onChange={(v) => setForm({ ...form, contact_id: v === "none" ? null : v })}
+                fixed={[{ value: "none", label: "Nenhum" }]}
+                options={contactOpts}
+                searchPlaceholder="Buscar contato…"
+              />
             </div>
             <div className="space-y-2">
               <Label>Empresa</Label>
-              <Select value={form.company_id || "none"} onValueChange={(v) => setForm({ ...form, company_id: v === "none" ? null : v })}>
-                <SelectTrigger><SelectValue placeholder="Selecionar empresa" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhuma</SelectItem>
-                  {companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                value={form.company_id || "none"}
+                onChange={(v) => setForm({ ...form, company_id: v === "none" ? null : v })}
+                fixed={[{ value: "none", label: "Nenhuma" }]}
+                options={companyOpts}
+                searchPlaceholder="Buscar empresa…"
+              />
             </div>
             <div className="space-y-2">
               <Label>Responsável</Label>

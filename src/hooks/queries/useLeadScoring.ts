@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { useAuth } from "@/contexts/AuthContext";
 import { STALE_TIME } from "./config";
+import { fetchAll } from "@/lib/fetchAll";
 import type { Database, Json } from "@/integrations/supabase/types";
 
 type ScoringRule = Database["public"]["Tables"]["lead_scoring_rules"]["Row"];
@@ -48,13 +49,10 @@ export function useScoredContactsQuery() {
     queryKey: scoringKeys.contacts(orgId),
     enabled: !!orgId,
     staleTime: STALE_TIME.counts,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("contacts")
-        .select("id,first_name,last_name,email,status,lead_score,org_id,created_at,owner_id")
-        .eq("org_id", orgId!).order("lead_score", { ascending: false });
-      if (error) throw error;
-      return (data || []) as any[];
-    },
+    // Todas as páginas: com a base do ERP passa de 1.000 contatos (limite do PostgREST).
+    queryFn: async () => (await fetchAll((from, to) => supabase.from("contacts")
+      .select("id,first_name,last_name,email,status,lead_score,org_id,created_at,owner_id")
+      .eq("org_id", orgId!).order("lead_score", { ascending: false }).order("id").range(from, to))) as any[],
   });
   return query.data ?? [];
 }

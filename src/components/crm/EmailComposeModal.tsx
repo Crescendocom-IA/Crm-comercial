@@ -1,6 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
+import { fetchAll } from "@/lib/fetchAll";
+import { SearchableSelect } from "@/components/crm/SearchableSelect";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -69,19 +71,24 @@ export function EmailComposeModal({ open, onOpenChange, onSent, defaultTo, defau
     if (!open || !orgId) return;
     setTo(defaultTo || ""); setSubject(""); setBody(""); setCc(""); setBcc("");
     setContactId(defaultContactId || "none"); setDealId(defaultDealId || "none");
+    // Contatos, negócios e empresas paginados: com a base do ERP passam de
+    // 1.000 linhas, que é o corte silencioso do PostgREST.
     Promise.all([
-      supabase.from("contacts").select("id,first_name,last_name,email,org_id,company_id").eq("org_id", orgId),
-      supabase.from("deals").select("id,title,org_id,contact_id").eq("org_id", orgId),
+      fetchAll((from, to) => supabase.from("contacts").select("id,first_name,last_name,email,org_id,company_id")
+        .eq("org_id", orgId).order("id").range(from, to)),
+      fetchAll((from, to) => supabase.from("deals").select("id,title,org_id,contact_id")
+        .eq("org_id", orgId).order("id").range(from, to)),
       supabase.from("email_templates").select("*").eq("org_id", orgId),
-      supabase.from("companies").select("id,name").eq("org_id", orgId),
+      fetchAll((from, to) => supabase.from("companies").select("id,name")
+        .eq("org_id", orgId).order("id").range(from, to)),
       supabase.from("integration_configs").select("is_active").eq("org_id", orgId).eq("provider", "resend").maybeSingle(),
     ]).then(([c, d, t, co, resend]) => {
-      const contactsList = (c.data as Contact[]) || [];
-      const dealsList = (d.data as Deal[]) || [];
+      const contactsList = c as Contact[];
+      const dealsList = d as Deal[];
       setContacts(contactsList);
       setDeals(dealsList);
       setTemplates((t.data as Template[]) || []);
-      setCompanies((co.data as { id: string; name: string }[]) || []);
+      setCompanies(co as { id: string; name: string }[]);
       setResendConfigured(Boolean((resend.data as { is_active?: boolean } | null)?.is_active));
       // Auto-fill "to" from defaultContactId
       if (!defaultTo && defaultContactId && defaultContactId !== "none") {
@@ -97,8 +104,16 @@ export function EmailComposeModal({ open, onOpenChange, onSent, defaultTo, defau
           if (contact?.email && !defaultTo) setTo(contact.email);
         }
       }
+    }).catch((err: Error) => {
+      // fetchAll lança em vez de devolver lista parcial: avisa em vez de abrir vazio em silêncio.
+      toast({ title: "Erro ao carregar contatos", description: err.message, variant: "destructive" });
     });
   }, [open, orgId]);
+
+  const contactOpts = useMemo(
+    () => contacts.map((c) => ({ value: c.id, label: `${c.first_name} ${c.last_name ?? ""}`.trim(), hint: c.email })),
+    [contacts],
+  );
 
   const applyTemplate = (tpl: Template) => {
     setSubject(tpl.subject);
@@ -224,15 +239,14 @@ export function EmailComposeModal({ open, onOpenChange, onSent, defaultTo, defau
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Contato</Label>
-              <Select value={contactId} onValueChange={onContactChange}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecionar..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum</SelectItem>
-                  {contacts.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>{c.first_name} {c.last_name} {c.email ? `(${c.email})` : ""}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <SearchableSelect
+                className="h-8 text-xs"
+                value={contactId}
+                onChange={onContactChange}
+                fixed={[{ value: "none", label: "Nenhum" }]}
+                options={contactOpts}
+                searchPlaceholder="Buscar contato…"
+              />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Negócio</Label>

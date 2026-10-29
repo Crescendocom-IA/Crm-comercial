@@ -1,3 +1,4 @@
+import type { CompanyOption } from "@/hooks/queries/useOrgOptions";
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -31,7 +32,7 @@ function ContactCard({
   onClick,
 }: {
   contact: Contact;
-  company?: Company | null;
+  company?: CompanyOption | null;
   onClick: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: contact.id });
@@ -79,6 +80,13 @@ function ContactCard({
   );
 }
 
+/*
+ * Cartões desenhados por coluna. Com os contatos do ERP, "Sem responsável"
+ * passa de 10 mil — desenhar todos travaria a tela. O contador do cabeçalho
+ * continua mostrando o total.
+ */
+const MAX_CARDS = 200;
+
 function OwnerColumn({
   owner,
   contacts,
@@ -87,7 +95,7 @@ function OwnerColumn({
 }: {
   owner: { id: string; name: string; avatar_url?: string | null } | null;
   contacts: Contact[];
-  companies: Company[];
+  companies: CompanyOption[];
   onContactClick: (c: Contact) => void;
 }) {
   const columnId = owner?.id || "unassigned";
@@ -126,7 +134,7 @@ function OwnerColumn({
 
       {/* Cards */}
       <div className="flex flex-1 flex-col gap-1.5 p-2 overflow-y-auto max-h-[calc(100vh-260px)]">
-        {contacts.map((contact) => (
+        {contacts.slice(0, MAX_CARDS).map((contact) => (
           <ContactCard
             key={contact.id}
             contact={contact}
@@ -134,6 +142,11 @@ function OwnerColumn({
             onClick={() => onContactClick(contact)}
           />
         ))}
+        {contacts.length > MAX_CARDS && (
+          <p className="py-2 text-center text-xs text-muted-foreground">
+            + {(contacts.length - MAX_CARDS).toLocaleString("pt-BR")} contatos — use a visão Tabela com filtro de responsável
+          </p>
+        )}
         {contacts.length === 0 && (
           <p className="py-8 text-center text-xs text-muted-foreground">
             Arraste leads aqui
@@ -147,7 +160,7 @@ function OwnerColumn({
 interface ContactsKanbanByOwnerProps {
   contacts: Contact[];
   members: Profile[];
-  companies: Company[];
+  companies: CompanyOption[];
   onContactClick: (c: Contact) => void;
   onOwnerChange: (contactId: string, newOwnerId: string | null) => void;
 }

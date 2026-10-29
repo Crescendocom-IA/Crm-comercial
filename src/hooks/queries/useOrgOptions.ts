@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { STALE_TIME } from "./config";
+import { fetchAll } from "@/lib/fetchAll";
+import type { SearchableOption } from "@/components/crm/SearchableSelect";
 import type { Database } from "@/integrations/supabase/types";
 
 type Company = Database["public"]["Tables"]["companies"]["Row"];
@@ -30,20 +32,36 @@ export const optionKeys = {
   industries: (orgId: string | null | undefined) => ["organizations", orgId, "industries"] as const,
 };
 
+/** Empresa em formato enxuto: os selects só precisam de id, nome e cidade. */
+export type CompanyOption = Pick<Company, "id" | "name" | "cidade">;
+
+/*
+ * Empresas e contatos passam de 10 mil com a base do ERP: as duas listas
+ * paginam (fetchAll) — sem isso o PostgREST cortava em 1.000 e o select não
+ * mostrava a maioria — e trazem só as colunas que os selects usam.
+ */
 export function useCompanyOptionsQuery() {
   const { orgId } = useOrg();
   const query = useQuery({
     queryKey: optionKeys.companies(orgId),
     enabled: !!orgId,
     staleTime: STALE_TIME.list,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("companies").select("*").eq("org_id", orgId!);
-      if (error) throw error;
-      return (data || []) as Company[];
-    },
+    queryFn: () => fetchAll<CompanyOption>((from, to) =>
+      supabase.from("companies").select("id,name,cidade").eq("org_id", orgId!)
+        .order("name").order("id").range(from, to)),
   });
   return query.data ?? [];
 }
+
+/** Opções do SearchableSelect para empresas (cidade como dica). */
+export const companySelectOptions = (companies: CompanyOption[]): SearchableOption[] =>
+  companies.map((c) => ({ value: c.id, label: c.name, hint: c.cidade }));
+
+/** Opções do SearchableSelect para contatos (e-mail como dica). */
+export const contactSelectOptions = (
+  contacts: Array<{ id: string; first_name: string; last_name: string | null; email: string | null }>,
+): SearchableOption[] =>
+  contacts.map((c) => ({ value: c.id, label: [c.first_name, c.last_name].filter(Boolean).join(" "), hint: c.email }));
 
 /** Contatos em formato enxuto, para o multi-select de vínculo com empresa. */
 export type ContactOption = {
@@ -58,13 +76,9 @@ export function useContactOptionsQuery(enabled = true) {
     queryKey: optionKeys.contacts(orgId),
     enabled: !!orgId && enabled,
     staleTime: STALE_TIME.list,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("contacts").select("id,first_name,last_name,email,phone,company_id,status,avatar_url")
-        .eq("org_id", orgId!).order("first_name");
-      if (error) throw error;
-      return (data || []) as ContactOption[];
-    },
+    queryFn: () => fetchAll<ContactOption>((from, to) =>
+      supabase.from("contacts").select("id,first_name,last_name,email,phone,company_id,status,avatar_url")
+        .eq("org_id", orgId!).order("first_name").order("id").range(from, to)),
   });
   return query.data ?? [];
 }

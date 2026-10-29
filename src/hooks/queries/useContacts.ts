@@ -2,6 +2,7 @@ import {
   useMutation, useQuery, useQueryClient, keepPreviousData,
 } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/lib/fetchAll";
 import { useOrg } from "@/hooks/useOrg";
 import { useAuth } from "@/contexts/AuthContext";
 import { logAudit } from "@/lib/audit";
@@ -122,13 +123,17 @@ export function useContactsQuery(params: ContactsQueryParams) {
      */
     placeholderData: keepPreviousData,
     queryFn: async () => {
-      let q = supabase.from("contacts").select("*", { count: "exact" }).eq("org_id", orgId!);
-      q = applyContactSort(applyContactFilters(q, params.search, params.filters), params.sortKey, params.sortDir);
-      if (params.paginate) {
-        const from = params.page * CONTACTS_PAGE_SIZE;
-        q = q.range(from, from + CONTACTS_PAGE_SIZE - 1);
+      const build = () => applyContactSort(
+        applyContactFilters(supabase.from("contacts").select("*", { count: "exact" }).eq("org_id", orgId!), params.search, params.filters),
+        params.sortKey, params.sortDir,
+      );
+      if (!params.paginate) {
+        // Visão por responsável: todos os contatos, em páginas (corte de 1.000).
+        const rows = await fetchAll((from, to) => build().order("id").range(from, to)) as Contact[];
+        return { rows, count: rows.length };
       }
-      const { data, count, error } = await q;
+      const from = params.page * CONTACTS_PAGE_SIZE;
+      const { data, count, error } = await build().range(from, from + CONTACTS_PAGE_SIZE - 1);
       if (error) throw error;
       return { rows: (data || []) as Contact[], count: count ?? 0 };
     },

@@ -1,3 +1,5 @@
+import { companySelectOptions, type CompanyOption } from "@/hooks/queries/useOrgOptions";
+import { SearchableSelect } from "@/components/crm/SearchableSelect";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ErpBadge } from "@/components/crm/ErpBadge";
@@ -52,7 +54,7 @@ function formatCurrency(value: number, currency: string = "BRL") {
 interface ContactDrawerProps {
   contact: Contact | null;
   onClose: () => void;
-  companies: Company[];
+  companies: CompanyOption[];
   members: Profile[];
 }
 
@@ -183,13 +185,13 @@ export function ContactDrawer({ contact: linhaDaLista, onClose, companies, membe
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Empresa</Label>
-                  <Select value={(form as any).company_id || "none"} onValueChange={(v) => setForm({ ...form, company_id: v === "none" ? null : v } as any)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhuma</SelectItem>
-                      {companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    value={(form as any).company_id || "none"}
+                    onChange={(v) => setForm({ ...form, company_id: v === "none" ? null : v } as any)}
+                    fixed={[{ value: "none", label: "Nenhuma" }]}
+                    options={companySelectOptions(companies)}
+                    searchPlaceholder="Buscar empresa…"
+                  />
                 </div>
                 <Button onClick={handleSave} disabled={update.isPending} className="w-full">
                   <Save className="mr-2 h-4 w-4" />{update.isPending ? "Salvando..." : "Salvar"}

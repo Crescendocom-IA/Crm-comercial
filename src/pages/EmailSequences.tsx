@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRole } from "@/hooks/useRole";
 import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import {
@@ -6,7 +6,8 @@ import {
   useEmailSequenceMutation, useSequenceStepMutation, useSequenceEnrollmentMutation,
 } from "@/hooks/queries/useEmailSequences";
 import type { Database } from "@/integrations/supabase/types";
-import { useContactOptionsQuery } from "@/hooks/queries/useOrgOptions";
+import { useContactOptionsQuery, contactSelectOptions } from "@/hooks/queries/useOrgOptions";
+import { SearchableSelect } from "@/components/crm/SearchableSelect";
 import { useOrg } from "@/hooks/useOrg";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +64,8 @@ export default function EmailSequences() {
   const steps = useSequenceStepsQuery();
   const enrollments = useSequenceEnrollmentsQuery();
   const contacts = useContactOptionsQuery();
+  // Só contato com e-mail pode entrar numa sequência.
+  const enrollOptions = useMemo(() => contactSelectOptions(contacts.filter((c) => c.email)), [contacts]);
   const seqMutation = useEmailSequenceMutation();
   const stepMutation = useSequenceStepMutation();
   const enrollmentMutation = useSequenceEnrollmentMutation();
@@ -344,15 +347,14 @@ export default function EmailSequences() {
             <DialogDescription>Selecione um contato para a sequência</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 mt-2">
-            <Select value={enrollContactId} onValueChange={setEnrollContactId}>
-              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Selecionar contato..." /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Selecionar...</SelectItem>
-                {contacts.filter((c) => c.email).map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.first_name} {c.last_name} ({c.email})</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              className="h-9 text-sm"
+              value={enrollContactId}
+              onChange={setEnrollContactId}
+              fixed={[{ value: "none", label: "Selecionar..." }]}
+              options={enrollOptions}
+              searchPlaceholder="Buscar contato com e-mail…"
+            />
             <Button onClick={enrollContact} disabled={enrollContactId === "none"} className="w-full">Inscrever</Button>
           </div>
         </DialogContent>

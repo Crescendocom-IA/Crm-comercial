@@ -5,8 +5,9 @@ import {
   useTasksQuery, useActivityMutation,
 } from "@/hooks/queries/useActivities";
 import {
-  useContactOptionsQuery, useDealOptionsQuery, useMembersQuery,
+  useContactOptionsQuery, useDealOptionsQuery, useMembersQuery, contactSelectOptions,
 } from "@/hooks/queries/useOrgOptions";
+import { SearchableSelect } from "@/components/crm/SearchableSelect";
 import { useOrg } from "@/hooks/useOrg";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -70,6 +71,7 @@ export default function Tasks() {
 
   const { tasks } = useTasksQuery();
   const contacts = useContactOptionsQuery();
+  const contactOpts = useMemo(() => contactSelectOptions(contacts), [contacts]);
   const deals = useDealOptionsQuery();
   const members = useMembersQuery();
   const { create, update, remove, toggleComplete: toggleCompleteMut } = useActivityMutation();
@@ -416,15 +418,14 @@ export default function Tasks() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Contato</Label>
-                <Select value={formContactId} onValueChange={setFormContactId}>
-                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum</SelectItem>
-                    {contacts.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.first_name} {c.last_name || ""}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  className="mt-1"
+                  value={formContactId}
+                  onChange={setFormContactId}
+                  fixed={[{ value: "none", label: "Nenhum" }]}
+                  options={contactOpts}
+                  searchPlaceholder="Buscar contato…"
+                />
               </div>
               <div>
                 <Label className="text-xs">Negócio</Label>

@@ -14,6 +14,7 @@ import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
+import { fetchAll } from "@/lib/fetchAll";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -155,9 +156,10 @@ export default function Companies() {
     // Busca própria sem range: exportar é sobre todos os registros filtrados,
     // não sobre a página aberta.
     if (!orgId) return;
-    let q = supabase.from("companies").select("*").eq("org_id", orgId);
-    q = applyCompanySort(applyCompanyFilters(q, debouncedSearch, filters), sortKey, sortDir);
-    const { data } = await q;
+    // Paginado: o PostgREST corta em 1.000 e o export saía incompleto sem aviso.
+    const data = await fetchAll((from, to) =>
+      applyCompanySort(applyCompanyFilters(supabase.from("companies").select("*").eq("org_id", orgId), debouncedSearch, filters), sortKey, sortDir)
+        .order("id").range(from, to));
 
     const rows = (data || []).map((c) => ({
       Nome: c.name, Domínio: c.domain || "", Indústria: c.industry || "",

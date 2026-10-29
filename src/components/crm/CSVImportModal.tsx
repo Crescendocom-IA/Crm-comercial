@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import Papa from "papaparse";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/lib/fetchAll";
 import { useOrg } from "@/hooks/useOrg";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -175,18 +176,23 @@ export function CSVImportModal({ open, onOpenChange, onImported, entityType }: C
         name: new Map<string, string>(),
       };
       if (entityType === "contacts") {
-        const { data, error } = await supabase.from("contacts")
-          .select("id,email,codigo_erp").eq("org_id", orgId);
-        if (error) { toast({ title: "Erro ao ler contatos existentes", description: error.message, variant: "destructive" }); setImporting(false); return; }
-        (data || []).forEach((c: any) => {
+        // Todas as páginas: comparar só com os 1.000 primeiros duplicaria cadastros.
+        let data: { id: string; email: string | null; codigo_erp: string | null }[];
+        try {
+          data = await fetchAll((from, to) => supabase.from("contacts")
+            .select("id,email,codigo_erp").eq("org_id", orgId).order("id").range(from, to));
+        } catch (error) { toast({ title: "Erro ao ler contatos existentes", description: (error as Error).message, variant: "destructive" }); setImporting(false); return; }
+        data.forEach((c: any) => {
           if (c.email) existing.email.set(normEmail(c.email), c.id);
           if (c.codigo_erp) existing.codigo_erp.set(String(c.codigo_erp).trim(), c.id);
         });
       } else {
-        const { data, error } = await supabase.from("companies")
-          .select("id,name,cnpj_cpf").eq("org_id", orgId);
-        if (error) { toast({ title: "Erro ao ler empresas existentes", description: error.message, variant: "destructive" }); setImporting(false); return; }
-        (data || []).forEach((c: any) => {
+        let data: { id: string; name: string; cnpj_cpf: string | null }[];
+        try {
+          data = await fetchAll((from, to) => supabase.from("companies")
+            .select("id,name,cnpj_cpf").eq("org_id", orgId).order("id").range(from, to));
+        } catch (error) { toast({ title: "Erro ao ler empresas existentes", description: (error as Error).message, variant: "destructive" }); setImporting(false); return; }
+        data.forEach((c: any) => {
           if (c.cnpj_cpf && onlyDigits(c.cnpj_cpf)) existing.cnpj_cpf.set(onlyDigits(c.cnpj_cpf), c.id);
           if (c.name) existing.name.set(normName(c.name), c.id);
         });

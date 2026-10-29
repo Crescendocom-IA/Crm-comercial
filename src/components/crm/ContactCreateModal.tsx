@@ -1,3 +1,5 @@
+import { companySelectOptions, type CompanyOption } from "@/hooks/queries/useOrgOptions";
+import { SearchableSelect } from "@/components/crm/SearchableSelect";
 import { useState } from "react";
 import { useContactMutation } from "@/hooks/queries/useContacts";
 import { useOrg } from "@/hooks/useOrg";
@@ -19,7 +21,7 @@ type ContactStatus = Database["public"]["Enums"]["contact_status"];
 interface ContactCreateModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  companies: Company[];
+  companies: CompanyOption[];
 }
 
 export function ContactCreateModal({ open, onOpenChange, companies }: ContactCreateModalProps) {
@@ -107,13 +109,13 @@ export function ContactCreateModal({ open, onOpenChange, companies }: ContactCre
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Empresa</Label>
-            <Select value={form.company_id || "none"} onValueChange={(v) => setForm({ ...form, company_id: v === "none" ? "" : v })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Nenhuma</SelectItem>
-                {companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={form.company_id || "none"}
+              onChange={(v) => setForm({ ...form, company_id: v === "none" ? "" : v })}
+              fixed={[{ value: "none", label: "Nenhuma" }]}
+              options={companySelectOptions(companies)}
+              searchPlaceholder="Buscar empresa…"
+            />
           </div>
           <Button onClick={handleCreate} disabled={create.isPending} className="w-full">
             {create.isPending ? "Criando..." : "Criar Contato"}

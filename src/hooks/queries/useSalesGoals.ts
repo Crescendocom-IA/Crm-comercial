@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/lib/fetchAll";
 import { useOrg } from "@/hooks/useOrg";
 import { STALE_TIME } from "./config";
 import type { Database, TablesInsert } from "@/integrations/supabase/types";
@@ -62,18 +63,20 @@ export function useSalesGoalActualsQuery(period: GoalPeriod) {
       const endYear = period.month === 12 ? period.year + 1 : period.year;
       const endDate = `${endYear}-${String(endMonth).padStart(2, "0")}-01`;
 
-      const [wd, act, nc] = await Promise.all([
-        supabase.from("deals").select("id, value, owner_id").eq("org_id", orgId!)
-          .eq("status", "won").gte("updated_at", startDate).lt("updated_at", endDate),
-        supabase.from("activities").select("id, user_id").eq("org_id", orgId!)
-          .gte("created_at", startDate).lt("created_at", endDate),
-        supabase.from("contacts").select("id, owner_id").eq("org_id", orgId!)
-          .gte("created_at", startDate).lt("created_at", endDate),
+      // Paginado: um sync do ERP cria milhares de contatos no mesmo mês, e o
+      // PostgREST corta em 1.000 — a meta de "novos contatos" contava errado.
+      const [wonDeals, activities, newContacts] = await Promise.all([
+        fetchAll((from, to) => supabase.from("deals").select("id, value, owner_id").eq("org_id", orgId!)
+          .eq("status", "won").gte("updated_at", startDate).lt("updated_at", endDate).order("id").range(from, to)),
+        fetchAll((from, to) => supabase.from("activities").select("id, user_id").eq("org_id", orgId!)
+          .gte("created_at", startDate).lt("created_at", endDate).order("id").range(from, to)),
+        fetchAll((from, to) => supabase.from("contacts").select("id, owner_id").eq("org_id", orgId!)
+          .gte("created_at", startDate).lt("created_at", endDate).order("id").range(from, to)),
       ]);
       return {
-        wonDeals: (wd.data || []) as any[],
-        activities: (act.data || []) as any[],
-        newContacts: (nc.data || []) as any[],
+        wonDeals: wonDeals as any[],
+        activities: activities as any[],
+        newContacts: newContacts as any[],
       };
     },
   });

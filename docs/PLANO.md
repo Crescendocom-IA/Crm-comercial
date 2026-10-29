@@ -53,7 +53,7 @@ ERP do cliente ──► Ponte (item 2) ──► Clientes + Produtos + Pedidos 
 
 ## Itens
 
-### 1. Gráfico de funil de vendas — 🔨 código pronto, falta aplicar a migration e testar no app
+### 1. Gráfico de funil de vendas — ✔️ pronto (no ar desde 29/10/2026)
 
 **Pedido:** gráfico em formato de funil para o funil de vendas.
 
@@ -122,7 +122,7 @@ ERP do cliente ──► Ponte (item 2) ──► Clientes + Produtos + Pedidos 
 
 ---
 
-### 3. Contas, empresas e permissões — 🔨 falha crítica corrigida no código, falta aplicar a migration; visibilidade por dono ainda não feita
+### 3. Contas, empresas e permissões — 🔨 falha crítica corrigida e no ar (29/10/2026); visibilidade por dono e super admin ainda não feitos
 
 **Como funciona hoje:**
 - **Um banco só** (Supabase/Postgres) para todas as empresas. Cada registro tem `org_id`; o RLS filtra por empresa. Não há banco separado por empresa.

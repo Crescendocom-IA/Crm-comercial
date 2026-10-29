@@ -40,10 +40,6 @@ type ActivityRow = {
   completed_at: string | null; created_at: string | null; user_id: string | null;
   deal_id: string | null; contact_id: string | null;
 };
-type Contact = {
-  id: string; first_name: string; last_name: string | null;
-  lead_score: number; status: string | null; created_at: string | null;
-};
 
 export type PeriodFilter = "today" | "this_week" | "this_month" | "this_quarter" | "this_year" | "all";
 
@@ -114,20 +110,6 @@ export function useDashboardData() {
     },
   });
 
-  const contactsQuery = useQuery({
-    queryKey: ["contacts", orgId, "dashboard"] as const,
-    enabled: !!orgId,
-    staleTime: STALE_TIME.counts,
-    refetchInterval: REFETCH_INTERVAL,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("contacts").select("id,first_name,last_name,lead_score,status,created_at")
-        .eq("org_id", orgId!);
-      if (error) throw error;
-      return (data || []) as Contact[];
-    },
-  });
-
   const stages = useStagesQuery();
   const members = useMembersQuery();
   const pipelines = usePipelinesQuery();
@@ -137,22 +119,21 @@ export function useDashboardData() {
     // O botão de atualizar força as três leituras cruas; config muda pouco.
     void dealsQuery.refetch();
     void activitiesQuery.refetch();
-    void contactsQuery.refetch();
+    void qc.invalidateQueries({ queryKey: ["contacts", orgId, "dashboard-stats"] });
   };
 
   return {
     deals: dealsQuery.data ?? [],
     activities: activitiesQuery.data ?? [],
-    contacts: contactsQuery.data ?? [],
     stages,
     members,
     pipelines,
     // isLoading só na primeira carga (sem cache); refetch e auto-refresh mantêm
     // isLoading falso e não piscam skeleton — o que o hasLoadedOnce fazia à mão.
-    isLoading: dealsQuery.isLoading || activitiesQuery.isLoading || contactsQuery.isLoading,
-    isFetching: dealsQuery.isFetching || activitiesQuery.isFetching || contactsQuery.isFetching,
-    // Momento do dado mais recente entre as três leituras, para o "Atualizado HH:MM".
-    updatedAt: Math.max(dealsQuery.dataUpdatedAt, activitiesQuery.dataUpdatedAt, contactsQuery.dataUpdatedAt),
+    isLoading: dealsQuery.isLoading || activitiesQuery.isLoading,
+    isFetching: dealsQuery.isFetching || activitiesQuery.isFetching,
+    // Momento do dado mais recente entre as leituras, para o "Atualizado HH:MM".
+    updatedAt: Math.max(dealsQuery.dataUpdatedAt, activitiesQuery.dataUpdatedAt),
     refetch,
     qc,
   };
@@ -166,8 +147,70 @@ export function useDashboardData() {
  * leitura a cada troca de filtro, sendo que os dados são os mesmos. Mesma
  * decisão que manteve o pipeline fora da chave em Negócios.
  */
+/* ── Contatos: contagens no banco ─────────────────────────────────────────── */
+
+const SCORE_BUCKETS = [
+  { label: "0-20", min: 0, max: 20 },
+  { label: "21-40", min: 21, max: 40 },
+  { label: "41-60", min: 41, max: 60 },
+  { label: "61-80", min: 61, max: 80 },
+  { label: "81-100", min: 81, max: 100 },
+];
+const STATUS_LABELS = { lead: "Lead", prospect: "Prospect", customer: "Cliente", churned: "Churned" } as const;
+type ContactStatus = keyof typeof STATUS_LABELS;
+
+/**
+ * Totais de contatos por contagem no servidor (head + count), não baixando a
+ * lista: o PostgREST corta em 1.000 linhas, e com os clientes do ERP a org
+ * passou de 11 mil contatos — o card mostrava "1000" e os gráficos contavam
+ * só uma amostra.
+ *
+ * lead_score/status nulos contam como 0/"lead", como fazia o cálculo em memória.
+ */
+export function useContactStats(periodStart: Date | null) {
+  const { orgId } = useOrg();
+  const since = periodStart?.toISOString() ?? null;
+  return useQuery({
+    queryKey: ["contacts", orgId, "dashboard-stats", since] as const,
+    enabled: !!orgId,
+    staleTime: STALE_TIME.counts,
+    refetchInterval: REFETCH_INTERVAL,
+    queryFn: async () => {
+      const base = () => supabase.from("contacts").select("id", { count: "exact", head: true }).eq("org_id", orgId!);
+      const inPeriodQ = () => (since ? base().gte("created_at", since) : base());
+      const count = async (q: PromiseLike<{ count: number | null; error: unknown }>) => {
+        const { count: n, error } = await q;
+        if (error) throw error;
+        return n ?? 0;
+      };
+
+      const [total, newCount, buckets, byStatus] = await Promise.all([
+        count(base()),
+        count(inPeriodQ()),
+        Promise.all(SCORE_BUCKETS.map((b) => count(
+          b.min === 0
+            ? base().or(`lead_score.is.null,lead_score.lte.${b.max}`)
+            : base().gte("lead_score", b.min).lte("lead_score", b.max),
+        ))),
+        Promise.all((Object.keys(STATUS_LABELS) as ContactStatus[]).map((s) => count(
+          s === "lead" ? inPeriodQ().or("status.is.null,status.eq.lead") : inPeriodQ().eq("status", s),
+        ))),
+      ]);
+
+      return {
+        total,
+        newCount,
+        scoreDistribution: SCORE_BUCKETS.map((b, i) => ({ label: b.label, min: b.min, max: b.max, count: buckets[i] })),
+        newLeadsByStatus: Object.entries(STATUS_LABELS)
+          .map(([, name], i) => ({ name, value: byStatus[i] }))
+          .filter((s) => s.value > 0),
+      };
+    },
+  });
+}
+
 function useRecorte(filters: DashboardFilters) {
-  const { deals, activities, stages, contacts, members, pipelines, ...rest } = useDashboardData();
+  const { deals, activities, stages, members, pipelines, ...rest } = useDashboardData();
   const { period, ownerFilter, pipelineFilter } = filters;
 
   // getPeriodStart devolve um Date novo a cada chamada; memoizar por `period`
@@ -198,7 +241,7 @@ function useRecorte(filters: DashboardFilters) {
 
   return {
     filteredDeals, periodDeals, filteredActivities, periodStart,
-    stages, contacts, members, pipelines, ...rest,
+    stages, members, pipelines, ...rest,
   };
 }
 
@@ -208,9 +251,10 @@ const MONTHLY_GOAL = 100000;
 
 export function useDashboardKpis(filters: DashboardFilters) {
   const {
-    filteredDeals, periodDeals, filteredActivities, periodStart, contacts,
+    filteredDeals, periodDeals, filteredActivities, periodStart,
     isLoading, isFetching, updatedAt, refetch,
   } = useRecorte(filters);
+  const { data: contactStats } = useContactStats(periodStart);
 
   const kpis = useMemo(() => {
     const wonDeals = periodDeals.filter((d) => d.status === "won");
@@ -255,11 +299,11 @@ export function useDashboardKpis(filters: DashboardFilters) {
       winRate: pct(wonDeals.length, totalClosed),
       avgTicket: wonDeals.length > 0 ? wonRevenue / wonDeals.length : 0,
       pipelineValue, avgCycle, revenueVariation, monthlyGoal: MONTHLY_GOAL,
-      contactsCount: contacts.length,
-      newLeadsCount: contacts.filter((c) => inPeriod(c.created_at, periodStart)).length,
+      contactsCount: contactStats?.total ?? 0,
+      newLeadsCount: contactStats?.newCount ?? 0,
       pendingActivities: filteredActivities.filter((a) => !a.completed_at).length,
     };
-  }, [filteredDeals, periodDeals, filteredActivities, periodStart, contacts, filters.period]);
+  }, [filteredDeals, periodDeals, filteredActivities, contactStats, filters.period]);
 
   return { kpis, isLoading, isFetching, updatedAt, refetch };
 }
@@ -268,9 +312,10 @@ export function useDashboardKpis(filters: DashboardFilters) {
 
 export function useDashboardCharts(filters: DashboardFilters) {
   const {
-    filteredDeals, filteredActivities, contacts, stages, members, periodStart, isLoading,
+    filteredDeals, filteredActivities, stages, members, periodStart, isLoading,
   } = useRecorte(filters);
   const { pipelineFilter } = filters;
+  const { data: contactStats } = useContactStats(periodStart);
 
   const openDeals = useMemo(() => filteredDeals.filter((d) => d.status === "open"), [filteredDeals]);
   const wonDeals = useMemo(() => filteredDeals.filter((d) => d.status === "won"), [filteredDeals]);
@@ -338,29 +383,11 @@ export function useDashboardCharts(filters: DashboardFilters) {
     return days.map((d, i) => ({ day: d, count: counts[i] }));
   }, [filteredActivities]);
 
-  const scoreDistribution = useMemo(() => {
-    const buckets = [
-      { label: "0-20", min: 0, max: 20, count: 0 },
-      { label: "21-40", min: 21, max: 40, count: 0 },
-      { label: "41-60", min: 41, max: 60, count: 0 },
-      { label: "61-80", min: 61, max: 80, count: 0 },
-      { label: "81-100", min: 81, max: 100, count: 0 },
-    ];
-    contacts.forEach((c) => {
-      const s = c.lead_score || 0;
-      const bucket = buckets.find((b) => s >= b.min && s <= b.max);
-      if (bucket) bucket.count++;
-    });
-    return buckets;
-  }, [contacts]);
-
-  const newLeadsByStatus = useMemo(() => {
-    const periodContacts = contacts.filter((c) => inPeriod(c.created_at, periodStart));
-    const map: Record<string, number> = {};
-    periodContacts.forEach((c) => { const s = c.status || "lead"; map[s] = (map[s] || 0) + 1; });
-    const labels: Record<string, string> = { lead: "Lead", prospect: "Prospect", customer: "Cliente", churned: "Churned" };
-    return Object.entries(map).map(([k, v]) => ({ name: labels[k] || k, value: v }));
-  }, [contacts, periodStart]);
+  const scoreDistribution = useMemo(
+    () => contactStats?.scoreDistribution ?? SCORE_BUCKETS.map((b) => ({ ...b, count: 0 })),
+    [contactStats],
+  );
+  const newLeadsByStatus = useMemo(() => contactStats?.newLeadsByStatus ?? [], [contactStats]);
 
   return {
     monthlyRevenue, funnelData, actByType, actByDay, topPerformers,

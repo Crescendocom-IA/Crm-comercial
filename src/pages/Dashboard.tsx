@@ -85,7 +85,7 @@ export default function Dashboard() {
   const [pipelineFilter, setPipelineFilter] = useState("all");
   const filters: DashboardFilters = { period, ownerFilter, pipelineFilter };
 
-  const { members, pipelines, contacts, isLoading, isFetching, updatedAt, refetch } = useDashboardData();
+  const { members, pipelines, isLoading, isFetching, updatedAt, refetch } = useDashboardData();
   const { kpis } = useDashboardKpis(filters);
   const {
     monthlyRevenue, funnelData, actByType, actByDay,

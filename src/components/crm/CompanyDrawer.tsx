@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ErpBadge } from "@/components/crm/ErpBadge";
+import { CustomerPurchasesPanel } from "@/components/crm/CustomerPurchasesPanel";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import {
   useCompanyQuery, useCompanyRelatedQuery, useCompanyMutation,
@@ -135,6 +136,7 @@ export function CompanyDrawer({ company: linhaDaLista, onClose, members }: Compa
             <TabsTrigger value="overview" className="flex-1">Visão Geral</TabsTrigger>
             <TabsTrigger value="contacts" className="flex-1">Contatos</TabsTrigger>
             <TabsTrigger value="deals" className="flex-1">Negócios</TabsTrigger>
+            {company.codigo_erp && <TabsTrigger value="purchases" className="flex-1">Compras</TabsTrigger>}
             <TabsTrigger value="history" className="flex-1">Histórico</TabsTrigger>
           </TabsList>
 
@@ -251,6 +253,12 @@ export function CompanyDrawer({ company: linhaDaLista, onClose, members }: Compa
             })}
             {deals.length === 0 && <p className="text-center text-sm text-muted-foreground py-6">Nenhum negócio</p>}
           </TabsContent>
+
+          {company.codigo_erp && (
+            <TabsContent value="purchases" className="mt-4">
+              <CustomerPurchasesPanel codigoErp={company.codigo_erp} customerName={company.name} />
+            </TabsContent>
+          )}
 
           <TabsContent value="history" className="mt-4">
             <ActivityTimeline entityType="company" entityId={company.id} />

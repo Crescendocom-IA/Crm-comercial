@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ErpBadge } from "@/components/crm/ErpBadge";
+import { CustomerPurchasesPanel } from "@/components/crm/CustomerPurchasesPanel";
 import {
   useContactQuery, useContactRelatedQuery, useContactMutation, useContactActivityMutation,
 } from "@/hooks/queries/useContacts";
@@ -146,6 +147,7 @@ export function ContactDrawer({ contact: linhaDaLista, onClose, companies, membe
             <TabsTrigger value="activities" className="flex-1">Atividades</TabsTrigger>
             <TabsTrigger value="deals" className="flex-1">Negócios</TabsTrigger>
             <TabsTrigger value="notes" className="flex-1">Notas</TabsTrigger>
+            {contact.codigo_erp && <TabsTrigger value="purchases" className="flex-1">Compras</TabsTrigger>}
             <TabsTrigger value="history" className="flex-1">Histórico</TabsTrigger>
           </TabsList>
 
@@ -341,6 +343,15 @@ export function ContactDrawer({ contact: linhaDaLista, onClose, companies, membe
               <p className="text-center text-sm text-muted-foreground py-6">Nenhuma nota</p>
             )}
           </TabsContent>
+
+          {contact.codigo_erp && (
+            <TabsContent value="purchases" className="mt-4">
+              <CustomerPurchasesPanel
+                codigoErp={contact.codigo_erp}
+                customerName={[contact.first_name, contact.last_name].filter(Boolean).join(" ")}
+              />
+            </TabsContent>
+          )}
 
           <TabsContent value="history" className="mt-4">
             <ActivityTimeline entityType="contact" entityId={contact.id} />

@@ -18,6 +18,8 @@ import {
   Shield,
   Sun,
   Moon,
+  Package,
+  ShoppingCart,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -46,6 +48,8 @@ const generalItems = [
   { title: "Negócios", url: "/deals", icon: Handshake },
   { title: "Atividades", url: "/activities", icon: Activity },
   { title: "Tarefas", url: "/tasks", icon: CheckSquare },
+  { title: "Produtos", url: "/products", icon: Package },
+  { title: "Pedidos", url: "/orders", icon: ShoppingCart },
 ];
 
 const emailItems = [

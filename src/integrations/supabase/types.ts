@@ -340,6 +340,10 @@ export type Database = {
           synced_at: string | null
           updated_at: string | null
           website: string | null
+          email: string | null
+          erp_active: boolean | null
+          erp_seller_codigo: string | null
+          phone: string | null
         }
         Insert: {
           cidade?: string | null
@@ -360,6 +364,10 @@ export type Database = {
           synced_at?: string | null
           updated_at?: string | null
           website?: string | null
+          email?: string | null
+          erp_active?: boolean | null
+          erp_seller_codigo?: string | null
+          phone?: string | null
         }
         Update: {
           cidade?: string | null
@@ -380,6 +388,10 @@ export type Database = {
           synced_at?: string | null
           updated_at?: string | null
           website?: string | null
+          email?: string | null
+          erp_active?: boolean | null
+          erp_seller_codigo?: string | null
+          phone?: string | null
         }
         Relationships: [
           {
@@ -444,6 +456,8 @@ export type Database = {
           synced_at: string | null
           title: string | null
           updated_at: string | null
+          erp_active: boolean | null
+          erp_seller_codigo: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -467,6 +481,8 @@ export type Database = {
           synced_at?: string | null
           title?: string | null
           updated_at?: string | null
+          erp_active?: boolean | null
+          erp_seller_codigo?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -490,6 +506,8 @@ export type Database = {
           synced_at?: string | null
           title?: string | null
           updated_at?: string | null
+          erp_active?: boolean | null
+          erp_seller_codigo?: string | null
         }
         Relationships: [
           {
@@ -1072,6 +1090,298 @@ export type Database = {
           },
           {
             foreignKeyName: "emails_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_sellers: {
+        Row: {
+          active: boolean
+          code: string | null
+          codigo_erp: string
+          email: string | null
+          erp_updated_at: string | null
+          id: string
+          name: string
+          org_id: string
+          synced_at: string
+          user_id: string | null
+        }
+        Insert: {
+          active?: boolean
+          code?: string | null
+          codigo_erp: string
+          email?: string | null
+          erp_updated_at?: string | null
+          id?: string
+          name: string
+          org_id: string
+          synced_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          active?: boolean
+          code?: string | null
+          codigo_erp?: string
+          email?: string | null
+          erp_updated_at?: string | null
+          id?: string
+          name?: string
+          org_id?: string
+          synced_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_sellers_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_groups: {
+        Row: {
+          active: boolean
+          codigo_erp: string
+          erp_updated_at: string | null
+          id: string
+          name: string
+          org_id: string
+          synced_at: string
+        }
+        Insert: {
+          active?: boolean
+          codigo_erp: string
+          erp_updated_at?: string | null
+          id?: string
+          name: string
+          org_id: string
+          synced_at?: string
+        }
+        Update: {
+          active?: boolean
+          codigo_erp?: string
+          erp_updated_at?: string | null
+          id?: string
+          name?: string
+          org_id?: string
+          synced_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_groups_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          active: boolean
+          brand: string | null
+          code: string | null
+          codigo_erp: string
+          cost_price: number | null
+          description: string | null
+          ean: string | null
+          erp_created_at: string | null
+          erp_updated_at: string | null
+          group_codigo_erp: string | null
+          group_name: string | null
+          id: string
+          margin: number | null
+          name: string
+          ncm: string | null
+          org_id: string
+          sale_price: number | null
+          stock: number | null
+          subgroup_name: string | null
+          synced_at: string
+          unit: string | null
+        }
+        Insert: {
+          active?: boolean
+          brand?: string | null
+          code?: string | null
+          codigo_erp: string
+          cost_price?: number | null
+          description?: string | null
+          ean?: string | null
+          erp_created_at?: string | null
+          erp_updated_at?: string | null
+          group_codigo_erp?: string | null
+          group_name?: string | null
+          id?: string
+          margin?: number | null
+          name: string
+          ncm?: string | null
+          org_id: string
+          sale_price?: number | null
+          stock?: number | null
+          subgroup_name?: string | null
+          synced_at?: string
+          unit?: string | null
+        }
+        Update: {
+          active?: boolean
+          brand?: string | null
+          code?: string | null
+          codigo_erp?: string
+          cost_price?: number | null
+          description?: string | null
+          ean?: string | null
+          erp_created_at?: string | null
+          erp_updated_at?: string | null
+          group_codigo_erp?: string | null
+          group_name?: string | null
+          id?: string
+          margin?: number | null
+          name?: string
+          ncm?: string | null
+          org_id?: string
+          sale_price?: number | null
+          stock?: number | null
+          subgroup_name?: string | null
+          synced_at?: string
+          unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_orders: {
+        Row: {
+          codigo_erp: string
+          contact_name: string | null
+          customer_codigo_erp: string | null
+          discount: number | null
+          erp_updated_at: string | null
+          id: string
+          kind: string
+          notes: string | null
+          number: string | null
+          order_date: string | null
+          org_id: string
+          payment_codigo_erp: string | null
+          seller_codigo_erp: string | null
+          status: string | null
+          subtotal: number | null
+          synced_at: string
+          total: number | null
+        }
+        Insert: {
+          codigo_erp: string
+          contact_name?: string | null
+          customer_codigo_erp?: string | null
+          discount?: number | null
+          erp_updated_at?: string | null
+          id?: string
+          kind?: string
+          notes?: string | null
+          number?: string | null
+          order_date?: string | null
+          org_id: string
+          payment_codigo_erp?: string | null
+          seller_codigo_erp?: string | null
+          status?: string | null
+          subtotal?: number | null
+          synced_at?: string
+          total?: number | null
+        }
+        Update: {
+          codigo_erp?: string
+          contact_name?: string | null
+          customer_codigo_erp?: string | null
+          discount?: number | null
+          erp_updated_at?: string | null
+          id?: string
+          kind?: string
+          notes?: string | null
+          number?: string | null
+          order_date?: string | null
+          org_id?: string
+          payment_codigo_erp?: string | null
+          seller_codigo_erp?: string | null
+          status?: string | null
+          subtotal?: number | null
+          synced_at?: string
+          total?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_orders_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales_order_items: {
+        Row: {
+          codigo_erp: string
+          customer_codigo_erp: string | null
+          discount: number | null
+          erp_updated_at: string | null
+          id: string
+          order_codigo_erp: string | null
+          org_id: string
+          product_codigo_erp: string | null
+          product_label: string | null
+          quantity: number | null
+          seq: number | null
+          synced_at: string
+          total: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          codigo_erp: string
+          customer_codigo_erp?: string | null
+          discount?: number | null
+          erp_updated_at?: string | null
+          id?: string
+          order_codigo_erp?: string | null
+          org_id: string
+          product_codigo_erp?: string | null
+          product_label?: string | null
+          quantity?: number | null
+          seq?: number | null
+          synced_at?: string
+          total?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          codigo_erp?: string
+          customer_codigo_erp?: string | null
+          discount?: number | null
+          erp_updated_at?: string | null
+          id?: string
+          order_codigo_erp?: string | null
+          org_id?: string
+          product_codigo_erp?: string | null
+          product_label?: string | null
+          quantity?: number | null
+          seq?: number | null
+          synced_at?: string
+          total?: number | null
+          unit_price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_order_items_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -2454,9 +2764,33 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      customer_purchase_summary: {
+        Row: {
+          avg_ticket: number | null
+          customer_codigo_erp: string | null
+          days_since_last_order: number | null
+          first_order_date: string | null
+          last_order_date: string | null
+          order_count: number | null
+          org_id: string | null
+          total_spent: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      customer_top_products: {
+        Args: { p_customer_codigo_erp: string; p_limit?: number }
+        Returns: {
+          last_order_date: string
+          order_count: number
+          product_code: string
+          product_codigo_erp: string
+          product_name: string
+          quantity: number
+          total: number
+        }[]
+      }
       create_organization_for_user: {
         Args: {
           p_name: string

@@ -138,15 +138,29 @@ export default function Contacts() {
    */
   useEffect(() => {
     if (!orgId) return;
+    /*
+     * Agrupa os eventos: no máximo uma invalidação a cada 2 s. Um lote do
+     * sync do ERP grava milhares de contatos em segundos; invalidar por evento
+     * disparou dezenas de milhares de recargas e esgotou as conexões do
+     * navegador (ERR_INSUFFICIENT_RESOURCES).
+     */
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const agendar = () => {
+      if (timer) return;
+      timer = setTimeout(() => { timer = null; invalidar(); }, 2000);
+    };
     const channel = supabase
       .channel("contacts-realtime")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "contacts", filter: `org_id=eq.${orgId}` },
-        () => { invalidar(); },
+        agendar,
       )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (timer) clearTimeout(timer);
+      supabase.removeChannel(channel);
+    };
     // invalidar() é recriada a cada render; incluí-la nas deps remontaria o
     // canal a cada render, e cada remonte é um round-trip de subscribe.
     // eslint-disable-next-line react-hooks/exhaustive-deps

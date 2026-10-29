@@ -1,44 +1,36 @@
+const fs = require("fs");
+const path = require("path");
 const { query } = require("../db");
 const logger = require("../logger");
-const { COLUNAS, normalizar, tabela, paginacao } = require("../routes/clientes");
+const { ENTIDADES, paraEntidade } = require("../mapping");
 
 /*
- * DECISÃO DE MAPEAMENTO: um "cliente" do ERP vira contato OU empresa.
+ * Sync ERP → CRM, empurrado pelo agente (sem n8n nem túnel no caminho).
  *
- * O CRM separa pessoas (contacts) de organizações (companies); o ERP tem uma
- * lista só. O critério aqui é o documento: 14 dígitos = CNPJ = empresa;
- * qualquer outra coisa = pessoa. Na falta de documento, cai para empresa se
- * houver razão social, senão contato.
+ * Ordem: vendedores, grupos, produtos, clientes, pedidos, itens. O CRM liga as
+ * entidades por codigo_erp e aceita qualquer ordem, mas mandar as referências
+ * antes deixa as telas consistentes durante uma carga longa.
  *
- * Isso é uma suposição sobre o negócio, não uma verdade técnica. Se a base for
- * majoritariamente PJ e você quiser tudo como empresa, troque classificar()
- * por () => "company" — é o único ponto que decide.
+ * Incremental: cada entidade guarda em data/ultimo-sync.json o instante em que
+ * o último sync DELA começou; o próximo pede só DATA_ULT_ALTERACAO >= esse
+ * instante menos uma margem (relógio do servidor vs. gravação no ERP). Um
+ * sync com lote falho não avança a marca — o próximo reenvia o período.
  */
-function classificar(cliente) {
-  const doc = (cliente.cnpj_cpf || "").replace(/\D/g, "");
-  if (doc.length === 14) return "company";
-  if (doc.length === 11) return "contact";
-  return cliente.razao_social ? "company" : "contact";
+
+const ESTADO = path.join(__dirname, "..", "..", "data", "ultimo-sync.json");
+const MARGEM_MS = 10 * 60 * 1000;
+
+function lerEstado() {
+  try {
+    return JSON.parse(fs.readFileSync(ESTADO, "utf8"));
+  } catch {
+    return {};
+  }
 }
 
-/** Converte um cliente normalizado no formato que o erp-sync do CRM espera. */
-function paraEntidadeCRM(cliente) {
-  const type = classificar(cliente);
-  return {
-    type,
-    codigo_erp: cliente.codigo_erp,
-    data: {
-      // Empresa usa a razão social quando existe; pessoa usa o nome.
-      name: type === "company"
-        ? (cliente.razao_social || cliente.nome)
-        : (cliente.nome || cliente.razao_social),
-      email: cliente.email,
-      phone: cliente.telefone,
-      cnpj_cpf: cliente.cnpj_cpf,
-      cidade: cliente.cidade,
-      estado: cliente.estado,
-    },
-  };
+function gravarEstado(estado) {
+  fs.mkdirSync(path.dirname(ESTADO), { recursive: true });
+  fs.writeFileSync(ESTADO, JSON.stringify(estado, null, 2));
 }
 
 async function enviarLote(entities) {
@@ -64,86 +56,105 @@ async function enviarLote(entities) {
 }
 
 /**
- * Lê clientes do ERP e envia ao CRM em lotes.
- *
- * @param {string|Date|null} since Só clientes atualizados a partir desta data.
- * @returns resumo agregado dos lotes
+ * Envia linhas já lidas do ERP. Usado pelo sync e por cargas a partir de
+ * arquivo (mesmo mapeamento, mesmo destino).
  */
-async function syncClientesToCRM(since = null) {
+async function enviarLinhas(entidade, rows, resumo) {
+  const entities = rows.map((r) => paraEntidade(entidade, r)).filter(Boolean);
+  if (entities.length === 0) return;
+  const r = await enviarLote(entities);
+  resumo.enviados += entities.length;
+  resumo.inserted += r.inserted ?? 0;
+  resumo.updated += r.updated ?? 0;
+  resumo.upserted += r.upserted ?? 0;
+  resumo.errors += r.errors ?? 0;
+}
+
+/**
+ * O Firebird 2.5 NÃO tem LIMIT/OFFSET — é `FIRST n SKIP m`, e a ordem das
+ * palavras importa (FIRST antes de SKIP).
+ */
+const paginacao = (limit, offset) => `FIRST ${Number(limit)} SKIP ${Number(offset)}`;
+
+/**
+ * Sincroniza uma entidade.
+ * @param {object} entidade item de ENTIDADES
+ * @param {Date|null} since só linhas com DATA_ULT_ALTERACAO >= since (null = tudo)
+ */
+async function syncEntidade(entidade, since = null) {
   const batchSize = Math.min(1000, Number(process.env.SYNC_BATCH_SIZE) || 500);
   const inicio = Date.now();
+  const where = since ? "WHERE DATA_ULT_ALTERACAO >= ?" : "";
+  const params = since ? [since] : [];
 
-  const where = [];
-  const params = [];
-  if (since) {
-    const d = since instanceof Date ? since : new Date(since);
-    if (Number.isNaN(d.getTime())) throw new Error(`since inválido: ${since}`);
-    where.push(`${COLUNAS.atualizado_em} >= ?`);
-    params.push(d);
-  }
-  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
-
-  const countRows = await query(`SELECT COUNT(*) AS total FROM ${tabela()} ${whereSql}`, params);
+  const countRows = await query(`SELECT COUNT(*) AS total FROM ${entidade.tabela} ${where}`, params);
   const total = Number(countRows[0]?.total ?? 0);
-  logger.info(`Sync iniciado: ${total} cliente(s)${since ? ` desde ${since}` : " (completo)"}`);
+  logger.info(`[${entidade.nome}] ${total} linha(s)${since ? ` desde ${since.toISOString()}` : " (completo)"}`);
 
-  const resumo = {
-    total,
-    lotes: 0,
-    enviados: 0,
-    inserted: 0,
-    updated: 0,
-    errors: 0,
-    lotes_com_falha: [],
-  };
-
-  const selectList = Object.entries(COLUNAS).map(([a, c]) => `${c} AS ${a}`).join(", ");
+  const resumo = { entidade: entidade.nome, total, enviados: 0, inserted: 0, updated: 0, upserted: 0, errors: 0, lotes_com_falha: [] };
+  const colunas = entidade.colunas.join(", ");
 
   for (let offset = 0; offset < total; offset += batchSize) {
-    const nLote = Math.floor(offset / batchSize) + 1;
     try {
       const rows = await query(
-        `SELECT ${paginacao(batchSize, offset)} ${selectList} FROM ${tabela()} ${whereSql} ORDER BY ${COLUNAS.codigo_erp}`,
+        `SELECT ${paginacao(batchSize, offset)} ${colunas} FROM ${entidade.tabela} ${where} ORDER BY ${entidade.chave}`,
         params,
       );
       if (rows.length === 0) break;
-
-      const entities = rows
-        .map(normalizar)
-        // Sem código não há chave de upsert: o CRM rejeitaria a linha de
-        // qualquer forma, então nem enviamos.
-        .filter((c) => c.codigo_erp)
-        .map(paraEntidadeCRM);
-
-      if (entities.length === 0) continue;
-
-      const r = await enviarLote(entities);
-      resumo.lotes++;
-      resumo.enviados += entities.length;
-      resumo.inserted += r.inserted ?? 0;
-      resumo.updated += r.updated ?? 0;
-      resumo.errors += r.errors ?? 0;
-      logger.info(
-        `Lote ${nLote}: ${entities.length} enviados -> +${r.inserted ?? 0} novos, ~${r.updated ?? 0} atualizados, ${r.errors ?? 0} erros`,
-      );
+      await enviarLinhas(entidade, rows, resumo);
     } catch (err) {
-      /*
-       * Um lote que falha não aborta o sync: com 13 mil registros, perder tudo
-       * por causa de uma queda de rede no lote 20 seria pior que seguir e
-       * reportar. Os lotes com falha ficam registrados para reprocessar.
-       */
-      resumo.lotes_com_falha.push({ lote: nLote, offset, erro: err.message });
-      logger.error(`Lote ${nLote} (offset ${offset}) falhou: ${err.message}`);
+      // Um lote que falha não aborta o sync: segue e reporta para reprocessar.
+      resumo.lotes_com_falha.push({ offset, erro: err.message });
+      logger.error(`[${entidade.nome}] lote offset ${offset} falhou: ${err.message}`);
     }
   }
 
   resumo.duracao_ms = Date.now() - inicio;
   logger.info(
-    `Sync concluído em ${resumo.duracao_ms}ms: ${resumo.enviados}/${total} enviados, ` +
-    `${resumo.inserted} novos, ${resumo.updated} atualizados, ` +
-    `${resumo.errors} erros de entidade, ${resumo.lotes_com_falha.length} lote(s) com falha`,
+    `[${entidade.nome}] ${resumo.enviados}/${total} enviados em ${resumo.duracao_ms}ms ` +
+    `(${resumo.errors} erros, ${resumo.lotes_com_falha.length} lote(s) com falha)`,
   );
   return resumo;
 }
 
-module.exports = { syncClientesToCRM, paraEntidadeCRM, classificar };
+let rodando = false;
+
+/**
+ * Sincroniza todas as entidades. `completo` ignora as marcas e envia tudo.
+ * Não roda duas vezes ao mesmo tempo (o cron pode disparar com um sync longo
+ * ainda em andamento).
+ */
+async function syncTudo({ completo = false } = {}) {
+  if (rodando) {
+    logger.warn("Sync já em andamento — disparo ignorado");
+    return { ignorado: true };
+  }
+  rodando = true;
+  try {
+    const estado = lerEstado();
+    const resultados = [];
+    for (const entidade of ENTIDADES) {
+      const comeco = new Date();
+      const marca = !completo && estado[entidade.nome] ? new Date(new Date(estado[entidade.nome]) - MARGEM_MS) : null;
+      const r = await syncEntidade(entidade, marca);
+      resultados.push(r);
+      if (r.lotes_com_falha.length === 0) {
+        estado[entidade.nome] = comeco.toISOString();
+        gravarEstado(estado);
+      }
+    }
+    return { resultados };
+  } finally {
+    rodando = false;
+  }
+}
+
+/** Compatibilidade com POST /sync/clientes. */
+async function syncClientesToCRM(since = null) {
+  const entidade = ENTIDADES.find((e) => e.nome === "clientes");
+  const d = since ? new Date(since) : null;
+  if (d && Number.isNaN(d.getTime())) throw new Error(`since inválido: ${since}`);
+  return syncEntidade(entidade, d);
+}
+
+module.exports = { syncTudo, syncEntidade, syncClientesToCRM, enviarLinhas, enviarLote };

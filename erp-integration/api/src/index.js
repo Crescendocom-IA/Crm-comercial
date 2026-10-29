@@ -5,7 +5,7 @@ const cron = require("node-cron");
 const logger = require("./logger");
 const db = require("./db");
 const auth = require("./middleware/auth");
-const { syncClientesToCRM } = require("./services/sync");
+const { syncClientesToCRM, syncTudo } = require("./services/sync");
 
 const app = express();
 app.use(express.json({ limit: "2mb" }));
@@ -72,6 +72,19 @@ app.post("/sync/clientes", async (req, res) => {
   }
 });
 
+/*
+ * Sync de tudo (vendedores, grupos, produtos, clientes, pedidos, itens).
+ * Incremental por padrão; { "completo": true } reenvia a base inteira.
+ */
+app.post("/sync", async (req, res) => {
+  try {
+    res.json(await syncTudo({ completo: req.body?.completo === true }));
+  } catch (err) {
+    logger.error(`POST /sync: ${err.message}`);
+    res.status(500).json({ error: "sync_failed", message: err.message });
+  }
+});
+
 app.use((_req, res) => res.status(404).json({ error: "not_found" }));
 
 // Handler de erro final — sem ele, uma exceção não tratada derruba o processo.
@@ -99,7 +112,7 @@ if (expressao) {
     cron.schedule(expressao, async () => {
       logger.info(`Sync agendado disparado (${expressao})`);
       try {
-        await syncClientesToCRM(null);
+        await syncTudo();
       } catch (err) {
         logger.error(`Sync agendado falhou: ${err.message}`);
       }

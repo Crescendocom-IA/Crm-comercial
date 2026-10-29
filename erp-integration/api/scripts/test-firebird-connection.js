@@ -6,7 +6,7 @@ const { query } = require("../src/db");
  * imprime as COLUNAS REAIS da tabela de clientes.
  *
  * O mapeamento em src/routes/clientes.js foi escrito sem acesso ao ERP. Este
- * script é o que fecha essa lacuna: rode, compare a saída com o objeto COLUNAS
+ * script é o que fecha essa lacuna: rode, compare a saída com as colunas em src/mapping.js
  * e ajuste o que divergir.
  */
 
@@ -68,8 +68,8 @@ async function main() {
   console.log(`\n✓ Registros em ${tabela}: ${total[0]?.total ?? 0}`);
 
   console.log("\n" + "─".repeat(64));
-  console.log("PRÓXIMO PASSO: compare as colunas acima com o objeto COLUNAS em");
-  console.log("src/routes/clientes.js e ajuste o que estiver diferente.");
+  console.log("PRÓXIMO PASSO: compare as colunas acima com as declaradas em");
+  console.log("src/mapping.js e ajuste o que estiver diferente.");
   console.log("─".repeat(64));
   process.exit(0);
 }

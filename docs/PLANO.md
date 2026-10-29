@@ -75,7 +75,7 @@ ERP do cliente ──► Ponte (item 2) ──► Clientes + Produtos + Pedidos 
 
 ---
 
-### 2. Ponte com o banco de cada cliente (inclusive estruturas diferentes) — 💬 em discussão
+### 2. Ponte com o banco de cada cliente (inclusive estruturas diferentes) — 🔨 ponte do ERP atual pronta (agente envia direto, 6 entidades); mapeamento por tela e outros ERPs ainda não
 
 **Pedido:** integrar o banco de dados de cada empresa cliente; e se cada uma tiver um banco estruturado de forma completamente diferente?
 
@@ -153,9 +153,16 @@ ERP do cliente ──► Ponte (item 2) ──► Clientes + Produtos + Pedidos 
 
 ---
 
-### 4. Produtos, pedidos de venda e itens — 💬 em discussão
+### 4. Produtos, pedidos de venda e itens — 🔨 tabelas, sync e telas prontos (29/10/2026); carga inicial no Supabase de teste
 
 **Pedido:** adicionar produtos, pedidos de venda e itens de venda ao CRM.
+
+**Feito (29/10/2026):**
+- Migration `20261029100000_erp_sales_data.sql`: `products`, `product_groups`, `erp_sellers`, `sales_orders`, `sales_order_items` (só leitura no app; RLS por org), telefone/e-mail em `companies`, view `customer_purchase_summary` e função `customer_top_products`.
+- Chave de tudo = **ID interno do ERP** (`CLI_ID`, `PROD_ID`, `PEDIDO_ID`, `VEND_ID`, `ITEMPED_ID`) — conferido: `CLI_CODIGO` só bate com 78% dos pedidos.
+- `erp-sync` aceita `seller`, `product_group`, `product`, `order`, `order_item` (upsert em lote de 500).
+- Agente: `src/mapping.js` com o mapeamento real; sync incremental de tudo (`POST /sync`, `SYNC_CRON`); senha de vendedor nunca é lida.
+- Telas: **Produtos**, **Pedidos** (vendas/orçamentos, itens) e aba **Compras** na ficha de empresa/contato.
 
 **Situação atual:** o CRM **não tem** nenhuma tabela de produto ou pedido. O agente do ERP já tem rotas `/produtos` e `/pedidos`, mas o `erp-sync` não as recebe.
 

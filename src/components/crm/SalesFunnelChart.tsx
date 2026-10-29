@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Funnel, FunnelChart, LabelList, ResponsiveContainer, Tooltip, Cell } from "recharts";
+import { Funnel, FunnelChart, ResponsiveContainer, Tooltip, Cell } from "recharts";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 export interface FunnelStage {
@@ -81,16 +81,20 @@ export function SalesFunnelChart({
             />
             <Funnel dataKey="plot" nameKey="name" data={data} isAnimationActive lastShapeType="rectangle">
               {data.map((s) => <Cell key={s.name} fill={s.color} />)}
-              <LabelList dataKey="label" position="center" fill="#fff" stroke="none" fontSize={11} fontWeight={600} />
             </Funnel>
           </FunnelChart>
         </ResponsiveContainer>
-        <ul className="space-y-1 text-xs min-w-[120px]" aria-label="Etapas do funil">
+        {/* Os números ficam na legenda, não dentro dos trapézios: etapas com
+            valor pequeno viram faixas finas onde o rótulo não cabe. */}
+        <ul className="space-y-1.5 text-xs min-w-[150px]" aria-label="Etapas do funil">
           {data.map((s) => (
             <li key={s.name} className="flex items-center gap-1.5">
               <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
               <span className="truncate font-medium">{s.name}</span>
-              {s.conversion !== null && <span className="ml-auto text-muted-foreground">{s.conversion}%</span>}
+              <span className="ml-auto pl-2 tabular-nums">{s.label}</span>
+              {s.conversion !== null && (
+                <span className="w-9 text-right tabular-nums text-muted-foreground" title="Passagem da etapa anterior">{s.conversion}%</span>
+              )}
             </li>
           ))}
         </ul>

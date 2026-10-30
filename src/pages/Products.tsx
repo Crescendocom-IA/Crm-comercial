@@ -94,7 +94,9 @@ export default function Products() {
                   <TableCell className="hidden lg:table-cell">
                     {(p.group_codigo_erp && groupName.get(p.group_codigo_erp)) ?? p.group_name ?? "—"}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">{formatBRL(p.sale_price)}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {p.sale_price ? formatBRL(p.sale_price) : <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">sem preço</Badge>}
+                  </TableCell>
                   <TableCell className="hidden sm:table-cell text-right tabular-nums text-muted-foreground">{formatBRL(p.cost_price)}</TableCell>
                   <TableCell className="hidden sm:table-cell text-right tabular-nums">{formatQty(p.stock)}</TableCell>
                 </TableRow>

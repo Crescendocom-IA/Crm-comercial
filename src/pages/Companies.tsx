@@ -351,7 +351,11 @@ export default function Companies() {
                           </AvatarFallback>
                         </Avatar>
                       )}
-                      <span className="font-medium">{c.name}</span>
+                      <span className="min-w-0">
+                        <span className="block font-medium">{c.name}</span>
+                        {/* Clientes do ERP repetem o nome por unidade: a cidade diferencia. */}
+                        {c.cidade && <span className="block text-xs text-muted-foreground">{c.cidade}{c.estado ? ` / ${c.estado}` : ""}</span>}
+                      </span>
                       <ErpBadge syncSource={(c as any).sync_source} />
                     </div>
                   </TableCell>

@@ -202,7 +202,7 @@ ERP do cliente ──► Ponte (item 2) ──► Clientes + Produtos + Pedidos 
 
 ---
 
-### 5. Tela de filtro / público-alvo — "base de tudo" — 💬 em discussão
+### 5. Tela de filtro / público-alvo — "base de tudo" — 🔨 pronta (30/10/2026): regras de compra, cadastro, salvar e exportar; ações em massa são o item 6
 
 **Pedido:** filtro completo que, com base no histórico, encontra os leads certos. Ex.: "vou vender mangueira a R$ 1.000 na semana que vem — quem comprou mangueira nos últimos 6 meses, acima de tantos reais". É dessa tela que partem as ações.
 

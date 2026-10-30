@@ -20,6 +20,7 @@ import {
   Moon,
   Package,
   ShoppingCart,
+  Crosshair,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -50,6 +51,7 @@ const generalItems = [
   { title: "Tarefas", url: "/tasks", icon: CheckSquare },
   { title: "Produtos", url: "/products", icon: Package },
   { title: "Pedidos", url: "/orders", icon: ShoppingCart },
+  { title: "Público-alvo", url: "/audiences", icon: Crosshair },
 ];
 
 const emailItems = [

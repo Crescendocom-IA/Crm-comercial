@@ -2,7 +2,8 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { STALE_TIME } from "./config";
-import type { Database } from "@/integrations/supabase/types";
+import { fetchAll } from "@/lib/fetchAll";
+import type { Database, Json } from "@/integrations/supabase/types";
 
 /*
  * Espelho do histórico de vendas do ERP (produtos, pedidos, itens). Só
@@ -207,4 +208,41 @@ export function useCustomerPurchasesQuery(customerCodigo: string | null | undefi
       };
     },
   });
+}
+
+/* ── Público-alvo ─────────────────────────────────────────────────────────── */
+
+export type AudienceRow = Database["public"]["Functions"]["audience_search"]["Returns"][number];
+export type AudienceSort = "matched" | "total" | "recent" | "oldest" | "name";
+
+export function useAudienceQuery(query: Json | null, page: number, sort: AudienceSort) {
+  const { orgId } = useOrg();
+  return useQuery({
+    queryKey: ["sales", orgId, "audience", query, page, sort] as const,
+    enabled: !!orgId && query !== null,
+    staleTime: STALE_TIME.list,
+    placeholderData: keepPreviousData,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("audience_search", {
+        p_filters: query as Json,
+        p_limit: SALES_PAGE_SIZE,
+        p_offset: page * SALES_PAGE_SIZE,
+        p_sort: sort,
+      });
+      if (error) throw error;
+      const rows = (data || []) as AudienceRow[];
+      return {
+        rows,
+        total: Number(rows[0]?.total_count ?? 0),
+        totalMatchedValue: Number(rows[0]?.total_matched_value ?? 0),
+      };
+    },
+  });
+}
+
+/** O público inteiro, para exportar (a função devolve até 1.000 por chamada). */
+export function fetchAudienceAll(query: Json, sort: AudienceSort): Promise<AudienceRow[]> {
+  return fetchAll<AudienceRow>((from, to) => supabase.rpc("audience_search", {
+    p_filters: query, p_limit: to - from + 1, p_offset: from, p_sort: sort,
+  }));
 }

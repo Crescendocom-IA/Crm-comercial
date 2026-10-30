@@ -21,6 +21,7 @@ const routeLabels: Record<string, string> = {
   "/tasks": "Tarefas",
   "/products": "Produtos",
   "/orders": "Pedidos",
+  "/audiences": "Público-alvo",
   "/inbox": "Caixa de Entrada",
   "/email-templates": "Templates de Email",
   "/email-sequences": "Sequências de Email",

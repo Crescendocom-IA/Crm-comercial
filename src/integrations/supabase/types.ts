@@ -2779,6 +2779,31 @@ export type Database = {
       }
     }
     Functions: {
+      audience_search: {
+        Args: { p_filters: Json; p_limit?: number; p_offset?: number; p_sort?: string }
+        Returns: {
+          avg_ticket: number
+          cidade: string | null
+          cnpj_cpf: string | null
+          codigo_erp: string | null
+          customer_kind: string
+          days_since_last_order: number | null
+          email: string | null
+          estado: string | null
+          id: string
+          last_order_date: string | null
+          matched_last_date: string | null
+          matched_qty: number | null
+          matched_value: number | null
+          name: string
+          order_count: number
+          phone: string | null
+          seller_codigo_erp: string | null
+          total_count: number
+          total_matched_value: number
+          total_spent: number
+        }[]
+      }
       customer_top_products: {
         Args: { p_customer_codigo_erp: string; p_limit?: number }
         Returns: {

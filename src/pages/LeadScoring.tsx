@@ -122,7 +122,8 @@ export default function LeadScoring() {
     [contacts],
   );
   const { rules } = useLeadScoringRulesQuery();
-  const segments = useSegmentsQuery() as Segment[];
+  // Públicos-alvo também moram em segments, mas têm tela própria.
+  const segments = (useSegmentsQuery() as Segment[]).filter((s) => (s.filters as { type?: string } | null)?.type !== "audience");
   const history = useLeadScoreHistoryQuery() as ScoreHistory[];
   const members = useMembersQuery() as Profile[];
   const { save: saveRuleMut, toggle: toggleRuleMut, updatePoints, remove: removeRuleMut, seed } = useLeadScoringRuleMutation();

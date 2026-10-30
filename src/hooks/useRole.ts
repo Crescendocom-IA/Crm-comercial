@@ -15,11 +15,11 @@ export type { Role };
  * custava 14 idas ao banco para buscar sempre o mesmo dado. O papel é
  * rebuscado sempre que o profile recarrega (login, refreshProfile, troca de org).
  *
- * IMPORTANTE — este hook esconde botões, não protege dados. O RLS continua
- * autorizando por pertencimento à organização, então qualquer membro que abra
- * o console do navegador consegue chamar supabase.from(...).delete() direto.
- * Isso foi uma decisão explícita para uso interno; se o app passar a ter
- * usuários não confiáveis, a política precisa virar RLS por papel no banco.
+ * Este hook decide o que a tela mostra. Quem protege os dados de clientes,
+ * negócios, atividades e pedidos é o RLS por papel (migration
+ * seller_portfolio): vendedor só vê a própria carteira e não exclui. As demais
+ * tabelas (automações, configurações, integrações…) ainda autorizam só por
+ * pertencer à organização, então nelas o botão escondido é a única barreira.
  */
 export function useRole() {
   const { role, loading } = useAuth();

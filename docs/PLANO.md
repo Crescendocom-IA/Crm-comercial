@@ -122,7 +122,7 @@ ERP do cliente ──► Ponte (item 2) ──► Clientes + Produtos + Pedidos 
 
 ---
 
-### 3. Contas, empresas e permissões — 🔨 falha crítica corrigida e no ar (29/10/2026); visibilidade por dono e super admin ainda não feitos
+### 3. Contas, empresas e permissões — 🔨 isolamento e carteira por vendedor aplicados no banco (30/10/2026); falta painel de super admin e aplicar a matriz de permissões
 
 **Como funciona hoje:**
 - **Um banco só** (Supabase/Postgres) para todas as empresas. Cada registro tem `org_id`; o RLS filtra por empresa. Não há banco separado por empresa.

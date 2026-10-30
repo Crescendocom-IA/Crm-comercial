@@ -331,9 +331,13 @@ export default function Contacts() {
           <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)} aria-label="Alternar filtros">
             <Filter className="mr-1 h-3.5 w-3.5" /><span className="hidden sm:inline">Filtros</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setCsvOpen(true)} aria-label="Importar CSV" className="hidden sm:flex">
-            <Upload className="mr-1.5 h-3.5 w-3.5" />Importar
-          </Button>
+          {/* Só owner/admin: a checagem de duplicados compara com o que a pessoa
+              enxerga, e o vendedor só enxerga a própria carteira. */}
+          {canDelete && (
+            <Button variant="outline" size="sm" onClick={() => setCsvOpen(true)} aria-label="Importar CSV" className="hidden sm:flex">
+              <Upload className="mr-1.5 h-3.5 w-3.5" />Importar
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={exportCSV} aria-label="Exportar CSV" className="hidden sm:flex">
             <Download className="mr-1.5 h-3.5 w-3.5" />Exportar
           </Button>
@@ -596,7 +600,7 @@ export default function Contacts() {
         específica de contatos que quebraria o uso em Empresas.
       */}
       <CSVImportModal
-        open={csvOpen}
+        open={csvOpen && canDelete}
         onOpenChange={setCsvOpen}
         onImported={invalidar}
         entityType="contacts"

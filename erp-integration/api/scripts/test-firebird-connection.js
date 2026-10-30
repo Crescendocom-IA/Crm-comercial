@@ -1,75 +1,94 @@
 require("dotenv").config();
 const { query } = require("../src/db");
+const { ENTIDADES, paraEntidade } = require("../src/mapping");
 
 /*
- * Valida a instalação ANTES de subir a API inteira, e — mais importante —
- * imprime as COLUNAS REAIS da tabela de clientes.
+ * Valida a instalação ANTES de ligar o sync: conexão, e se cada tabela e coluna
+ * que src/mapping.js usa existe neste banco. O mapeamento foi conferido contra
+ * uma cópia do ERP; este script confirma que o servidor real é igual.
  *
- * O mapeamento em src/routes/clientes.js foi escrito sem acesso ao ERP. Este
- * script é o que fecha essa lacuna: rode, compare a saída com as colunas em src/mapping.js
- * e ajuste o que divergir.
+ * Só lê. Não envia nada ao CRM.
  */
 
-const tabela = process.env.ERP_TABELA_CLIENTES || "ERP_CLIENTE";
+async function colunasDe(tabela) {
+  const rows = await query(
+    "SELECT TRIM(rdb$field_name) AS coluna FROM rdb$relation_fields WHERE TRIM(rdb$relation_name) = ?",
+    [tabela],
+  );
+  return new Set(rows.map((r) => String(r.coluna).trim().toUpperCase()));
+}
+
+/** A coluna tem índice? Sem ele, o sync fica lento nas tabelas grandes. */
+async function temIndice(tabela, coluna) {
+  const rows = await query(
+    `SELECT COUNT(*) AS n FROM rdb$indices i
+     JOIN rdb$index_segments s ON s.rdb$index_name = i.rdb$index_name
+     WHERE TRIM(i.rdb$relation_name) = ? AND TRIM(s.rdb$field_name) = ? AND s.rdb$field_position = 0`,
+    [tabela, coluna],
+  );
+  return Number(rows[0]?.n ?? 0) > 0;
+}
 
 async function main() {
   console.log("─".repeat(64));
-  console.log("Teste de conexão com o Firebird");
+  console.log("Teste do agente: conexão e tabelas do ERP");
   console.log("─".repeat(64));
-  console.log(`Host     : ${process.env.FIREBIRD_HOST}:${process.env.FIREBIRD_PORT}`);
-  console.log(`Banco    : ${process.env.FIREBIRD_DATABASE}`);
-  console.log(`Usuário  : ${process.env.FIREBIRD_USER}`);
-  console.log(`Tabela   : ${tabela}`);
-  console.log("");
+  console.log(`Host   : ${process.env.FIREBIRD_HOST}:${process.env.FIREBIRD_PORT}`);
+  console.log(`Banco  : ${process.env.FIREBIRD_DATABASE}`);
+  console.log(`Usuário: ${process.env.FIREBIRD_USER}\n`);
 
-  // 1. Conectividade
-  const versao = await query(
-    "SELECT rdb$get_context('SYSTEM','ENGINE_VERSION') AS versao FROM RDB$DATABASE",
-  );
-  console.log(`✓ Conectado. Versão do engine: ${versao[0]?.versao ?? "desconhecida"}`);
+  const versao = await query("SELECT rdb$get_context('SYSTEM','ENGINE_VERSION') AS versao FROM RDB$DATABASE");
+  console.log(`✓ Conectado. Firebird ${versao[0]?.versao ?? "versão desconhecida"}\n`);
 
-  // 2. Primeiras tabelas do banco (só as de usuário, não as do sistema)
-  const tabelas = await query(`
-    SELECT FIRST 5 TRIM(rdb$relation_name) AS nome
-    FROM rdb$relations
-    WHERE rdb$system_flag = 0 AND rdb$view_blr IS NULL
-    ORDER BY rdb$relation_name
-  `);
-  console.log(`\n✓ Primeiras tabelas encontradas (${tabelas.length}):`);
-  tabelas.forEach((t) => console.log(`   • ${t.nome}`));
+  let problemas = 0;
+  const avisos = [];
 
-  // 3. A tabela de clientes existe?
-  const existe = await query(
-    `SELECT COUNT(*) AS n FROM rdb$relations WHERE TRIM(rdb$relation_name) = ?`,
-    [tabela],
-  );
-  if (Number(existe[0]?.n ?? 0) === 0) {
-    console.log(`\n✗ A tabela/view "${tabela}" NÃO existe neste banco.`);
-    console.log("   Ajuste ERP_TABELA_CLIENTES no .env para o nome correto.");
-    console.log("   (as tabelas acima são um começo para descobrir qual é)");
+  for (const e of ENTIDADES) {
+    const reais = await colunasDe(e.tabela);
+    if (reais.size === 0) {
+      console.log(`✗ ${e.tabela}: tabela NÃO encontrada`);
+      problemas++;
+      continue;
+    }
+    const faltando = e.colunas.filter((c) => !reais.has(c));
+    if (faltando.length) {
+      console.log(`✗ ${e.tabela}: faltam as colunas ${faltando.join(", ")}`);
+      problemas++;
+      continue;
+    }
+    const total = await query(`SELECT COUNT(*) AS total FROM ${e.tabela}`);
+    console.log(`✓ ${e.tabela.padEnd(18)} ${String(total[0]?.total ?? 0).padStart(8)} registros, ${e.colunas.length} colunas ok`);
+
+    if (!(await temIndice(e.tabela, e.chave))) avisos.push(`${e.tabela}.${e.chave} sem índice`);
+    if (!(await temIndice(e.tabela, "DATA_ULT_ALTERACAO"))) avisos.push(`${e.tabela}.DATA_ULT_ALTERACAO sem índice`);
+  }
+
+  if (problemas) {
+    console.log(`\n✗ ${problemas} problema(s). Este ERP é diferente do mapeado em src/mapping.js.`);
+    console.log("  Não ligue o sync; envie esta saída para quem cuida da integração.");
     process.exit(1);
   }
 
-  // 4. Colunas reais — o dado mais importante deste script
-  const colunas = await query(
-    `SELECT TRIM(rf.rdb$field_name) AS coluna, t.rdb$type_name AS tipo
-     FROM rdb$relation_fields rf
-     JOIN rdb$fields f ON f.rdb$field_name = rf.rdb$field_source
-     JOIN rdb$types t ON t.rdb$type = f.rdb$field_type AND t.rdb$field_name = 'RDB$FIELD_TYPE'
-     WHERE TRIM(rf.rdb$relation_name) = ?
-     ORDER BY rf.rdb$field_position`,
-    [tabela],
+  // Acentos: se aparecerem errados aqui, ajuste FIREBIRD_ENCODING no .env.
+  const clientes = ENTIDADES.find((e) => e.nome === "clientes");
+  const amostra = await query(
+    `SELECT FIRST 3 ${clientes.colunas.join(", ")} FROM ${clientes.tabela}
+     WHERE CLI_RAZAOSOCIAL LIKE '%Ã%' OR CLI_RAZAOSOCIAL LIKE '%Ç%' ORDER BY ${clientes.chave}`,
   );
-  console.log(`\n✓ Colunas de ${tabela} (${colunas.length}):`);
-  colunas.forEach((c) => console.log(`   • ${c.coluna.padEnd(28)} ${String(c.tipo || "").trim()}`));
+  console.log("\nAmostra (confira se os ACENTOS estão certos):");
+  amostra.forEach((r) => {
+    const ent = paraEntidade(clientes, r);
+    console.log(`   • ${ent?.data.name} — ${ent?.data.cidade ?? ""}`);
+  });
+  if (amostra.length === 0) console.log("   (nenhum nome com Ã ou Ç encontrado para conferir)");
 
-  // 5. Total de registros
-  const total = await query(`SELECT COUNT(*) AS total FROM ${tabela}`);
-  console.log(`\n✓ Registros em ${tabela}: ${total[0]?.total ?? 0}`);
+  if (avisos.length) {
+    console.log("\n! Sem índice (funciona, mas o sync fica mais lento nas tabelas grandes):");
+    avisos.forEach((a) => console.log(`   • ${a}`));
+  }
 
   console.log("\n" + "─".repeat(64));
-  console.log("PRÓXIMO PASSO: compare as colunas acima com as declaradas em");
-  console.log("src/mapping.js e ajuste o que estiver diferente.");
+  console.log("Tudo certo. Próximo passo: npm run sync -- --so=vendedores");
   console.log("─".repeat(64));
   process.exit(0);
 }
@@ -78,8 +97,7 @@ main().catch((err) => {
   console.error(`\n✗ FALHOU: ${err.message}\n`);
   console.error("Verifique, nesta ordem:");
   console.error("  1. O serviço do Firebird está rodando? (services.msc → Firebird Server)");
-  console.error("  2. O caminho em FIREBIRD_DATABASE existe e está acessível?");
+  console.error("  2. O caminho em FIREBIRD_DATABASE existe neste servidor?");
   console.error("  3. Usuário e senha estão corretos?");
-  console.error("  4. A porta 3050 está liberada no firewall local?");
   process.exit(1);
 });

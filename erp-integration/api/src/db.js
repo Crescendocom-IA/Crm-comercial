@@ -33,6 +33,8 @@ function buildOptions() {
     // no código vira row.CODIGO em vez de row.codigo.
     lowercase_keys: true,
     pageSize: 4096,
+    // Só mude se o "npm run test-firebird" mostrar acentos errados.
+    encoding: process.env.FIREBIRD_ENCODING || "UTF8",
   };
 }
 

@@ -17,8 +17,13 @@ const { ENTIDADES, paraEntidade } = require("../mapping");
  * sync com lote falho não avança a marca — o próximo reenvia o período.
  */
 
-const ESTADO = path.join(__dirname, "..", "..", "data", "ultimo-sync.json");
+const ESTADO = process.env.SYNC_STATE_FILE || path.join(__dirname, "..", "..", "data", "ultimo-sync.json");
 const MARGEM_MS = 10 * 60 * 1000;
+// Sem tempo limite, uma resposta que nunca chega pendura o sync para sempre, e
+// num serviço ninguém vê (aconteceu na carga inicial).
+const CRM_TIMEOUT_MS = 120_000;
+const CRM_TENTATIVAS = 3;
+const CRM_ESPERA_MS = Number(process.env.SYNC_RETRY_WAIT_MS) || 5000;
 
 function lerEstado() {
   try {
@@ -40,19 +45,36 @@ async function enviarLote(entities) {
     throw new Error("CRM_SYNC_URL ou CRM_TOKEN não configurados no .env");
   }
 
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-ERP-Token": token },
-    body: JSON.stringify({ entities }),
-  });
-
-  const texto = await resp.text();
-  if (!resp.ok) throw new Error(`CRM respondeu ${resp.status}: ${texto.slice(0, 300)}`);
-  try {
-    return JSON.parse(texto);
-  } catch {
-    throw new Error(`CRM devolveu resposta não-JSON: ${texto.slice(0, 200)}`);
+  let ultimoErro;
+  for (let tentativa = 1; tentativa <= CRM_TENTATIVAS; tentativa++) {
+    try {
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-ERP-Token": token },
+        body: JSON.stringify({ entities }),
+        signal: AbortSignal.timeout(CRM_TIMEOUT_MS),
+      });
+      const texto = await resp.text();
+      if (resp.ok) {
+        try {
+          return JSON.parse(texto);
+        } catch {
+          throw new Error(`CRM devolveu resposta não-JSON: ${texto.slice(0, 200)}`);
+        }
+      }
+      ultimoErro = new Error(`CRM respondeu ${resp.status}: ${texto.slice(0, 300)}`);
+      // 4xx é configuração (token errado etc.): repetir não resolve.
+      if (resp.status < 500) throw Object.assign(ultimoErro, { definitivo: true });
+    } catch (err) {
+      if (err.definitivo) throw err;
+      ultimoErro = err;
+    }
+    if (tentativa < CRM_TENTATIVAS) {
+      logger.warn(`Envio ao CRM falhou (tentativa ${tentativa}): ${ultimoErro.message}`);
+      await new Promise((r) => setTimeout(r, CRM_ESPERA_MS * tentativa));
+    }
   }
+  throw ultimoErro;
 }
 
 /**
@@ -70,11 +92,8 @@ async function enviarLinhas(entidade, rows, resumo) {
   resumo.errors += r.errors ?? 0;
 }
 
-/**
- * O Firebird 2.5 NÃO tem LIMIT/OFFSET — é `FIRST n SKIP m`, e a ordem das
- * palavras importa (FIRST antes de SKIP).
- */
-const paginacao = (limit, offset) => `FIRST ${Number(limit)} SKIP ${Number(offset)}`;
+/** Valor da chave na linha (o node-firebird devolve colunas em minúsculas). */
+const valorChave = (row, chave) => row[chave.toLowerCase()] ?? row[chave];
 
 /**
  * Sincroniza uma entidade.
@@ -84,29 +103,51 @@ const paginacao = (limit, offset) => `FIRST ${Number(limit)} SKIP ${Number(offse
 async function syncEntidade(entidade, since = null) {
   const batchSize = Math.min(1000, Number(process.env.SYNC_BATCH_SIZE) || 500);
   const inicio = Date.now();
-  const where = since ? "WHERE DATA_ULT_ALTERACAO >= ?" : "";
+  const filtro = since ? "DATA_ULT_ALTERACAO >= ?" : null;
   const params = since ? [since] : [];
 
-  const countRows = await query(`SELECT COUNT(*) AS total FROM ${entidade.tabela} ${where}`, params);
+  const countRows = await query(
+    `SELECT COUNT(*) AS total FROM ${entidade.tabela}${filtro ? ` WHERE ${filtro}` : ""}`,
+    params,
+  );
   const total = Number(countRows[0]?.total ?? 0);
   logger.info(`[${entidade.nome}] ${total} linha(s)${since ? ` desde ${since.toISOString()}` : " (completo)"}`);
 
   const resumo = { entidade: entidade.nome, total, enviados: 0, inserted: 0, updated: 0, upserted: 0, errors: 0, lotes_com_falha: [] };
   const colunas = entidade.colunas.join(", ");
 
-  for (let offset = 0; offset < total; offset += batchSize) {
+  /*
+   * Paginação pela chave (WHERE chave > última), não FIRST/SKIP: SKIP faz o
+   * Firebird percorrer tudo o que pula, e os últimos lotes dos 272 mil itens
+   * passariam do tempo limite da query.
+   */
+  let ultima = null;
+  for (;;) {
+    const where = [filtro, ultima !== null ? `${entidade.chave} > ?` : null].filter(Boolean);
+    let rows;
     try {
-      const rows = await query(
-        `SELECT ${paginacao(batchSize, offset)} ${colunas} FROM ${entidade.tabela} ${where} ORDER BY ${entidade.chave}`,
-        params,
+      rows = await query(
+        `SELECT FIRST ${Number(batchSize)} ${colunas} FROM ${entidade.tabela}` +
+        `${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY ${entidade.chave}`,
+        ultima !== null ? [...params, ultima] : params,
       );
-      if (rows.length === 0) break;
+    } catch (err) {
+      // Sem conseguir ler não há como avançar: encerra e o próximo sync recomeça.
+      resumo.lotes_com_falha.push({ apos: ultima, erro: err.message });
+      logger.error(`[${entidade.nome}] leitura após chave ${ultima} falhou: ${err.message}`);
+      break;
+    }
+    if (rows.length === 0) break;
+
+    try {
       await enviarLinhas(entidade, rows, resumo);
     } catch (err) {
-      // Um lote que falha não aborta o sync: segue e reporta para reprocessar.
-      resumo.lotes_com_falha.push({ offset, erro: err.message });
-      logger.error(`[${entidade.nome}] lote offset ${offset} falhou: ${err.message}`);
+      // Um lote que falha não aborta o sync: segue, e a marca de sync não avança.
+      resumo.lotes_com_falha.push({ apos: ultima, erro: err.message });
+      logger.error(`[${entidade.nome}] envio após chave ${ultima} falhou: ${err.message}`);
     }
+    ultima = valorChave(rows[rows.length - 1], entidade.chave);
+    if (rows.length < batchSize) break;
   }
 
   resumo.duracao_ms = Date.now() - inicio;
@@ -124,7 +165,7 @@ let rodando = false;
  * Não roda duas vezes ao mesmo tempo (o cron pode disparar com um sync longo
  * ainda em andamento).
  */
-async function syncTudo({ completo = false } = {}) {
+async function syncTudo({ completo = false, so = null } = {}) {
   if (rodando) {
     logger.warn("Sync já em andamento — disparo ignorado");
     return { ignorado: true };
@@ -134,6 +175,7 @@ async function syncTudo({ completo = false } = {}) {
     const estado = lerEstado();
     const resultados = [];
     for (const entidade of ENTIDADES) {
+      if (so && !so.includes(entidade.nome)) continue;
       const comeco = new Date();
       const marca = !completo && estado[entidade.nome] ? new Date(new Date(estado[entidade.nome]) - MARGEM_MS) : null;
       const r = await syncEntidade(entidade, marca);

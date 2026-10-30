@@ -75,7 +75,7 @@ ERP do cliente ──► Ponte (item 2) ──► Clientes + Produtos + Pedidos 
 
 ---
 
-### 2. Ponte com o banco de cada cliente (inclusive estruturas diferentes) — 🔨 ponte do ERP atual pronta (agente envia direto, 6 entidades); mapeamento por tela e outros ERPs ainda não
+### 2. Ponte com o banco de cada cliente (inclusive estruturas diferentes) — 🔨 agente pronto e testado sem Firebird (30/10/2026), falta instalar no servidor; mapeamento por tela e outros ERPs ainda não
 
 **Pedido:** integrar o banco de dados de cada empresa cliente; e se cada uma tiver um banco estruturado de forma completamente diferente?
 

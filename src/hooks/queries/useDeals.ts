@@ -256,7 +256,19 @@ export function useDealsRealtime() {
 
   useEffect(() => {
     if (!orgId) return;
-    const invalidar = () => qc.invalidateQueries({ queryKey: dealKeys.all(orgId) });
+    /*
+     * No máximo uma invalidação a cada 2 s: uma campanha cria centenas de
+     * negócios de uma vez, e invalidar por evento esgota as conexões do
+     * navegador (já aconteceu em Contatos).
+     */
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const invalidar = () => {
+      if (timer) return;
+      timer = setTimeout(() => {
+        timer = null;
+        qc.invalidateQueries({ queryKey: dealKeys.all(orgId) });
+      }, 2000);
+    };
 
     const channel = supabase
       .channel("deals-realtime")
@@ -292,7 +304,10 @@ export function useDealsRealtime() {
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (timer) clearTimeout(timer);
+      supabase.removeChannel(channel);
+    };
   }, [orgId, qc]);
 }
 

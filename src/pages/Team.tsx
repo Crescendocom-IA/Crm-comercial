@@ -24,6 +24,7 @@ import {
   UserPlus, Shield, Trash2, Plus, Users, Crown, Mail,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ErpSellersLink } from "@/components/crm/ErpSellersLink";
 import type { Database } from "@/integrations/supabase/types";
 
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
@@ -172,6 +173,7 @@ export default function Team() {
           <TabsTrigger value="members">Membros</TabsTrigger>
           <TabsTrigger value="permissions">Permissões</TabsTrigger>
           <TabsTrigger value="teams">Equipes</TabsTrigger>
+          <TabsTrigger value="erp-sellers">Vendedores do ERP</TabsTrigger>
         </TabsList>
 
         {/* ── Members Tab ── */}
@@ -436,6 +438,11 @@ export default function Team() {
               </Card>
             ))
           )}
+        </TabsContent>
+
+        {/* ── Vendedores do ERP ── */}
+        <TabsContent value="erp-sellers" className="mt-4">
+          <ErpSellersLink />
         </TabsContent>
       </Tabs>
     </div>

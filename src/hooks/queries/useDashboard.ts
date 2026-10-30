@@ -91,11 +91,8 @@ export function useDashboardData() {
     enabled: !!orgId,
     staleTime: STALE_TIME.counts,
     refetchInterval: REFETCH_INTERVAL,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("deals").select("*").eq("org_id", orgId!);
-      if (error) throw error;
-      return (data || []) as Deal[];
-    },
+    queryFn: () => fetchAll<Deal>((from, to) =>
+      supabase.from("deals").select("*").eq("org_id", orgId!).order("id").range(from, to)),
   });
 
   const activitiesQuery = useQuery({

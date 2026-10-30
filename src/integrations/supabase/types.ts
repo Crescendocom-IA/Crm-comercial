@@ -53,6 +53,7 @@ export type Database = {
           title: string
           type: Database["public"]["Enums"]["activity_type"]
           user_id: string | null
+          campaign_id: string | null
         }
         Insert: {
           body?: string | null
@@ -67,6 +68,7 @@ export type Database = {
           title: string
           type: Database["public"]["Enums"]["activity_type"]
           user_id?: string | null
+          campaign_id?: string | null
         }
         Update: {
           body?: string | null
@@ -81,6 +83,7 @@ export type Database = {
           title?: string
           type?: Database["public"]["Enums"]["activity_type"]
           user_id?: string | null
+          campaign_id?: string | null
         }
         Relationships: [
           {
@@ -628,6 +631,7 @@ export type Database = {
           title: string
           updated_at: string | null
           value: number | null
+          campaign_id: string | null
         }
         Insert: {
           close_date?: string | null
@@ -647,6 +651,7 @@ export type Database = {
           title: string
           updated_at?: string | null
           value?: number | null
+          campaign_id?: string | null
         }
         Update: {
           close_date?: string | null
@@ -666,6 +671,7 @@ export type Database = {
           title?: string
           updated_at?: string | null
           value?: number | null
+          campaign_id?: string | null
         }
         Relationships: [
           {
@@ -1388,6 +1394,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      campaigns: {
+        Row: {
+          action: string
+          created_at: string
+          created_by: string | null
+          filters: Json
+          id: string
+          name: string
+          org_id: string
+          params: Json
+          target_count: number
+          undone_at: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          created_by?: string | null
+          filters: Json
+          id?: string
+          name: string
+          org_id: string
+          params?: Json
+          target_count?: number
+          undone_at?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          created_by?: string | null
+          filters?: Json
+          id?: string
+          name?: string
+          org_id?: string
+          params?: Json
+          target_count?: number
+          undone_at?: string | null
+        }
+        Relationships: []
       }
       erp_sync_log: {
         Row: {
@@ -2764,6 +2809,26 @@ export type Database = {
       }
     }
     Views: {
+      campaign_results: {
+        Row: {
+          action: string
+          created_at: string
+          created_by: string | null
+          deals_lost: number
+          deals_open: number
+          deals_total: number
+          deals_won: number
+          id: string
+          name: string
+          org_id: string
+          target_count: number
+          tasks_done: number
+          tasks_total: number
+          undone_at: string | null
+          won_value: number
+        }
+        Relationships: []
+      }
       customer_purchase_summary: {
         Row: {
           avg_ticket: number | null
@@ -2803,6 +2868,18 @@ export type Database = {
           total_matched_value: number
           total_spent: number
         }[]
+      }
+      campaign_create: {
+        Args: { p_action: string; p_filters: Json; p_name: string; p_params: Json }
+        Returns: { assigned_to_seller: number; campaign_id: string; created_count: number }[]
+      }
+      campaign_undo: {
+        Args: { p_campaign_id: string }
+        Returns: { kept: number; removed: number }[]
+      }
+      erp_seller_set_user: {
+        Args: { p_seller_id: string; p_user_id: string | null }
+        Returns: number
       }
       customer_top_products: {
         Args: { p_customer_codigo_erp: string; p_limit?: number }

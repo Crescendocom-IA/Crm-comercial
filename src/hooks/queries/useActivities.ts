@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAll } from "@/lib/fetchAll";
 import { useOrg } from "@/hooks/useOrg";
 import { applyScoreEvent } from "@/lib/scoring";
 import { STALE_TIME } from "./config";
@@ -40,12 +41,9 @@ export function useActivitiesQuery() {
     enabled: !!orgId,
     staleTime: STALE_TIME.list,
     placeholderData: keepPreviousData,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("activities").select("*")
-        .eq("org_id", orgId!).order("due_date", { ascending: true, nullsFirst: false });
-      if (error) throw error;
-      return (data || []) as Activity[];
-    },
+    // Paginado: uma campanha cria centenas de tarefas de uma vez (corte de 1.000).
+    queryFn: () => fetchAll<Activity>((from, to) => supabase.from("activities").select("*")
+      .eq("org_id", orgId!).order("due_date", { ascending: true, nullsFirst: false }).order("id").range(from, to)),
   });
   return { activities: query.data ?? [], isLoading: query.isLoading, isFetching: query.isFetching };
 }
@@ -64,12 +62,8 @@ export function useTasksQuery() {
     enabled: !!orgId,
     staleTime: STALE_TIME.list,
     placeholderData: keepPreviousData,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("activities").select("*")
-        .eq("org_id", orgId!).eq("type", "task").order("due_date", { ascending: true, nullsFirst: false });
-      if (error) throw error;
-      return (data || []) as Activity[];
-    },
+    queryFn: () => fetchAll<Activity>((from, to) => supabase.from("activities").select("*")
+      .eq("org_id", orgId!).eq("type", "task").order("due_date", { ascending: true, nullsFirst: false }).order("id").range(from, to)),
   });
   return { tasks: query.data ?? [], isLoading: query.isLoading, isFetching: query.isFetching };
 }

@@ -94,13 +94,9 @@ export function useDealOptionsQuery(enabled = true) {
     queryKey: ["deals", orgId, "options"] as const,
     enabled: !!orgId && enabled,
     staleTime: STALE_TIME.list,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("deals").select("id,title,contact_id,company_id")
-        .eq("org_id", orgId!).order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data || []) as DealOption[];
-    },
+    queryFn: () => fetchAll<DealOption>((from, to) => supabase
+      .from("deals").select("id,title,contact_id,company_id")
+      .eq("org_id", orgId!).order("created_at", { ascending: false }).order("id").range(from, to)),
   });
   return query.data ?? [];
 }

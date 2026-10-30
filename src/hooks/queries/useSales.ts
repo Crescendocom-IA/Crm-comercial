@@ -1,4 +1,4 @@
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrg } from "@/hooks/useOrg";
 import { STALE_TIME } from "./config";
@@ -245,4 +245,73 @@ export function fetchAudienceAll(query: Json, sort: AudienceSort): Promise<Audie
   return fetchAll<AudienceRow>((from, to) => supabase.rpc("audience_search", {
     p_filters: query, p_limit: to - from + 1, p_offset: from, p_sort: sort,
   }));
+}
+
+/* ── Campanhas ────────────────────────────────────────────────────────────── */
+
+export type CampaignResult = Database["public"]["Views"]["campaign_results"]["Row"];
+
+export function useCampaignResultsQuery() {
+  const { orgId } = useOrg();
+  return useQuery({
+    queryKey: ["sales", orgId, "campaigns"] as const,
+    enabled: !!orgId,
+    staleTime: STALE_TIME.counts,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("campaign_results").select("*")
+        .eq("org_id", orgId!).order("created_at", { ascending: false }).limit(50);
+      if (error) throw error;
+      return (data || []) as CampaignResult[];
+    },
+  });
+}
+
+export function useCampaignMutation() {
+  const { orgId } = useOrg();
+  const qc = useQueryClient();
+  const invalidar = () => {
+    qc.invalidateQueries({ queryKey: ["sales", orgId, "campaigns"] });
+    qc.invalidateQueries({ queryKey: ["activities", orgId] });
+    qc.invalidateQueries({ queryKey: ["deals", orgId] });
+  };
+
+  const create = useMutation({
+    mutationFn: async (input: { name: string; action: "task" | "deal"; filters: Json; params: Json }) => {
+      const { data, error } = await supabase.rpc("campaign_create", {
+        p_name: input.name, p_action: input.action, p_filters: input.filters, p_params: input.params,
+      });
+      if (error) throw error;
+      return data[0];
+    },
+    onSuccess: invalidar,
+  });
+
+  const undo = useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await supabase.rpc("campaign_undo", { p_campaign_id: id });
+      if (error) throw error;
+      return data[0];
+    },
+    onSuccess: invalidar,
+  });
+
+  return { create, undo };
+}
+
+/** Liga um vendedor do ERP a um usuário; devolve quantos clientes ganharam responsável. */
+export function useSellerLinkMutation() {
+  const { orgId } = useOrg();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ sellerId, userId }: { sellerId: string; userId: string | null }) => {
+      const { data, error } = await supabase.rpc("erp_seller_set_user", { p_seller_id: sellerId, p_user_id: userId });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["sales", orgId, "sellers"] });
+      qc.invalidateQueries({ queryKey: ["contacts", orgId] });
+      qc.invalidateQueries({ queryKey: ["companies", orgId] });
+    },
+  });
 }

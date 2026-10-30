@@ -225,7 +225,7 @@ ERP do cliente ──► Ponte (item 2) ──► Clientes + Produtos + Pedidos 
 
 ---
 
-### 6. Ações em massa a partir do filtro — 💬 em discussão
+### 6. Ações em massa a partir do filtro — 🔨 tarefas e negócios prontos (30/10/2026), com revisão, resultado e desfazer; e-mail depende do domínio no Resend; WhatsApp depois
 
 **Pedido:** com o resultado do filtro, enviar mensagem/email para cada cliente filtrado e disparar o fluxo do app.
 

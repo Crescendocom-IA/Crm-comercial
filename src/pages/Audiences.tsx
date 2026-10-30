@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import {
-  Target, Plus, Trash2, Search, Download, Save, ChevronLeft, ChevronRight, Loader2,
+  Target, Plus, Trash2, Search, Download, Save, ChevronLeft, ChevronRight, Loader2, CheckSquare, Handshake,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,12 +23,15 @@ import { ConfirmDeleteDialog } from "@/components/crm/ConfirmDeleteDialog";
 import { TableSkeleton } from "@/components/crm/TableSkeleton";
 import { SearchableSelect } from "@/components/crm/SearchableSelect";
 import { CustomerPurchasesPanel } from "@/components/crm/CustomerPurchasesPanel";
+import { CampaignDialog, type CampaignAction } from "@/components/crm/CampaignDialog";
+import { CampaignResults } from "@/components/crm/CampaignResults";
 import {
   useAudienceQuery, fetchAudienceAll, useProductGroupsQuery, useSellersQuery, SALES_PAGE_SIZE,
   type AudienceRow, type AudienceSort,
 } from "@/hooks/queries/useSales";
 import { useSegmentsQuery, useSegmentMutation } from "@/hooks/queries/useLeadScoring";
 import { useToast } from "@/hooks/use-toast";
+import { useRole } from "@/hooks/useRole";
 import {
   emptyFilters, emptyRule, toCsv, toQuery,
   type AudienceFilters, type AudienceRule, type RuleAction,
@@ -64,6 +67,8 @@ type SavedAudience = { id: string; name: string; filters: { type?: string; state
  */
 export default function Audiences() {
   const { toast } = useToast();
+  const { canManage } = useRole();
+  const [campaignAction, setCampaignAction] = useState<CampaignAction | null>(null);
   const [filters, setFilters] = useState<AudienceFilters>(emptyFilters);
   const [applied, setApplied] = useState<Json | null>(null);
   const [page, setPage] = useState(0);
@@ -396,6 +401,16 @@ export default function Audiences() {
                   <SelectItem value="name">Nome</SelectItem>
                 </SelectContent>
               </Select>
+              {canManage && (
+                <>
+                  <Button size="sm" onClick={() => setCampaignAction("task")} disabled={isFetching || total === 0}>
+                    <CheckSquare className="mr-1 h-3.5 w-3.5" />Criar tarefas
+                  </Button>
+                  <Button size="sm" onClick={() => setCampaignAction("deal")} disabled={isFetching || total === 0}>
+                    <Handshake className="mr-1 h-3.5 w-3.5" />Criar negócios
+                  </Button>
+                </>
+              )}
               <Button variant="outline" size="sm" onClick={() => setSaveOpen(true)}><Save className="mr-1 h-3.5 w-3.5" />Salvar público</Button>
               <Button variant="outline" size="sm" onClick={exportCsv} disabled={exporting || total === 0}>
                 {exporting ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1 h-3.5 w-3.5" />}Exportar
@@ -476,6 +491,17 @@ export default function Audiences() {
           )}
         </>
       )}
+
+      <CampaignResults />
+
+      <CampaignDialog
+        action={campaignAction}
+        onClose={() => setCampaignAction(null)}
+        filters={applied}
+        total={total}
+        totalMatchedValue={data?.totalMatchedValue ?? 0}
+        sample={rows}
+      />
 
       <ConfirmDeleteDialog
         open={confirmDelete}

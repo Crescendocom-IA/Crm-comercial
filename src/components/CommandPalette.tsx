@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Users, Building2, Handshake, Activity, BarChart3, Settings,
-  Inbox, FileText, Zap, Target, Search as SearchIcon,
+  Inbox, FileText, Zap, Target, Search as SearchIcon, CheckSquare,
 } from "lucide-react";
 import {
   CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator,
@@ -17,8 +17,8 @@ const pages = [
   { label: "Contatos", icon: Users, path: "/contacts" },
   { label: "Empresas", icon: Building2, path: "/companies" },
   { label: "Negócios", icon: Handshake, path: "/deals" },
-  { label: "Atividades", icon: Activity, path: "/activities" },
-  { label: "Atividades", icon: Activity, path: "/activities" },
+  { label: "Agenda", icon: Activity, path: "/activities" },
+  { label: "Tarefas", icon: CheckSquare, path: "/tasks" },
   { label: "Caixa de Entrada", icon: Inbox, path: "/inbox" },
   { label: "Templates de Email", icon: FileText, path: "/email-templates" },
   { label: "Sequências", icon: Zap, path: "/email-sequences" },

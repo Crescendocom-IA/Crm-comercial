@@ -40,7 +40,7 @@ export function AICopilot() {
     if (path === "/contacts") return "Usuário está na página de contatos";
     if (path === "/companies") return "Usuário está na página de empresas";
     if (path === "/reports") return "Usuário está na página de relatórios";
-    if (path === "/activities") return "Usuário está na página de atividades";
+    if (path === "/activities") return "Usuário está na página de agenda (atividades)";
     if (path === "/") return "Usuário está no dashboard principal";
     return `Usuário está na página ${path}`;
   }, [location.pathname]);

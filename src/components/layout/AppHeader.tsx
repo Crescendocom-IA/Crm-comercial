@@ -17,7 +17,7 @@ const routeLabels: Record<string, string> = {
   "/contacts": "Contatos",
   "/companies": "Empresas",
   "/deals": "Negócios",
-  "/activities": "Atividades",
+  "/activities": "Agenda",
   "/tasks": "Tarefas",
   "/products": "Produtos",
   "/orders": "Pedidos",

@@ -257,7 +257,7 @@ export default function Activities() {
       {/* Header */}
       <div className="flex items-center justify-between pb-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Atividades</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Agenda</h1>
           <p className="text-sm text-muted-foreground">
             {filtered.length} atividades
             {counts.overdue > 0 && <span className="text-destructive font-medium ml-1">· {counts.overdue} atrasadas</span>}

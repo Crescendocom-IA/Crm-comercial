@@ -49,11 +49,11 @@ test.describe("Tarefas", () => {
   });
 });
 
-test.describe("Atividades", () => {
+test.describe("Agenda", () => {
   test("página monta e a lista carrega", async ({ page }) => {
     requireCreds();
     await page.goto("/activities");
-    await expect(page.getByRole("heading", { name: "Atividades" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Agenda" })).toBeVisible();
     // A busca só renderiza depois da query montar a tela; prova que não quebrou
     // na derivação (um erro de campo deixaria a página em branco).
     await expect(page.getByPlaceholder("Buscar...")).toBeVisible({ timeout: 15_000 });

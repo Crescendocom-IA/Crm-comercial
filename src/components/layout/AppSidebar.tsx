@@ -47,7 +47,7 @@ const generalItems = [
   { title: "Contatos", url: "/contacts", icon: Users },
   { title: "Empresas", url: "/companies", icon: Building2 },
   { title: "Negócios", url: "/deals", icon: Handshake },
-  { title: "Atividades", url: "/activities", icon: Activity },
+  { title: "Agenda", url: "/activities", icon: Activity },
   { title: "Tarefas", url: "/tasks", icon: CheckSquare },
   { title: "Produtos", url: "/products", icon: Package },
   { title: "Pedidos", url: "/orders", icon: ShoppingCart },
